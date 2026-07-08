@@ -765,6 +765,7 @@ These were open during drafting and are now settled:
     "build:frontend": "npm --prefix frontend run build",
     "build": "npm run build:backend && npm run build:frontend",
     "watch:backend": "tsc -w",
+    "test": "vitest run && npm --prefix frontend run test",
     "clean": "rimraf dist public"
   },
   "files": ["dist/", "public/"],
@@ -794,7 +795,40 @@ plugin directory. The webapp then appears in the SignalK Webapps menu.
 
 ---
 
-## 13. Phased implementation plan
+## 13. Development methodology: test-driven development
+
+The app is developed **test-driven**: comprehensive tests are written in
+parallel with functionality, not deferred to a later phase. For each unit of
+work, tests are written first (or alongside), the implementation makes them
+pass, and a phase of the plan in §14 is only "done" when its tests pass.
+
+Coverage expectations by layer:
+
+- **Backend unit tests** — domain logic (§6: status/remaining calculations,
+  slug generation), the denormalization invariant (§5.6), and repositories
+  (against a temp SQLite file or in-memory DB — `node:sqlite` needs no mocking).
+- **Backend API tests** — the REST endpoints of §8 exercised through the Express
+  router (CRUD, list filtering/sorting/pagination, error shapes, recompute side
+  effects), with the SignalK `app` interface stubbed.
+- **SignalK integration tests** — runtime subscription/caching and the
+  seconds→hours boundary (§10.2), notification publishing and state-change
+  de-duplication (§10.3), against a stubbed `app.handleMessage`/streambundle.
+- **Frontend tests** — component/hook tests for the data layer, auth gating
+  (§7.7), and the key page flows (task list filtering, complete modal), with the
+  REST API mocked.
+
+Suggested tooling: **vitest** for both backend and frontend (it fits the
+existing Vite/TypeScript stack), with @testing-library/react on the frontend;
+final framework choice is an implementation detail. Test files live co-located
+with the code they test (`*.test.ts` / `*.test.tsx`), and `npm test` runs the
+backend and frontend suites.
+
+---
+
+## 14. Phased implementation plan
+
+Per §13, every phase below includes writing its tests in parallel with the
+functionality; a phase is complete only when its tests pass.
 
 1. **Scaffold** — repo layout, `package.json`, `tsconfig`, plugin entry that
    loads and appears in the admin UI; empty Express router mounted.
@@ -813,4 +847,3 @@ plugin directory. The webapp then appears in the SignalK Webapps menu.
 9. **Master log page.**
 10. **Polish** — empty/loading/error states, responsive layout, accessibility,
     docs/README, appstore metadata.
-```
