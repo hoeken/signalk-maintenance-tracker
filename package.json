@@ -1,0 +1,46 @@
+{
+  "name": "signalk-maintenance-tracker",
+  "version": "0.1.0",
+  "description": "Track recurring boat maintenance tasks (oil changes, winch service, etc.) with runtime- and time-based intervals.",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "author": "Zach Hoeken <hoeken@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hoeken/signalk-maintenance-tracker"
+  },
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-webapp",
+    "signalk",
+    "maintenance",
+    "boat"
+  ],
+  "scripts": {
+    "build:backend": "tsc",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "watch:backend": "tsc -w",
+    "test:backend": "vitest run",
+    "test:frontend": "npm --prefix frontend run test",
+    "test": "npm run test:backend && npm run test:frontend",
+    "clean": "rm -rf dist public"
+  },
+  "files": [
+    "dist/",
+    "public/"
+  ],
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0",
+    "supertest": "^7.0.0",
+    "@types/supertest": "^6.0.0",
+    "express": "^4.19.0"
+  }
+}
