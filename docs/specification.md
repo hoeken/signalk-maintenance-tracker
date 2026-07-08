@@ -24,10 +24,12 @@ maintenance.
   server (not the plugin) enforces who may call which endpoint (§7.7, §9).
 
 ### Non-goals (v1)
-- The frontend does **not** talk to SignalK directly for *domain data* — all task,
-  log, and tag data flows over the plugin's own REST API. (The one exception is
-  auth: login/logout/validate call SignalK's native `/signalk/v1/auth/*`
-  endpoints, §7.7.)
+- The frontend does **not** talk to SignalK directly for *domain or runtime data* —
+  all task, log, and tag data (and every runtime value the UI shows) flows over the
+  plugin's own REST API. There are two read-only, **non-domain** exceptions that
+  call SignalK's native REST directly: auth (login/logout/validate via
+  `/signalk/v1/auth/*`, §7.7) and discovering candidate runtime-path *names* for
+  the task editor (`/signalk/v1/api/vessels/self`, §8.4).
 - The plugin builds **no** authorization of its own — SignalK enforces API access
   (§9).
 - No multi-vessel support; operates on `vessels.self`.
@@ -57,10 +59,14 @@ maintenance.
                 └──────────  SignalK server  ──┘
 ```
 
-**Key boundary:** SignalK is an *internal backend concern only*. The backend reads
-runtime values in and writes notifications out. Everything the frontend needs
-(including current runtime and computed status) is exposed through the REST API.
-"Live updating" in the UI means react-query polling the REST endpoints.
+**Key boundary:** SignalK is an *internal backend concern* for all domain and
+runtime *data*. The backend reads runtime values in and writes notifications out,
+and everything the frontend needs (including current runtime and computed status)
+is exposed through the plugin REST API. "Live updating" in the UI means react-query
+polling the REST endpoints. The frontend touches SignalK's native REST directly in
+only two read-only, non-domain cases: authentication (`/signalk/v1/auth/*`, §7.7)
+and discovering candidate runtime-path *names* for the task editor
+(`/signalk/v1/api/vessels/self`, §8.4) — never as a source of runtime values.
 
 ---
 
@@ -121,8 +127,7 @@ signalk-maintenance-tracker/
 │       ├── router.ts         # mounts all routes
 │       ├── tasks.routes.ts
 │       ├── logs.routes.ts
-│       ├── tags.routes.ts
-│       └── signalk.routes.ts # path helpers (current value, candidate paths)
+│       └── tags.routes.ts
 ├── dist/                     # compiled backend (gitignored, published)
 ├── public/                   # built frontend (gitignored, published) → the webapp
 ├── frontend/                 # React app source
@@ -389,12 +394,15 @@ Log), a global search box, the theme toggle, and an **auth control** (`AuthContr
   the change breaks existing deep links, §6.4); markdown description (textarea
   with a preview toggle), tags (creatable
   multi-select fed by `GET /tags`), runtime interval (hours), time interval
-  (number + unit select), runtime path (autocomplete from `GET
-  /api/signalk/paths`, showing the current value when a path is chosen), and — on
-  create only — optional seed `last_maintenance` / `last_runtime`.
+  (number + unit select), runtime path (a tree / autocomplete picker built
+  client-side from SignalK's `/signalk/v1/api/vessels/self` snapshot — fetched
+  once and cached, §8.4 — the user selects a path string; free-text entry is also
+  allowed), and — on create only — optional seed `last_maintenance` /
+  `last_runtime`.
 - **Complete** — maintenance datetime (default now), runtime hours (prefilled from
-  the current SignalK runtime value when a path is set), notes (markdown). Submits
-  a new log entry (§8, `POST /tasks/:slug/logs`).
+  the task's `current_runtime` from the `/tasks` API when a runtime path is set,
+  §8.1/§8.4), notes (markdown). Submits a new log entry (§8,
+  `POST /tasks/:slug/logs`).
 - **Delete confirm** — simple confirmation; on confirm calls `DELETE
   /tasks/:slug`.
 
@@ -408,6 +416,10 @@ Log), a global search box, the theme toggle, and an **auth control** (`AuthContr
 - react-query hooks: `useTasks(params)`, `useTask(slug)`, `useLogs(params)`,
   `useTaskLogs(slug)`, `useTags()`; mutations `useCreateTask`, `useUpdateTask`,
   `useDeleteTask`, `useAddLog` (mark complete), `useUpdateLog`, `useDeleteLog`.
+  A separate `useSignalKPaths()` query loads the `/signalk/v1/api/vessels/self`
+  snapshot once and caches the flattened candidate-path list with
+  `staleTime: Infinity` (fetched lazily on first task-editor open, never
+  re-fetched per keystroke — §8.4).
 - Mutations invalidate the relevant queries (`tasks`, `task/:slug`, `logs`,
   `tags`) so the UI reflects changes immediately without waiting for the poll.
 
@@ -553,11 +565,29 @@ Log create body (mark complete):
 Tags are created/removed implicitly through task create/update. (A `DELETE
 /tags/:id` may be added later for manual cleanup; v1 auto-prunes orphans.)
 
-### 8.4 SignalK helpers (read-only, for the editor UI)
-| Method | Path | Description |
-|---|---|---|
-| GET | `/signalk/paths` | Candidate runtime paths to populate the runtime-path autocomplete (paths under self that look numeric / contain `runTime` etc.). |
-| GET | `/signalk/value?path=…` | Current value of a self path, for the editor's "current value" preview and the Complete modal prefill. For runtime paths this returns the **hours-converted** value (§10.2) so previews/prefills match stored `runtime_hours`. |
+### 8.4 SignalK path discovery (no plugin endpoint)
+The plugin exposes **no** `/signalk/*` helper routes. The task editor's
+runtime-path picker is built entirely on the client from SignalK's own read-only
+REST snapshot — `GET /signalk/v1/api/vessels/self` — which the frontend fetches
+directly (same origin, alongside the auth endpoints, §7.7) and walks to produce a
+tree of candidate runtime paths. This snapshot is used **only to discover path
+names** for the picker; it is never the source of truth for maintenance runtime.
+
+The snapshot document can be large, so the frontend fetches it **once per app
+session** — lazily, the first time the task editor is opened (so read-only
+sessions never pay the cost) — flattens it into a cached in-memory list of
+candidate path strings, and serves every keystroke of the autocomplete from that
+cached list. It is **never** re-fetched while the user types. In practice this is
+a react-query query with `staleTime: Infinity` (no `refetchInterval`, no
+per-keystroke request). Paths are effectively static, so refreshing the candidate
+list just means reloading the app; the picker does not live-sync when a new path
+appears at runtime.
+
+All runtime *values* the UI shows or prefills — current runtime, elapsed /
+remaining, and the Complete modal's runtime prefill — come from the plugin's
+`/tasks` API as the already-hours-converted `current_runtime` (§8.1, §10.2). The
+backend stays the single owner of runtime data and the sole seconds→hours
+conversion boundary; the frontend never reads runtime *values* from SignalK.
 
 ### 8.5 Status/health
 | Method | Path | Description |
@@ -773,7 +803,8 @@ plugin directory. The webapp then appears in the SignalK Webapps menu.
 3. **Task/log/tag REST API** — full CRUD + list filtering/sorting/pagination
    (no SignalK integration yet; runtime/current values null).
 4. **SignalK read** — runtime subscription + cache; `current_runtime` and runtime
-   computed fields populated; `/signalk/*` helper endpoints.
+   computed fields populated on the `/tasks` API. No plugin `/signalk/*` routes —
+   the editor's runtime-path picker reads SignalK's own snapshot client-side (§8.4).
 5. **Notifications** — recompute tick + publishing with lead-window config.
 6. **Frontend scaffold** — Vite + Mantine + react-query + routing + theme,
    building into `public/`.
