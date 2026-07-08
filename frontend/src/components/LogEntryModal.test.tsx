@@ -9,7 +9,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('CompleteModal (§7.5)', () => {
   it('prefills runtime hours from the task current_runtime and posts a log entry', async () => {
     const fetchMock = mockFetch([
-      { match: 'POST /signalk/v1/auth/validate', status: 200, body: {} },
+      { match: 'GET /skServer/loginStatus', body: { status: 'loggedIn', username: 'admin' } },
       {
         match: 'POST /plugins/signalk-maintenance-tracker/api/tasks/engine-oil-change/logs',
         status: 201,
@@ -43,7 +43,7 @@ describe('CompleteModal (§7.5)', () => {
 
   it('shows an empty (optional) runtime field for tasks without a runtime path', async () => {
     // informational tasks can still be completed; runtime is manual/optional
-    mockFetch([{ match: 'POST /signalk/v1/auth/validate', status: 200, body: {} }]);
+    mockFetch([{ match: 'GET /skServer/loginStatus', body: { status: 'loggedIn', username: 'admin' } }]);
     const task = makeTask({
       runtime_path: null,
       current_runtime: null,

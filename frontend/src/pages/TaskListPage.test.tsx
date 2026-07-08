@@ -6,7 +6,10 @@ import { TaskListPage } from './TaskListPage';
 afterEach(() => vi.unstubAllGlobals());
 
 const taskRoutes = (loggedIn: boolean) => [
-  { match: 'POST /signalk/v1/auth/validate', status: loggedIn ? 200 : 401, body: {} },
+  {
+    match: 'GET /skServer/loginStatus',
+    body: { status: loggedIn ? 'loggedIn' : 'notLoggedIn', username: 'admin' },
+  },
   {
     match: 'GET /plugins/signalk-maintenance-tracker/api/tasks',
     body: page([
@@ -48,7 +51,7 @@ describe('TaskListPage auth gating (§7.7)', () => {
 
   it('shows an empty state when there are no tasks', async () => {
     mockFetch([
-      { match: 'POST /signalk/v1/auth/validate', status: 401, body: {} },
+      { match: 'GET /skServer/loginStatus', body: { status: 'notLoggedIn' } },
       { match: 'GET /plugins/signalk-maintenance-tracker/api/tasks', body: page([]) },
       { match: 'GET /plugins/signalk-maintenance-tracker/api/tags', body: { data: [] } },
     ]);

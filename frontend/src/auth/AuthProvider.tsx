@@ -18,6 +18,7 @@ import { LoginModal } from './LoginModal';
  */
 
 const AUTH_BASE = '/signalk/v1/auth';
+const LOGIN_STATUS_URL = '/skServer/loginStatus';
 const USERNAME_KEY = 'maintenance-tracker.username';
 const DEFAULT_REVALIDATE_MS = 10 * 60 * 1000;
 
@@ -62,21 +63,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const validate = useCallback(async () => {
     try {
-      const res = await fetch(`${AUTH_BASE}/validate`, {
-        method: 'POST',
+      const res = await fetch(LOGIN_STATUS_URL, {
+        method: 'GET',
         credentials: 'same-origin',
       });
-      if (res.ok) {
+      if (!res.ok) {
+        markLoggedOut();
+        return;
+      }
+      // loginStatus returns e.g. { status: "loggedIn", username, userLevel, ... }
+      // or { status: "notLoggedIn", ... } (§7.7)
+      const body = await res.json();
+      if (body?.status === 'loggedIn') {
         setLoggedIn(true);
-        setUsername(localStorage.getItem(USERNAME_KEY));
-        let ttl: number | undefined;
-        try {
-          const body = await res.json();
-          if (typeof body?.timeToLive === 'number') ttl = body.timeToLive;
-        } catch {
-          // no body — fine
-        }
-        scheduleRevalidate(ttl);
+        setUsername(body.username ?? localStorage.getItem(USERNAME_KEY));
+        scheduleRevalidate();
       } else {
         markLoggedOut();
       }

@@ -27,8 +27,9 @@ maintenance.
 - The frontend does **not** talk to SignalK directly for *domain or runtime data* —
   all task, log, and tag data (and every runtime value the UI shows) flows over the
   plugin's own REST API. There are two read-only, **non-domain** exceptions that
-  call SignalK's native REST directly: auth (login/logout/validate via
-  `/signalk/v1/auth/*`, §7.7) and discovering candidate runtime-path *names* for
+  call SignalK's native REST directly: auth (login/logout via
+  `/signalk/v1/auth/*` and session status via `/skServer/loginStatus`, §7.7) and
+  discovering candidate runtime-path *names* for
   the task editor (`/signalk/v1/api/vessels/self`, §8.4).
 - The plugin builds **no** authorization of its own — SignalK enforces API access
   (§9).
@@ -428,12 +429,15 @@ The webapp logs the user in against the **SignalK server's own** auth endpoints
 ([SignalK security spec](https://signalk.org/specification/1.8.2/doc/security.html));
 it does not manage credentials or authorization itself. The plugin webapp is
 served same-origin with the server, so the session cookie SignalK sets at login is
-sent automatically with every subsequent request (API calls and validate/logout).
+sent automatically with every subsequent request (API calls and loginStatus/logout).
 
 - **`AuthProvider` / `useAuth()`** (`auth/`) holds the login state and exposes
   `{ isLoggedIn, username, login(username, password), logout(), openLoginModal() }`.
   On mount it establishes the initial state by calling
-  `POST /signalk/v1/auth/validate` (200 ⇒ logged in, 401 ⇒ logged out). It also
+  `GET /skServer/loginStatus`, which returns a JSON body such as
+  `{ "status": "loggedIn", "username": "admin", "userLevel": "admin", ... }` when
+  authenticated or `{ "status": "notLoggedIn", ... }` when not — the provider reads
+  `status === "loggedIn"` for `isLoggedIn` and `username` for display. It also
   re-validates before the token's `timeToLive` elapses to keep the session fresh.
 - **Login** — `POST /signalk/v1/auth/login` with `{ username, password }`. On
   success (200) SignalK sets the session cookie and returns `{ token, timeToLive }`;
@@ -601,7 +605,7 @@ against the SignalK server's native endpoints (same origin):
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/signalk/v1/auth/login` | Log in with `{ username, password }`; returns `{ token, timeToLive }` and sets the session cookie. |
-| POST | `/signalk/v1/auth/validate` | Check/renew the session (200 = logged in, 401 = not); used for initial state + token refresh. |
+| GET | `/skServer/loginStatus` | Check the session; returns JSON `{ "status": "loggedIn" \| "notLoggedIn", "username", "userLevel", ... }`; used for initial state + token refresh. |
 | PUT | `/signalk/v1/auth/logout` | Log out; clears the session. |
 
 See §7.7 for the frontend flow and §9 for how these gate the plugin's own routes.
@@ -742,7 +746,7 @@ These were open during drafting and are now settled:
   server-side SPA fallback. (§7.1)
 - **Access control:** owned entirely by SignalK — the plugin builds no authz.
   Today all plugin routes are admin-only; a future SignalK release adds per-route
-  permission levels. The webapp does login/logout/validate against SignalK's
+  permission levels. The webapp does login/logout/loginStatus against SignalK's
   native `/signalk/v1/auth/*` endpoints and gates its editing UI on the logged-in
   state. (§7.7, §8.6, §9)
 - **Principal accessor:** a build-time detail only, used solely to stamp
