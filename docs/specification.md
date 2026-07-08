@@ -19,10 +19,17 @@ maintenance.
 - Keep a per-task log and a master log of all completed maintenance.
 - Read engine/equipment runtime from SignalK internally; publish overdue/upcoming
   status back to SignalK as notifications.
+- Use the SignalK server's own authentication and access control. The webapp
+  offers login/logout and gates its editing UI behind the logged-in state; the
+  server (not the plugin) enforces who may call which endpoint (§7.7, §9).
 
 ### Non-goals (v1)
-- The frontend does **not** talk to SignalK directly. All data the UI consumes
-  flows over the plugin's own REST API.
+- The frontend does **not** talk to SignalK directly for *domain data* — all task,
+  log, and tag data flows over the plugin's own REST API. (The one exception is
+  auth: login/logout/validate call SignalK's native `/signalk/v1/auth/*`
+  endpoints, §7.7.)
+- The plugin builds **no** authorization of its own — SignalK enforces API access
+  (§9).
 - No multi-vessel support; operates on `vessels.self`.
 - No offline/PWA support.
 
@@ -54,10 +61,6 @@ maintenance.
 runtime values in and writes notifications out. Everything the frontend needs
 (including current runtime and computed status) is exposed through the REST API.
 "Live updating" in the UI means react-query polling the REST endpoints.
-
-Later upgrade path (out of scope for v1): replace polling with a Server-Sent
-Events endpoint on the backend; react-query can consume it without a SignalK
-client in the browser.
 
 ---
 
@@ -107,6 +110,7 @@ signalk-maintenance-tracker/
 │   ├── signalk/
 │   │   ├── runtime.ts        # subscribe to runtime paths, cache values
 │   │   └── notifications.ts  # publish notifications.maintenance.{slug}
+│   ├── auth.ts               # getRequestUser(req) — reads the SignalK principal (for logged_by)
 │   └── api/
 │       ├── router.ts         # mounts all routes
 │       ├── tasks.routes.ts
@@ -123,8 +127,9 @@ signalk-maintenance-tracker/
 │       ├── main.tsx
 │       ├── App.tsx           # AppShell + routes + providers
 │       ├── api/              # fetch client + react-query hooks
+│       ├── auth/             # AuthProvider/useAuth + SignalK /signalk/v1/auth/* client
 │       ├── pages/            # TaskList, TaskDetail, MasterLog
-│       ├── components/       # tables, modals, MarkdownView, ThemeToggle
+│       ├── components/       # tables, modals, MarkdownView, ThemeToggle, LoginModal, AuthControl
 │       ├── hooks/
 │       └── types.ts          # shared DTO types (kept in sync with backend)
 └── docs/
@@ -148,7 +153,7 @@ as `REAL`.
 | column | type | notes |
 |---|---|---|
 | id | INTEGER PK AUTOINCREMENT | |
-| slug | TEXT UNIQUE NOT NULL | URL + notification identifier; immutable after create |
+| slug | TEXT UNIQUE NOT NULL | URL + notification identifier; auto-generated on first save, user-editable thereafter |
 | name | TEXT NOT NULL | |
 | description | TEXT | markdown |
 | runtime_interval | REAL NULL | hours between required maintenance |
@@ -161,9 +166,9 @@ as `REAL`.
 | updated_at | TEXT NOT NULL | |
 
 Constraints/notes:
-- At least one of (`runtime_interval`, `time_interval`) should be set; enforced in
-  the API layer, not the DB (allow "informational only" tasks with neither if the
-  user insists — see §11 open questions).
+- Both intervals are optional and independent. A task with neither is a valid
+  **informational-only** task (it still tracks name/description/tags/logs but has
+  no due-date or runtime status). No API-layer enforcement of "at least one".
 - `time_interval` + `time_interval_unit` are set/cleared together.
 
 ### 5.2 `tags`
@@ -193,8 +198,9 @@ task references them.
 | logged_by | TEXT NULL | SignalK user identifier (see §9) |
 | created_at | TEXT NOT NULL | |
 
-Indexes: `idx_log_task_date (task_id, maintenance_date DESC)`, and a full-text or
-`LIKE`-backed index consideration for notes search (v1: plain `LIKE`, see §6.3).
+Indexes: `idx_log_task_date (task_id, maintenance_date DESC)`. Search uses plain
+`LIKE` (§6.3); at the expected scale (well under ~200 tasks) no full-text index is
+needed.
 
 ### 5.5 `runtime_cache`
 Persists the last-seen runtime value per path so "current runtime" survives a
@@ -265,9 +271,22 @@ already-computed list.
 
 ### 6.4 Slug generation
 `slugify(name)` → lowercase, ASCII-fold, replace non-alphanumerics with `-`,
-collapse repeats, trim. Ensure uniqueness by appending `-2`, `-3`, … Slug is
-generated once at create and is **immutable** thereafter (it is embedded in
-notification paths and webapp URLs). Renaming the task does not change the slug.
+collapse repeats, trim. Ensure uniqueness by appending `-2`, `-3`, …
+
+The slug is **auto-generated once, on first save** (create), from the name. After
+that it is **user-editable**: the create form shows a live slug preview, and the
+edit form exposes the slug as an editable field. Renaming the task does *not*
+auto-regenerate the slug — only an explicit slug edit changes it.
+
+On any slug change the server:
+- normalizes the submitted value through `slugify` and re-checks uniqueness
+  (rejecting a collision, or auto-suffixing — see §8.1);
+- migrates the notification path: clears `notifications.maintenance.{oldSlug}`
+  (publishes a cleared/normal state) and republishes under
+  `notifications.maintenance.{newSlug}` on the next recompute.
+
+Because the slug is embedded in webapp URLs, an old deep link (`#/tasks/{oldSlug}`)
+stops resolving after a rename; this is acceptable in v1.
 
 ---
 
@@ -279,19 +298,26 @@ The built SPA is served by SignalK at `/{pluginId}/` (i.e.
 `signalk-webapp` keyword and a `public/` directory.
 
 - Vite `base: './'` so assets resolve relative to the mounted path.
-- **HashRouter** is used so deep links and page refreshes work under the plugin
-  mount without server-side SPA fallback (e.g.
-  `/signalk-maintenance-tracker/#/tasks/oil-change`). BrowserRouter + `basename`
-  is a documented alternative if SignalK's static handler is confirmed to fall
-  back to `index.html`.
+- **HashRouter** is used (confirmed choice) so deep links and page refreshes work
+  under the plugin mount without any server-side SPA fallback — everything after
+  the `#` is client-side only and never hits the server (e.g.
+  `/signalk-maintenance-tracker/#/tasks/oil-change`). SignalK serves the app at
+  both `/signalk-maintenance-tracker/` and `/signalk-maintenance-tracker/index.html`,
+  which is all HashRouter requires. (BrowserRouter + `basename` would need the
+  static handler to fall back to `index.html` for unknown deep paths; not relied
+  on.)
 - API base URL: `/plugins/signalk-maintenance-tracker/api` (absolute path; the
-  webapp and API share an origin).
+  webapp and API share an origin). Because they are same-origin, the SignalK
+  session cookie set at login is sent automatically with every API request
+  (fetch `credentials: 'same-origin'`); no manual token handling is required for
+  the common case (§7.7, §9).
 
 ### 7.2 Providers & shell
 `App.tsx` wraps the tree in `MantineProvider` (with color scheme), a
-`QueryClientProvider`, and Mantine's `ModalsProvider` + `Notifications`. The
-`AppShell` header contains: app title, nav links (Tasks / Log), a global search
-box, and the theme toggle.
+`QueryClientProvider`, an `AuthProvider` (§7.7), and Mantine's `ModalsProvider` +
+`Notifications`. The `AppShell` header contains: app title, nav links (Tasks /
+Log), a global search box, the theme toggle, and an **auth control** (`AuthControl`)
+— a "Log in" link when anonymous, or the username + "Log out" when authenticated.
 
 ### 7.3 Theme (light/dark)
 - On first load, initialize color scheme from `prefers-color-scheme`.
@@ -303,7 +329,10 @@ box, and the theme toggle.
 
 **Task List (`/`)** — the main page.
 - TanStack Table + Mantine, columns: status badge, name, tags, remaining runtime,
-  remaining time, next due date, action icons (view / edit / delete / complete).
+  remaining time, next due date, action icons. `view` is always shown; the write
+  actions (`edit` / `delete` / `complete`) and the "New task" button are rendered
+  only when logged in (§7.7). Logged-out visitors see the data and the `view`
+  action.
 - Default sort: overdue first, then due_soon, then upcoming — driven by the
   server's `status_rank` + remaining sort.
 - Controls: freeform search box; tag filter (multi-select chips, select/deselect);
@@ -326,8 +355,10 @@ box, and the theme toggle.
 - Sortable + searchable + paginated (server-side, same pattern as task list).
 
 ### 7.5 Modals
-- **Task form (create/edit)** — fields: name (with live slug preview on create),
-  markdown description (textarea with a preview toggle), tags (creatable
+- **Task form (create/edit)** — fields: name; slug (on create, shown as a live
+  preview derived from name but editable; on edit, an editable field that warns
+  the change breaks existing deep links, §6.4); markdown description (textarea
+  with a preview toggle), tags (creatable
   multi-select fed by `GET /tags`), runtime interval (hours), time interval
   (number + unit select), runtime path (autocomplete from `GET
   /api/signalk/paths`, showing the current value when a path is chosen), and — on
@@ -340,12 +371,58 @@ box, and the theme toggle.
 
 ### 7.6 Data layer
 - A thin `fetch` wrapper (`api/client.ts`) prefixing the API base and handling
-  JSON + error normalization.
+  JSON + error normalization. It sends `credentials: 'same-origin'` so the SignalK
+  session cookie rides along (§7.7). On any `401`/`403` it marks the session
+  logged-out and prompts re-login (Mantine notification + `openLoginModal()`) —
+  covering both an expired session on a write and (given today's admin-only API)
+  reads made while logged out.
 - react-query hooks: `useTasks(params)`, `useTask(slug)`, `useLogs(params)`,
   `useTaskLogs(slug)`, `useTags()`; mutations `useCreateTask`, `useUpdateTask`,
   `useDeleteTask`, `useAddLog` (mark complete), `useUpdateLog`, `useDeleteLog`.
 - Mutations invalidate the relevant queries (`tasks`, `task/:slug`, `logs`,
   `tags`) so the UI reflects changes immediately without waiting for the poll.
+
+### 7.7 Authentication (frontend)
+The webapp logs the user in against the **SignalK server's own** auth endpoints
+([SignalK security spec](https://signalk.org/specification/1.8.2/doc/security.html));
+it does not manage credentials or authorization itself. The plugin webapp is
+served same-origin with the server, so the session cookie SignalK sets at login is
+sent automatically with every subsequent request (API calls and validate/logout).
+
+- **`AuthProvider` / `useAuth()`** (`auth/`) holds the login state and exposes
+  `{ isLoggedIn, username, login(username, password), logout(), openLoginModal() }`.
+  On mount it establishes the initial state by calling
+  `POST /signalk/v1/auth/validate` (200 ⇒ logged in, 401 ⇒ logged out). It also
+  re-validates before the token's `timeToLive` elapses to keep the session fresh.
+- **Login** — `POST /signalk/v1/auth/login` with `{ username, password }`. On
+  success (200) SignalK sets the session cookie and returns `{ token, timeToLive }`;
+  the provider records `timeToLive` for renewal and the entered `username` for
+  display, and flips `isLoggedIn`. A 401 shows an inline "invalid credentials"
+  error in the modal.
+- **Logout** — `PUT /signalk/v1/auth/logout`; clears local state regardless of
+  outcome.
+- **`LoginModal`** — a Mantine modal with username + password fields and inline
+  error. Opened from the header `AuthControl`, and also auto-opened when an API
+  call returns `401` (see §7.6).
+- **`AuthControl`** (header) — "Log in" when logged out; the username + a "Log out"
+  action when logged in.
+- **Gating rule (single source of truth):** every affordance that triggers a
+  write endpoint is rendered only when `isLoggedIn` — the "New task" button, the
+  task list `edit`/`delete`/`complete` action icons, the edit/complete/delete
+  buttons on Task Detail, and the Task form / Complete / Delete modals. Read UI
+  (lists, detail, master log, search, filter, sort) is unconditional. UI gating is
+  only UX; the server is the actual authority (§9).
+
+> **Token vs cookie:** relying on the same-origin session cookie is the primary
+> mechanism, so the client does not need to persist the bearer token. (If a
+> deployment is found where the cookie isn't usable, the returned `token` can be
+> stored and attached as `Authorization: Bearer <token>` — the spec supports both.)
+
+> **Current-server caveat:** today SignalK requires *admin* credentials for **all**
+> plugin API routes, so in practice a user must log in (as admin) to load *any*
+> data. The logged-out read-only experience becomes real once SignalK enforces
+> per-route permission levels (§9); the gating above is already written for that
+> future and needs no change when it lands.
 
 ---
 
@@ -358,19 +435,29 @@ All responses are JSON. Errors use `{ "error": { "code": string, "message":
 string } }` with appropriate HTTP status codes. List endpoints return
 `{ "data": [...], "total": n, "page": p, "pageSize": s }`.
 
+**Access control:** enforced by SignalK, not the plugin. Requests carry the
+server's session (cookie or bearer token); SignalK decides who may reach these
+routes and returns `401`/`403` itself. Today that means *admin* is required for
+all routes below; a future SignalK release will let the plugin declare a
+per-route permission level (read for `GET`, write for mutations). The handlers
+assume authorization has already passed and never re-check it (§9).
+
 ### 8.1 Tasks
 | Method | Path | Description |
 |---|---|---|
 | GET | `/tasks` | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/unknown), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
 | POST | `/tasks` | Create. Body below. Server generates slug. |
 | GET | `/tasks/:slug` | Task detail incl. computed fields, tags, and recent log entries (or a link + `GET /tasks/:slug/logs`). |
-| PUT | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, seed last_* on tasks with no logs). Slug not changed. |
+| PUT | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, seed last_* on tasks with no logs). May also change `slug` (normalized + uniqueness-checked; triggers notification-path migration, §6.4). |
 | DELETE | `/tasks/:slug` | Delete task + its log entries (cascade). Clears its notification. |
 
-Task request body (create/update):
+Task request body (create/update). `slug` is optional: omit it on create to
+auto-generate from `name`; include it (on create or update) to set/change it
+explicitly. `runtime_interval` / `time_interval` are both optional (§5.1).
 ```json
 {
   "name": "Engine oil change",
+  "slug": "engine-oil-change",
   "description": "Change oil and filter. **Use 15W-40.**",
   "runtime_interval": 200,
   "time_interval": 12,
@@ -441,28 +528,54 @@ Tags are created/removed implicitly through task create/update. (A `DELETE
 | Method | Path | Description |
 |---|---|---|
 | GET | `/signalk/paths` | Candidate runtime paths to populate the runtime-path autocomplete (paths under self that look numeric / contain `runTime` etc.). |
-| GET | `/signalk/value?path=…` | Current value of a self path, for the editor's "current value" preview and the Complete modal prefill. |
+| GET | `/signalk/value?path=…` | Current value of a self path, for the editor's "current value" preview and the Complete modal prefill. For runtime paths this returns the **hours-converted** value (§10.2) so previews/prefills match stored `runtime_hours`. |
 
 ### 8.5 Status/health
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Plugin status: db task/log counts, subscribed runtime paths, last recompute tick, plugin version. |
 
+### 8.6 Auth
+The plugin exposes **no** auth endpoints. The webapp authenticates directly
+against the SignalK server's native endpoints (same origin):
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/signalk/v1/auth/login` | Log in with `{ username, password }`; returns `{ token, timeToLive }` and sets the session cookie. |
+| POST | `/signalk/v1/auth/validate` | Check/renew the session (200 = logged in, 401 = not); used for initial state + token refresh. |
+| PUT | `/signalk/v1/auth/logout` | Log out; clears the session. |
+
+See §7.7 for the frontend flow and §9 for how these gate the plugin's own routes.
+
 ---
 
-## 9. Authentication & user identity
+## 9. Authentication & access control (backend)
 
-The plugin relies on the SignalK server's security. When server security is
-enabled, requests routed through the plugin router carry the authenticated
-principal (e.g. `req.skPrincipal?.identifier`). `POST /tasks/:slug/logs` fills
-`log_entries.logged_by` from that principal server-side (ignoring any client-sent
-value). When security is disabled or no principal is present, `logged_by` falls
-back to `null` / `"anonymous"`.
+**The plugin builds no authorization of its own.** Access control is entirely the
+SignalK server's responsibility:
 
-The exact principal accessor is confirmed against the running server during
-implementation; the service layer isolates it behind a single
-`getRequestUser(req)` helper so the rest of the code is decoupled from the SignalK
-security detail.
+- **Today:** SignalK requires *admin* credentials for every route registered via
+  `registerWithRouter`. So all plugin endpoints (reads included) are admin-only,
+  enforced by the server before a request ever reaches a handler.
+- **Future:** a planned SignalK release lets a plugin declare the required
+  permission level per route (read for `GET`, write for mutations); SignalK will
+  enforce it and the logged-out read-only experience (§7.7) becomes real. This is
+  expected to need only a small route-annotation change here, not a new auth
+  layer.
+
+Consequently the route handlers assume authorization has already passed and never
+re-check it — no `requireWrite`, no permission logic in the plugin.
+
+### 9.1 User identity on records
+The one thing the backend still *reads* from the session is the caller's identity,
+to stamp `log_entries.logged_by`. `getRequestUser(req)` (`src/auth.ts`) returns the
+request principal's identifier (e.g. `req.skPrincipal?.identifier`) or `null`.
+`POST /tasks/:slug/logs` fills `logged_by` from it server-side (ignoring any
+client-sent value); when absent it falls back to `null` / `"anonymous"`.
+
+> The exact principal field is confirmed against the running server during
+> implementation; it is isolated in `auth.ts`, so adjusting it touches one file.
+> This is reading identity, not enforcing access.
 
 ---
 
@@ -496,6 +609,12 @@ all task runtime paths on `vessels.self` via SignalK's subscription manager /
 `streambundle`. Each delta updates the in-memory runtime map and upserts
 `runtime_cache`. Subscriptions are torn down and rebuilt when the set of paths
 changes (task create/update/delete).
+
+**Units:** SignalK runtime paths (e.g. `propulsion.*.runTime`) are in **seconds**.
+The subscriber converts to **hours** (`value / 3600`) on read, so everything the
+DB, domain logic, and API deal in is hours (`runtime_cache.value`,
+`last_runtime`, `runtime_interval`, computed `elapsed/remaining_runtime`). This is
+the single conversion boundary; no other layer touches seconds.
 
 ### 10.3 Notifications (write)
 A periodic recompute tick (default 60 s, configurable) plus event-driven
@@ -545,19 +664,31 @@ subscription set is derived from the DB.)
 
 ---
 
-## 11. Open questions / decisions to confirm during build
-- **Tasks with neither interval:** allow purely informational tasks, or require at
-  least one interval? (Current plan: require ≥1, enforced in API.)
-- **Runtime path unit assumptions:** confirm the SignalK runtime paths are in
-  seconds vs hours and normalize on read (SignalK `propulsion.*.runTime` is
-  seconds per spec → convert to hours internally).
-- **Slug on rename:** kept immutable in v1. Revisit if users want tidy URLs after
-  renames (would require notification path migration).
-- **Search backend:** v1 uses `LIKE` across name/description/tags/notes. If it gets
-  slow, move to SQLite FTS5.
-- **Deep-link routing:** confirm whether SignalK's static webapp handler falls back
-  to `index.html`; if so, switch HashRouter → BrowserRouter + basename.
-- **Principal accessor:** confirm the exact `req` field for the authenticated user.
+## 11. Resolved decisions
+These were open during drafting and are now settled:
+
+- **Tasks with neither interval:** allowed. Both intervals are optional; a task
+  with neither is a valid informational-only task. No "≥1 interval" enforcement.
+  (§5.1)
+- **Runtime path units:** SignalK runtime paths are in **seconds**. The runtime
+  subscriber converts to hours (`/3600`) on read; everything above that boundary
+  is hours. (§10.2)
+- **Slug editing:** slug is auto-generated on first save (create) and is
+  **user-editable** thereafter; renaming the task does not regenerate it. A slug
+  change re-checks uniqueness and migrates the notification path. (§6.4, §8.1)
+- **Search backend:** plain `LIKE` across name/description/tags/notes. Expected
+  scale is < ~200 records, so no FTS5 needed. (§5.4, §6.3)
+- **Deep-link routing:** **HashRouter** (confirmed). The app is served at both
+  `/signalk-maintenance-tracker/` and `…/index.html`; HashRouter needs no
+  server-side SPA fallback. (§7.1)
+- **Access control:** owned entirely by SignalK — the plugin builds no authz.
+  Today all plugin routes are admin-only; a future SignalK release adds per-route
+  permission levels. The webapp does login/logout/validate against SignalK's
+  native `/signalk/v1/auth/*` endpoints and gates its editing UI on the logged-in
+  state. (§7.7, §8.6, §9)
+- **Principal accessor:** a build-time detail only, used solely to stamp
+  `logged_by`. The exact `req` field is confirmed against the running server and
+  isolated behind `getRequestUser(req)`. (§9.1)
 
 ---
 
