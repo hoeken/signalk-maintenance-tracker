@@ -48,7 +48,7 @@ maintenance.
 │ Plugin backend (Node, in SignalK server process)               │
 │   ├─ Express router (REST API)                                  │
 │   ├─ Domain/service layer (due-date & status calc)             │
-│   ├─ SQLite (better-sqlite3) in plugin data dir                 │
+│   ├─ SQLite (node:sqlite) in plugin data dir                    │
 │   ├─ Runtime subscriber  ◄── SignalK deltas (read)             │
 │   └─ Notification publisher ──► SignalK notifications (write)   │
 └───────────────────────────────────────────────────────────────┘
@@ -69,8 +69,14 @@ runtime values in and writes notifications out. Everything the frontend needs
 ### Backend
 - **Language:** TypeScript, compiled to `dist/` via `tsc`.
 - **Runtime:** Node (whatever the host SignalK server runs).
-- **Database:** SQLite via **better-sqlite3** (synchronous, fast, zero external
-  service — ideal on a Raspberry Pi). DB file lives in the plugin data directory.
+- **Database:** SQLite via Node's built-in **`node:sqlite`** (`DatabaseSync` —
+  synchronous, fast, and zero native compilation / zero external dependency, which
+  is ideal on a Raspberry Pi). DB file lives in the plugin data directory.
+  **Requires Node ≥ 22.5** (where `node:sqlite` first shipped); target Node 24+.
+  The module is still marked *experimental* by Node, so the plugin declares an
+  `engines.node` floor (§12.1) and opening the DB tolerates the
+  `ExperimentalWarning`. See §5.8 for the API notes that differ from
+  `better-sqlite3`.
 - **HTTP:** Express `Router` provided by SignalK's `registerWithRouter(router)`.
 - **Migrations:** simple in-code versioned migration runner (see §5.5).
 
@@ -99,7 +105,7 @@ signalk-maintenance-tracker/
 │   ├── index.ts              # plugin entry (module.exports = function(app){...})
 │   ├── config.ts             # plugin schema + typed options
 │   ├── db/
-│   │   ├── database.ts       # better-sqlite3 open + migrations
+│   │   ├── database.ts       # node:sqlite DatabaseSync open + migrations
 │   │   ├── migrations.ts
 │   │   ├── tasks.repo.ts
 │   │   ├── logs.repo.ts
@@ -224,7 +230,30 @@ keeps list queries fast without a correlated subquery per row.
 ### 5.7 `meta`
 Single-row table (or key/value) holding `schema_version` for migrations. The
 migration runner applies ordered migrations from `migrations.ts` and bumps the
-version inside a transaction.
+version inside a transaction (opened explicitly with `db.exec('BEGIN')` /
+`COMMIT` / `ROLLBACK` — see §5.8; `node:sqlite` has no `db.transaction()`
+wrapper).
+
+### 5.8 `node:sqlite` API notes
+The DB layer targets Node's built-in `node:sqlite`. It is close to
+`better-sqlite3` in spirit (synchronous, prepared statements) but differs in a
+few ways the repositories must respect:
+
+- **Open:** `import { DatabaseSync } from 'node:sqlite';` then
+  `const db = new DatabaseSync(dbPath);`.
+- **Statements:** `db.prepare(sql)` → a `StatementSync` with `.get(...params)`,
+  `.all(...params)`, `.run(...params)` (returns `{ changes, lastInsertRowid }`),
+  and `.iterate(...)`. `db.exec(sql)` runs multi-statement SQL (schema/migrations).
+- **Parameters:** positional `?` or named (`:name` / `$name` / `@name`) bound by
+  passing a single object, e.g. `stmt.run({ name })`.
+- **Transactions:** no `db.transaction(fn)` helper — wrap work manually in
+  `db.exec('BEGIN')` … `COMMIT` / `ROLLBACK` (used by the migration runner and by
+  the multi-write log-completion path in §5.6).
+- **Pragmas:** no `db.pragma()` helper — use `db.exec('PRAGMA journal_mode = WAL')`
+  etc.
+- **Foreign keys / cascade:** the `ON DELETE CASCADE` rules in §5.3/§5.4 depend on
+  FK enforcement, which `DatabaseSync` enables by default
+  (`enableForeignKeyConstraints: true`). Leave it on.
 
 ---
 
@@ -599,7 +628,7 @@ module.exports = function (app) {
 }
 ```
 
-- DB path: `path.join(app.getDataDirPath(), 'maintenance.sqlite3')`.
+- DB path: `path.join(app.getDataDirPath(), 'maintenance.db')`.
 - `app.setPluginStatus(...)` / `app.setPluginError(...)` to surface state in the
   admin UI; `app.debug(...)` for logging.
 
@@ -709,10 +738,14 @@ These were open during drafting and are now settled:
     "clean": "rimraf dist public"
   },
   "files": ["dist/", "public/"],
-  "dependencies": { "better-sqlite3": "…" },
-  "devDependencies": { "typescript": "…", "@types/better-sqlite3": "…" }
+  "engines": { "node": ">=22.5" },
+  "dependencies": {},
+  "devDependencies": { "typescript": "…", "@types/node": "…" }
 }
 ```
+- No runtime DB dependency: `node:sqlite` is part of Node itself (no
+  `better-sqlite3`, no native build step). `engines.node` enforces the ≥22.5 floor
+  the module requires; `@types/node` supplies its type definitions.
 - `frontend/` build output goes to `../public` (set `build.outDir` in
   `vite.config.ts`).
 - Published package ships compiled `dist/` (backend) and `public/` (webapp); both
