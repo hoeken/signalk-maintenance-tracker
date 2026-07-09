@@ -8,7 +8,7 @@ import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
 import { addLog, updateLog } from '../api/hooks.js';
-import { toDatetimeLocal, fromDatetimeLocal } from '../lib/format.js';
+import { toDateInput } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
@@ -31,7 +31,7 @@ export function LogEntryModal(props) {
       ? String(task.current_runtime)
       : '';
 
-  const [date, setDate] = useState(isEdit && entry ? toDatetimeLocal(entry.maintenance_date) : toDatetimeLocal());
+  const [date, setDate] = useState(isEdit && entry ? toDateInput(entry.maintenance_date) : toDateInput());
   const [runtime, setRuntime] = useState(initialRuntime);
   const [notes, setNotes] = useState(isEdit && entry && entry.notes ? entry.notes : '');
   const [error, setError] = useState('');
@@ -43,14 +43,13 @@ export function LogEntryModal(props) {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const maintenanceDate = fromDatetimeLocal(date);
-    if (!maintenanceDate) {
+    if (!date) {
       setError('Maintenance date is required.');
       return;
     }
     /** @type {import('../types.js').LogInput} */
     const input = {
-      maintenance_date: maintenanceDate,
+      maintenance_date: date,
       notes: notes.trim() ? notes : null,
       runtime_hours: null,
     };
@@ -97,7 +96,7 @@ export function LogEntryModal(props) {
           <input
             id="log-date"
             class="input"
-            type="datetime-local"
+            type="date"
             value=${date}
             onInput=${(/** @type {any} */ e) => setDate(e.currentTarget.value)}
           />

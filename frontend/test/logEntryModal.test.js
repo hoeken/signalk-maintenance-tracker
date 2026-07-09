@@ -39,7 +39,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     const body = JSON.parse(call[1].body);
     expect(body.runtime_hours).toBe(1360);
     expect(body.notes).toBe('Replaced filter.');
-    expect(body.maintenance_date).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(body.maintenance_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('edits an existing entry via PUT /logs/:id', async () => {

@@ -6,7 +6,7 @@ import { html } from '../lib/html.js';
 import { useState, useEffect } from '../../vendor/preact-hooks.js';
 import { useLogs } from '../api/hooks.js';
 import { useListParams } from '../lib/useListParams.js';
-import { formatDateTime, formatHours, truncate } from '../lib/format.js';
+import { formatDate, formatHours, truncate } from '../lib/format.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { MarkdownView } from '../components/MarkdownView.js';
@@ -72,7 +72,7 @@ export function MasterLogPage() {
       label: 'Date',
       sortable: true,
       className: 'num',
-      render: (/** @type {LogDTO} */ e) => formatDateTime(e.maintenance_date),
+      render: (/** @type {LogDTO} */ e) => formatDate(e.maintenance_date),
     },
     {
       key: 'runtime_hours',

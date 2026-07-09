@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  formatDate,
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
   humanizeMs,
-  fromDatetimeLocal,
+  toDateInput,
   truncate,
 } from '../../public/app/lib/format.js';
 
@@ -32,11 +33,14 @@ describe('format helpers', () => {
     expect(formatRemainingTime(null)).toBe('—');
   });
 
-  it('converts datetime-local values to ISO UTC', () => {
-    const iso = fromDatetimeLocal('2026-07-08T14:30');
-    expect(iso).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-    expect(new Date(iso).getTime()).toBe(new Date('2026-07-08T14:30').getTime());
-    expect(fromDatetimeLocal('')).toBeNull();
+  it('formats dates from the stored UTC date part, never local time', () => {
+    expect(formatDate('2026-07-08T00:00:00.000Z')).toBe('2026-07-08');
+    expect(formatDate(null)).toBe('—');
+  });
+
+  it('date input values round-trip the stored UTC date part', () => {
+    expect(toDateInput('2026-07-01T10:00:00.000Z')).toBe('2026-07-01');
+    expect(toDateInput()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('truncates with ellipsis', () => {

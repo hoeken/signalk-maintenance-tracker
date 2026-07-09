@@ -12,7 +12,6 @@ import { TagInput } from './TagInput.js';
 import { PathPicker } from './PathPicker.js';
 import { createTask, updateTask, useTags } from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
-import { fromDatetimeLocal } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
@@ -93,7 +92,7 @@ export function TaskFormModal(props) {
       if (slugChanged) input.slug = effectiveSlug;
     } else {
       if (slugTouched && slug.trim()) input.slug = slug.trim();
-      if (seedMaintenance) input.last_maintenance = fromDatetimeLocal(seedMaintenance);
+      if (seedMaintenance) input.last_maintenance = seedMaintenance;
       if (seedRuntime.trim() !== '') {
         const seed = Number(seedRuntime);
         if (!isFinite(seed) || seed < 0) {
@@ -230,7 +229,7 @@ export function TaskFormModal(props) {
                   <input
                     id="task-seed-date"
                     class="input"
-                    type="datetime-local"
+                    type="date"
                     value=${seedMaintenance}
                     onInput=${(/** @type {any} */ e) => setSeedMaintenance(e.currentTarget.value)}
                   />

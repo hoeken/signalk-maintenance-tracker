@@ -8,7 +8,6 @@ import { useTask, useTaskLogs, deleteTask, deleteLog } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import {
   formatDate,
-  formatDateTime,
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
@@ -53,7 +52,7 @@ export function TaskDetailPage(props) {
       key: 'maintenance_date',
       label: 'Date',
       className: 'num',
-      render: (/** @type {LogDTO} */ e) => formatDateTime(e.maintenance_date),
+      render: (/** @type {LogDTO} */ e) => formatDate(e.maintenance_date),
     },
     {
       key: 'runtime_hours',
@@ -141,7 +140,7 @@ export function TaskDetailPage(props) {
                 <div class="stat-row">
                   <div class="stat-label">
                     <span>Runtime — every ${formatHours(task.runtime_interval)}</span>
-                    <span class="stat-value">${formatRemainingHours(task.remaining_runtime)}${task.remaining_runtime >= 0 ? ' left' : ''}</span>
+                    <span class="stat-value">${formatRemainingHours(task.remaining_runtime)}${task.remaining_runtime !== null && task.remaining_runtime >= 0 ? ' left' : ''}</span>
                   </div>
                   <${ProgressBar} fraction=${task.runtime_fraction} status=${task.runtime_status} />
                   <div class="field-hint">
@@ -156,7 +155,7 @@ export function TaskDetailPage(props) {
                 <div class="stat-row">
                   <div class="stat-label">
                     <span>Time — every ${task.time_interval} ${task.time_interval_unit}</span>
-                    <span class="stat-value">${formatRemainingTime(task.remaining_time_ms)}${task.remaining_time_ms >= 0 ? ' left' : ''}</span>
+                    <span class="stat-value">${formatRemainingTime(task.remaining_time_ms)}${task.remaining_time_ms !== null && task.remaining_time_ms >= 0 ? ' left' : ''}</span>
                   </div>
                   <${ProgressBar} fraction=${task.time_fraction} status=${task.time_status} />
                   <div class="field-hint">

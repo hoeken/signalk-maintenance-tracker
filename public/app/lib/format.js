@@ -7,14 +7,13 @@ import dayjs from '../../vendor/dayjs/index.js';
 const MS_PER_HOUR = 3600 * 1000;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
 
-/** @param {string|null|undefined} iso */
+/**
+ * Calendar-date display. Uses the stored UTC date part directly — parsing to
+ * local time would shift UTC-midnight dates back a day in western timezones.
+ * @param {string|null|undefined} iso
+ */
 export function formatDate(iso) {
-  return iso ? dayjs(iso).format('YYYY-MM-DD') : '—';
-}
-
-/** @param {string|null|undefined} iso */
-export function formatDateTime(iso) {
-  return iso ? dayjs(iso).format('YYYY-MM-DD HH:mm') : '—';
+  return iso ? String(iso).slice(0, 10) : '—';
 }
 
 /**
@@ -64,22 +63,13 @@ export function formatRemainingTime(ms) {
 }
 
 /**
- * Default value for <input type="datetime-local">, in local time.
- * @param {Date|string} [d]
+ * Value for <input type="date">: today (local) by default, or the UTC date
+ * part of a stored ISO string. The YYYY-MM-DD value is sent to the API as-is
+ * (valid ISO-8601; the backend normalizes it to UTC midnight).
+ * @param {string} [iso]
  */
-export function toDatetimeLocal(d) {
-  return dayjs(d === undefined ? new Date() : d).format('YYYY-MM-DDTHH:mm');
-}
-
-/**
- * Convert a datetime-local input value to the ISO UTC string the API stores.
- * @param {string} value
- * @returns {string|null}
- */
-export function fromDatetimeLocal(value) {
-  if (!value) return null;
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.toDate().toISOString() : null;
+export function toDateInput(iso) {
+  return iso === undefined ? dayjs().format('YYYY-MM-DD') : String(iso).slice(0, 10);
 }
 
 /**
