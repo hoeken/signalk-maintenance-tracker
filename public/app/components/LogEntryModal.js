@@ -28,7 +28,7 @@ export function LogEntryModal(props) {
       ? String(entry.runtime_hours)
       : ''
     : task && task.current_runtime !== null && task.current_runtime !== undefined
-      ? String(task.current_runtime)
+      ? String(Math.round(task.current_runtime * 10) / 10)
       : '';
 
   const [date, setDate] = useState(isEdit && entry ? toDateInput(entry.maintenance_date) : toDateInput());
@@ -36,8 +36,6 @@ export function LogEntryModal(props) {
   const [notes, setNotes] = useState(isEdit && entry && entry.notes ? entry.notes : '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-
-  const showRuntime = isEdit || !!(task && task.runtime_path);
 
   /** @param {Event} e */
   const onSubmit = async (e) => {
@@ -102,25 +100,21 @@ export function LogEntryModal(props) {
           />
         </div>
 
-        ${showRuntime
-          ? html`
-              <div class="field">
-                <label class="field-label" for="log-runtime">Runtime hours</label>
-                <input
-                  id="log-runtime"
-                  class="input"
-                  type="number"
-                  min="0"
-                  step="any"
-                  value=${runtime}
-                  onInput=${(/** @type {any} */ e) => setRuntime(e.currentTarget.value)}
-                />
-                ${!isEdit
-                  ? html`<div class="field-hint">Prefilled with the current runtime reading when available.</div>`
-                  : null}
-              </div>
-            `
-          : null}
+        <div class="field">
+          <label class="field-label" for="log-runtime">Runtime hours</label>
+          <input
+            id="log-runtime"
+            class="input"
+            type="number"
+            min="0"
+            step="any"
+            value=${runtime}
+            onInput=${(/** @type {any} */ e) => setRuntime(e.currentTarget.value)}
+          />
+          ${!isEdit
+            ? html`<div class="field-hint">Prefilled with the current runtime reading when available.</div>`
+            : null}
+        </div>
 
         <div class="field">
           <label class="field-label" for="log-notes">Notes (markdown)</label>

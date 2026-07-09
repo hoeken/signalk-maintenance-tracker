@@ -11,7 +11,15 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     expect(screen.getByLabelText('Runtime hours').value).toBe('1360');
   });
 
-  it('hides runtime for tasks without a runtime path', () => {
+  it('rounds the prefilled runtime to 0.1 h like the rest of the UI', () => {
+    mockFetch([]);
+    render(
+      html`<${LogEntryModal} task=${makeTask({ current_runtime: 1360.2588888888889 })} onClose=${() => {}} />`
+    );
+    expect(screen.getByLabelText('Runtime hours').value).toBe('1360.3');
+  });
+
+  it('shows an empty runtime field for tasks without a runtime path', () => {
     mockFetch([]);
     render(
       html`<${LogEntryModal}
@@ -19,7 +27,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
         onClose=${() => {}}
       />`
     );
-    expect(screen.queryByLabelText('Runtime hours')).toBeNull();
+    expect(screen.getByLabelText('Runtime hours').value).toBe('');
   });
 
   it('POSTs the log entry and closes', async () => {
