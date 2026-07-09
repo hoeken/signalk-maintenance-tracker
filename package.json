@@ -1,7 +1,7 @@
 {
   "name": "signalk-maintenance-tracker",
   "version": "0.1.0",
-  "description": "Track recurring boat maintenance tasks (oil changes, winch service, etc.) with runtime- and time-based intervals.",
+  "description": "Track recurring boat maintenance tasks with runtime and time-based intervals.",
   "main": "dist/index.js",
   "license": "MIT",
   "author": "Zach Hoeken <hoeken@gmail.com>",
@@ -12,6 +12,7 @@
   "keywords": [
     "signalk-node-server-plugin",
     "signalk-webapp",
+    "signalk-category-utility",
     "signalk",
     "maintenance",
     "boat"
@@ -23,7 +24,12 @@
     "test:backend": "vitest run",
     "test:frontend": "npm --prefix frontend run test",
     "test": "npm run test:backend && npm run test:frontend",
+    "icons": "npm --prefix frontend run icons",
     "clean": "rm -rf dist"
+  },
+  "signalk": {
+    "displayName": "Maintenance Tracker",
+    "appIcon": "icons/icon-192.png"
   },
   "files": [
     "dist/",

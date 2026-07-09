@@ -7,7 +7,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
-    "vendor": "node scripts/vendor.mjs"
+    "vendor": "node scripts/vendor.mjs",
+    "icons": "node scripts/icons.mjs"
   },
   "devDependencies": {
     "@preact/signals": "2.0.4",
@@ -17,6 +18,7 @@
     "htm": "3.1.1",
     "jsdom": "^25.0.1",
     "preact": "10.26.9",
+    "sharp": "^0.35.3",
     "snarkdown": "2.0.0",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
