@@ -52,13 +52,14 @@ export async function refreshLoginStatus() {
  * user-displayable message on failure (401 → invalid credentials).
  * @param {string} username
  * @param {string} password
+ * @param {boolean} [rememberMe]
  */
-export async function login(username, password) {
+export async function login(username, password, rememberMe) {
   const res = await fetch('/signalk/v1/auth/login', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: username, password: password }),
+    body: JSON.stringify({ username: username, password: password, rememberMe: !!rememberMe }),
   });
   if (!res.ok) {
     throw new Error(res.status === 401 ? 'Invalid username or password' : 'Login failed (' + res.status + ')');

@@ -17,6 +17,7 @@ export function LoginModal() {
 function LoginForm() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -26,7 +27,7 @@ function LoginForm() {
     setError('');
     setBusy(true);
     try {
-      await login(username, password);
+      await login(username, password, rememberMe);
       closeLoginModal();
       toast('Logged in as ' + username, 'success');
     } catch (err) {
@@ -60,6 +61,17 @@ function LoginForm() {
             value=${password}
             onInput=${(/** @type {any} */ e) => setPassword(e.currentTarget.value)}
           />
+        </div>
+        <div class="field">
+          <label class="field-label" for="login-remember">
+            <input
+              id="login-remember"
+              type="checkbox"
+              checked=${rememberMe}
+              onInput=${(/** @type {any} */ e) => setRememberMe(e.currentTarget.checked)}
+            />
+            ${' '}Remember me
+          </label>
         </div>
         <button type="submit" class="btn btn-primary" disabled=${busy || !username}>
           ${busy ? 'Logging in…' : 'Log in'}
