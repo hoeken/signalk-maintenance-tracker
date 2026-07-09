@@ -8,6 +8,13 @@ const STORAGE_KEY = 'smt-theme';
 
 /** @returns {'light'|'dark'} */
 function initialTheme() {
+  // B&G / Navico MFDs pass ?mode=night or ?mode=day instead of honoring
+  // prefers-color-scheme; the param overrides everything, including the
+  // saved preference. Must match the first-paint script in index.html.
+  const modeMatch = /[?&]mode=([^&]*)/.exec(window.location.search);
+  if (modeMatch) {
+    return decodeURIComponent(modeMatch[1]) === 'night' ? 'dark' : 'light';
+  }
   let stored = null;
   try {
     stored = localStorage.getItem(STORAGE_KEY);
