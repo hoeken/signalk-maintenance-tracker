@@ -50,7 +50,7 @@ Tracker**; data is stored in the plugin's data directory as `maintenance.db`.
 | `notificationMethods` | `["visual"]` | SignalK notification `method` |
 | `runtimeNotifyLeadHours` | `10` | runtime hours before due to raise "due soon" |
 | `timeNotifyLeadDays` | `7` | days before due to raise "due soon" |
-| `recomputeIntervalMs` | `60000` | status recompute tick |
+| `recomputeIntervalMs` | `60000` | status recompute tick in ms |
 
 ## REST API
 

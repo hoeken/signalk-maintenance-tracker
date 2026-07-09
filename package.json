@@ -1,7 +1,7 @@
 {
   "name": "signalk-maintenance-tracker",
-  "version": "0.1.0",
-  "description": "Track recurring boat maintenance tasks with runtime and time-based intervals.",
+  "version": "1.0.0",
+  "description": "Track recurring boat maintenance tasks with runtime and calendar based intervals.",
   "main": "dist/index.js",
   "license": "MIT",
   "author": "Zach Hoeken <hoeken@gmail.com>",
@@ -29,11 +29,20 @@
   },
   "signalk": {
     "displayName": "Maintenance Tracker",
-    "appIcon": "icons/icon-192.png"
+    "appIcon": "icons/icon-192.png",
+    "screenshots": [
+      "./docs/screenshots/homepage.png",
+      "./docs/screenshots/dark-mode.png",
+      "./docs/screenshots/task-detail.png",
+      "./docs/screenshots/edit-task.png",
+      "./docs/screenshots/completed.png",
+      "./docs/screenshots/main-log.png"
+    ]
   },
   "files": [
     "dist/",
-    "public/"
+    "public/",
+    "docs/screenshots/"
   ],
   "engines": {
     "node": ">=22.5"
