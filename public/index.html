@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maintenance Tracker</title>
+  <!-- Set the theme before first paint; ES5 so it runs even without module support. -->
+  <script>
+    (function () {
+      var theme = null;
+      try { theme = localStorage.getItem('smt-theme'); } catch (e) { /* storage may be blocked */ }
+      if (theme !== 'light' && theme !== 'dark') {
+        // prefers-color-scheme is Chrome 76+; on Chromium 69 it never matches → light (§7.3)
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="stylesheet" href="./vendor/bootstrap-icons/bootstrap-icons.css" />
+  <link rel="stylesheet" href="./styles/tokens.css" />
+  <link rel="stylesheet" href="./styles/main.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <noscript>Maintenance Tracker requires JavaScript.</noscript>
+  <script type="module" src="./app/main.js"></script>
+</body>
+</html>

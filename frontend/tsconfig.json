@@ -1,21 +1,27 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "target": "ES2017",
     "module": "ESNext",
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    "moduleResolution": "Bundler",
+    "lib": ["ES2017", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "checkJs": true,
     "noEmit": true,
-    "jsx": "react-jsx",
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "preact": ["./node_modules/preact/src/index.d.ts"],
+      "preact/hooks": ["./node_modules/preact/hooks/src/index.d.ts"],
+      "@preact/signals": ["./node_modules/@preact/signals/dist/signals.d.ts"],
+      "@preact/signals-core": ["./node_modules/@preact/signals-core/dist/signals-core.d.ts"],
+      "htm": ["./node_modules/htm/dist/htm.d.ts"],
+      "dayjs": ["./node_modules/dayjs/index.d.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["types/**/*.d.ts", "../public/app/**/*.js"]
 }

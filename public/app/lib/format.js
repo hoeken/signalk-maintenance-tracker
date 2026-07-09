@@ -1,0 +1,98 @@
+/**
+ * Display formatting helpers. All date math beyond formatting happens on the
+ * backend (§6.2); day.js here is for parsing/formatting only.
+ */
+import dayjs from '../../vendor/dayjs/index.js';
+
+const MS_PER_HOUR = 3600 * 1000;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+
+/** @param {string|null|undefined} iso */
+export function formatDate(iso) {
+  return iso ? dayjs(iso).format('YYYY-MM-DD') : '—';
+}
+
+/** @param {string|null|undefined} iso */
+export function formatDateTime(iso) {
+  return iso ? dayjs(iso).format('YYYY-MM-DD HH:mm') : '—';
+}
+
+/**
+ * Runtime hours for display: "1240.5 h". Null-safe.
+ * @param {number|null|undefined} hours
+ */
+export function formatHours(hours) {
+  if (hours === null || hours === undefined) return '—';
+  const rounded = Math.round(hours * 10) / 10;
+  return String(rounded) + ' h';
+}
+
+/**
+ * Remaining runtime column: negative = overdue.
+ * @param {number|null|undefined} hours
+ */
+export function formatRemainingHours(hours) {
+  if (hours === null || hours === undefined) return '—';
+  if (hours < 0) return formatHours(-hours) + ' overdue';
+  return formatHours(hours);
+}
+
+/**
+ * Humanize a millisecond span: "3 days", "5 hours", "< 1 hour".
+ * @param {number} ms non-negative
+ */
+export function humanizeMs(ms) {
+  if (ms >= MS_PER_DAY) {
+    const days = Math.round(ms / MS_PER_DAY);
+    return days + (days === 1 ? ' day' : ' days');
+  }
+  if (ms >= MS_PER_HOUR) {
+    const hours = Math.round(ms / MS_PER_HOUR);
+    return hours + (hours === 1 ? ' hour' : ' hours');
+  }
+  return '< 1 hour';
+}
+
+/**
+ * Remaining time column: negative = overdue.
+ * @param {number|null|undefined} ms
+ */
+export function formatRemainingTime(ms) {
+  if (ms === null || ms === undefined) return '—';
+  if (ms < 0) return humanizeMs(-ms) + ' overdue';
+  return humanizeMs(ms);
+}
+
+/**
+ * Default value for <input type="datetime-local">, in local time.
+ * @param {Date|string} [d]
+ */
+export function toDatetimeLocal(d) {
+  return dayjs(d === undefined ? new Date() : d).format('YYYY-MM-DDTHH:mm');
+}
+
+/**
+ * Convert a datetime-local input value to the ISO UTC string the API stores.
+ * @param {string} value
+ * @returns {string|null}
+ */
+export function fromDatetimeLocal(value) {
+  if (!value) return null;
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.toDate().toISOString() : null;
+}
+
+/**
+ * @param {string|null|undefined} s
+ * @param {number} max
+ */
+export function truncate(s, max) {
+  if (!s) return '';
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+/** Status → human label. @param {string} status */
+export function statusLabel(status) {
+  if (status === 'due_soon') return 'due soon';
+  return status;
+}
