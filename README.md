@@ -1,7 +1,7 @@
 # signalk-maintenance-tracker
 
 A [SignalK](https://signalk.org) server plugin that tracks recurring boat
-maintenance — oil changes, winch service, watermaker pickling, and anything
+maintenance — oil changes, winch service, watermaker filters, and anything
 else that comes due by engine hours, by calendar time, or both.
 
 ## Features
