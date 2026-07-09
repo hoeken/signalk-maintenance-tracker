@@ -5,6 +5,7 @@
 import { html } from '../lib/html.js';
 import { useState, useEffect } from '../../vendor/preact-hooks.js';
 import { useLogs } from '../api/hooks.js';
+import { apiFetch, buildQuery } from '../api/client.js';
 import { useListParams } from '../lib/useListParams.js';
 import { formatDate, formatHours, truncate } from '../lib/format.js';
 import { Table } from '../components/Table.js';
@@ -15,6 +16,42 @@ import { MarkdownView } from '../components/MarkdownView.js';
 
 const PAGE_SIZE = 25;
 const NOTE_PREVIEW_CHARS = 120;
+/** Server-side pageSize cap (see MAX_PAGE_SIZE in src/service.ts). */
+const EXPORT_PAGE_SIZE = 200;
+
+/** @param {string|number|null|undefined} value */
+function csvField(value) {
+  const s = value === null || value === undefined ? '' : String(value);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+/** @param {LogDTO[]} entries */
+function buildCsv(entries) {
+  const rows = [['Task', 'Date', 'Runtime Hours', 'Logged By', 'Notes']];
+  for (const e of entries) {
+    rows.push([
+      csvField(e.task_name),
+      csvField(e.maintenance_date),
+      csvField(e.runtime_hours),
+      csvField(e.logged_by),
+      csvField(e.notes),
+    ]);
+  }
+  return rows.map((r) => r.join(',')).join('\r\n') + '\r\n';
+}
+
+/** Fetch every log entry, paging past the server's pageSize cap. */
+async function fetchAllLogs() {
+  /** @type {LogDTO[]} */
+  const entries = [];
+  for (let page = 1; ; page += 1) {
+    /** @type {import('../types.js').Page<LogDTO>} */
+    const res = await apiFetch('/logs' + buildQuery({ page, pageSize: EXPORT_PAGE_SIZE }));
+    entries.push(...res.data);
+    if (res.data.length === 0 || entries.length >= res.total) break;
+  }
+  return entries;
+}
 
 export function MasterLogPage() {
   const { params, update } = useListParams();
@@ -41,6 +78,34 @@ export function MasterLogPage() {
     page: page,
     pageSize: PAGE_SIZE,
   });
+
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(/** @type {string|null} */(null));
+  const downloadCsv = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const entries = await fetchAllLogs();
+      const now = new Date();
+      /** @param {number} n */
+      const pad = (n) => String(n).padStart(2, '0');
+      const stamp = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+      const blob = new Blob([buildCsv(entries)], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'signalk-maintenance-log-' + stamp + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const [expanded, setExpanded] = useState(/** @type {Record<string, boolean>} */({}));
   /** @param {number} id */
@@ -115,7 +180,14 @@ export function MasterLogPage() {
     <div>
       <div class="page-header">
         <h1 class="page-title">Maintenance Log</h1>
+        <button type="button" class="btn btn-primary" disabled=${downloading} onClick=${downloadCsv}>
+          <i class="bi bi-download" />${downloading ? 'Preparing…' : 'Download Log'}
+        </button>
       </div>
+
+      ${downloadError
+      ? html`<div class="error-box">Failed to download log: ${downloadError}</div>`
+      : null}
 
       <div class="toolbar">
         <div class="search-box">
