@@ -65,6 +65,15 @@ export function useTags() {
   return useResource('tags', () => apiFetch('/tags'), { refetchInterval: POLL_MS });
 }
 
+/**
+ * Plugin health/version (§8.5). Fetched once; the version can't change
+ * without a server restart, so no polling.
+ * @returns {import('./resource.js').ResourceState<{version: string}>}
+ */
+export function useHealth() {
+  return useResource('health', () => apiFetch('/health'));
+}
+
 // ---- mutations ----
 
 /**

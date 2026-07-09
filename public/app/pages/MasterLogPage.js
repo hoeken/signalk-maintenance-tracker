@@ -42,7 +42,7 @@ export function MasterLogPage() {
     pageSize: PAGE_SIZE,
   });
 
-  const [expanded, setExpanded] = useState(/** @type {Record<string, boolean>} */ ({}));
+  const [expanded, setExpanded] = useState(/** @type {Record<string, boolean>} */({}));
   /** @param {number} id */
   const toggleExpanded = (id) => {
     /** @type {Record<string, boolean>} */
@@ -114,7 +114,7 @@ export function MasterLogPage() {
   return html`
     <div>
       <div class="page-header">
-        <h1 class="page-title">Master log</h1>
+        <h1 class="page-title">Maintenance Log</h1>
       </div>
 
       <div class="toolbar">
@@ -131,8 +131,8 @@ export function MasterLogPage() {
       </div>
 
       ${logsRes.error && !pageData
-        ? html`<div class="error-box">Failed to load log: ${logsRes.error.message}</div>`
-        : html`
+      ? html`<div class="error-box">Failed to load log: ${logsRes.error.message}</div>`
+      : html`
             <${Table}
               columns=${columns}
               rows=${pageData ? pageData.data : []}
@@ -143,13 +143,13 @@ export function MasterLogPage() {
               emptyMessage=${search ? 'No log entries match your search.' : 'No maintenance logged yet.'}
             />
             ${pageData
-              ? html`<${Pagination}
+          ? html`<${Pagination}
                   page=${pageData.page}
                   pageSize=${pageData.pageSize}
                   total=${pageData.total}
                   onPage=${(/** @type {number} */ p) => update({ page: p })}
                 />`
-              : null}
+          : null}
           `}
     </div>
   `;

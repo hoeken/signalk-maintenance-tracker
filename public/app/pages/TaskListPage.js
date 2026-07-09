@@ -53,9 +53,9 @@ export function TaskListPage() {
   const tagsRes = useTags();
 
   /** @type {[TaskDTO|null|undefined, any]} editor: undefined=closed, null=create, TaskDTO=edit */
-  const [editorTask, setEditorTask] = useState(/** @type {TaskDTO|null|undefined} */ (undefined));
-  const [completing, setCompleting] = useState(/** @type {TaskDTO|null} */ (null));
-  const [deleting, setDeleting] = useState(/** @type {TaskDTO|null} */ (null));
+  const [editorTask, setEditorTask] = useState(/** @type {TaskDTO|null|undefined} */(undefined));
+  const [completing, setCompleting] = useState(/** @type {TaskDTO|null} */(null));
+  const [deleting, setDeleting] = useState(/** @type {TaskDTO|null} */(null));
 
   const selectedTags = tagsCsv ? tagsCsv.split(',').filter(Boolean) : [];
   /** @param {string} tag */
@@ -144,14 +144,14 @@ export function TaskListPage() {
   return html`
     <div>
       <div class="page-header">
-        <h1 class="page-title">Maintenance tasks</h1>
+        <h1 class="page-title">Maintenance Tasks</h1>
         ${auth.isLoggedIn
-          ? html`
+      ? html`
               <button type="button" class="btn btn-primary" onClick=${() => setEditorTask(null)}>
                 <i class="bi bi-plus-lg" />New task
               </button>
             `
-          : null}
+      : null}
       </div>
 
       <div class="toolbar">
@@ -167,7 +167,7 @@ export function TaskListPage() {
         </div>
         <div class="chips">
           ${(tagsRes.data ? tagsRes.data.data : []).map(
-            (tag) => html`
+        (tag) => html`
               <button
                 type="button"
                 key=${tag.name}
@@ -177,13 +177,13 @@ export function TaskListPage() {
                 ${tag.name}<span class="chip-count">${tag.count}</span>
               </button>
             `
-          )}
+      )}
         </div>
       </div>
 
       ${tasksRes.error && !pageData
-        ? html`<div class="error-box">Failed to load tasks: ${tasksRes.error.message}</div>`
-        : html`
+      ? html`<div class="error-box">Failed to load tasks: ${tasksRes.error.message}</div>`
+      : html`
             <${Table}
               columns=${columns}
               rows=${pageData ? pageData.data : []}
@@ -194,31 +194,31 @@ export function TaskListPage() {
               emptyMessage=${search || tagsCsv ? 'No tasks match your filters.' : 'No maintenance tasks yet.'}
             />
             ${pageData
-              ? html`<${Pagination}
+          ? html`<${Pagination}
                   page=${pageData.page}
                   pageSize=${pageData.pageSize}
                   total=${pageData.total}
                   onPage=${(/** @type {number} */ p) => update({ page: p })}
                 />`
-              : null}
+          : null}
           `}
 
       ${editorTask !== undefined
-        ? html`<${TaskFormModal} task=${editorTask} onClose=${() => setEditorTask(undefined)} />`
-        : null}
+      ? html`<${TaskFormModal} task=${editorTask} onClose=${() => setEditorTask(undefined)} />`
+      : null}
       ${completing ? html`<${LogEntryModal} task=${completing} onClose=${() => setCompleting(null)} />` : null}
       ${deleting
-        ? html`<${ConfirmModal}
+      ? html`<${ConfirmModal}
             title="Delete task"
             message=${'Delete "' + deleting.name + '" and its entire maintenance log? This cannot be undone.'}
             onConfirm=${async () => {
-              await deleteTask(deleting.slug);
-              toast('Task deleted.', 'success');
-              setDeleting(null);
-            }}
+          await deleteTask(deleting.slug);
+          toast('Task deleted.', 'success');
+          setDeleting(null);
+        }}
             onClose=${() => setDeleting(null)}
           />`
-        : null}
+      : null}
     </div>
   `;
 }
