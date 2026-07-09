@@ -54,4 +54,9 @@ The backend should also create and update notification.maintenance.{slug}.*
 ## Technologies
 
 - backend: local sqlite db for storing data
-- frontend framework: ???
+- frontend framework: **Preact** (with `htm` for templating), authored as buildless
+  native ES modules — no bundler or transpile step of our own. Chosen so the webapp
+  runs on Navico/B&G MFDs (Chromium 69) while progressively enhancing on modern
+  browsers. End users' reverse-proxy plugin transpiles the served JS/CSS for old
+  browsers; we author to an ES2017 + Chromium-69 CSS baseline. See
+  [specification.md](specification.md) §3 and §7.9 for the full compatibility rules.

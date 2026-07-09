@@ -10,8 +10,10 @@ Supersedes the high-level [initial-spec.md](initial-spec.md) with concrete imple
 A SignalK server plugin that tracks recurring boat maintenance tasks (oil changes,
 winch service, watermaker maintenance, etc.). Each task has runtime- and/or
 time-based intervals, a completion log, and freeform tag categories. The plugin
-serves a React single-page webapp for managing tasks and viewing overdue/upcoming
-maintenance.
+serves a Preact single-page webapp for managing tasks and viewing overdue/upcoming
+maintenance. The webapp is **buildless** (native ES modules, no bundler required)
+and targets a browser floor of **Chromium 69** so it runs on Navico/B&G MFDs, while
+progressively enhancing on modern browsers (§7.9).
 
 ### Goals
 - Create, edit, delete, and complete maintenance tasks through a modern webapp.
@@ -42,8 +44,8 @@ maintenance.
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ Browser (React SPA, served from plugin /public)                 │
-│   react-query ──REST (poll)──►                                  │
+│ Browser (Preact SPA, buildless ES modules, served from /public) │
+│   signals data layer ──REST (poll)──►                           │
 └───────────────┬─────────────────────────────────────────────────┘
                 │  HTTP  /plugins/signalk-maintenance-tracker/api/*
                 ▼
@@ -63,8 +65,8 @@ maintenance.
 **Key boundary:** SignalK is an *internal backend concern* for all domain and
 runtime *data*. The backend reads runtime values in and writes notifications out,
 and everything the frontend needs (including current runtime and computed status)
-is exposed through the plugin REST API. "Live updating" in the UI means react-query
-polling the REST endpoints. The frontend touches SignalK's native REST directly in
+is exposed through the plugin REST API. "Live updating" in the UI means the data
+layer polling the REST endpoints (§7.6). The frontend touches SignalK's native REST directly in
 only two read-only, non-domain cases: authentication (`/signalk/v1/auth/*`, §7.7)
 and discovering candidate runtime-path *names* for the task editor
 (`/signalk/v1/api/vessels/self`, §8.4) — never as a source of runtime values.
@@ -88,17 +90,35 @@ and discovering candidate runtime-path *names* for the task editor
 - **Migrations:** simple in-code versioned migration runner (see §5.5).
 
 ### Frontend
-| Concern | Library |
+The frontend is a **buildless Preact app**: native ES modules authored to run
+directly in the browser with **no bundler and no transpile step of our own**. The
+browser floor is **Chromium 69** (Navico/B&G MFDs); everything degrades gracefully
+up to modern browsers (§7.9). See §7.9 for the compatibility rules that constrain
+every library choice below.
+
+| Concern | Library / approach |
 |---|---|
-| Build / dev server | Vite + TypeScript |
-| Framework | React 18 |
-| Data table | @tanstack/react-table |
-| Routing | react-router (HashRouter — see §7.1) |
-| UI / modals / theming | Mantine |
-| Markdown rendering | react-markdown + remark-gfm |
-| Data + polling | @tanstack/react-query |
-| Forms | @mantine/form |
-| Dates | day.js |
+| Framework | **Preact 10** (React-compatible hooks, ~4 KB, conservative ES2015 dist) |
+| Templating | **htm** (JSX-like tagged template literals — no JSX/compile step) |
+| Reactivity / data + polling | **@preact/signals** + a small hand-rolled resource/polling layer (§7.6) |
+| Routing | **preact-router** (hash mode — see §7.1) or a tiny hand-rolled hash router |
+| Data table | **hand-rolled** (the sort/filter/paginate rules in §7.4 are specific; avoids a heavy dep) |
+| UI / modals / theming | **hand-rolled components + plain CSS** on a Chromium-69-safe baseline (§7.3, §7.9). No component library. |
+| Markdown rendering | **snarkdown** (~1 KB) with output sanitized before insertion |
+| Iconography | **Bootstrap Icons** — vendored CSS + woff2 webfont, used via `<i class="bi bi-…">`. All UI icons come from this set. |
+| Forms | **hand-rolled** controlled inputs + a small validation helper |
+| Dates | **day.js** (small, ES5-safe; used for calendar-aware month math, §6.2) |
+| Type-checking (dev only) | TypeScript in **`--noEmit` / `checkJs`** mode over JSDoc-annotated `.js` — types are checked, never emitted, so there is no build artifact to transpile |
+| Testing (dev only) | **vitest** + **@testing-library/preact** (jsdom) |
+
+**Dependency delivery:** the handful of runtime libraries (preact, htm,
+@preact/signals, preact-router, snarkdown, day.js) are **vendored as ESM files**
+under `public/vendor/` and imported by explicit relative paths. Import maps are
+**not** used (they require Chrome 89+); bare-specifier imports are therefore
+avoided. Bootstrap Icons is vendored the same way — its stylesheet plus the woff2
+font file live under `public/vendor/` and are loaded via a `<link>` in
+`index.html`. Pinned vendor copies mean the app has no runtime CDN dependency —
+important for an offline vessel network.
 
 ---
 
@@ -130,29 +150,35 @@ signalk-maintenance-tracker/
 │       ├── logs.routes.ts
 │       └── tags.routes.ts
 ├── dist/                     # compiled backend (gitignored, published)
-├── public/                   # built frontend (gitignored, published) → the webapp
-├── frontend/                 # React app source
-│   ├── package.json          # frontend deps (separate from plugin deps)
-│   ├── vite.config.ts
-│   ├── index.html
-│   └── src/
-│       ├── main.tsx
-│       ├── App.tsx           # AppShell + routes + providers
-│       ├── api/              # fetch client + react-query hooks
-│       ├── auth/             # AuthProvider/useAuth + SignalK /signalk/v1/auth/* client
-│       ├── pages/            # TaskList, TaskDetail, MasterLog
-│       ├── components/       # tables, modals, MarkdownView, ThemeToggle, LoginModal, AuthControl
-│       ├── hooks/
-│       └── types.ts          # shared DTO types (kept in sync with backend)
+├── public/                   # the webapp, served as-is by SignalK (published)
+│   ├── index.html            # loads app/main.js as <script type="module">
+│   ├── vendor/               # pinned ESM copies of preact, htm, signals, router, snarkdown, day.js
+│   │                         #   + bootstrap-icons.css and its woff2 font
+│   ├── app/                  # application ES modules (authored, shipped unchanged)
+│   │   ├── main.js           # app root: mounts <App/>, sets up router + theme
+│   │   ├── app.js            # shell: header (nav, search, theme toggle, auth control) + routes
+│   │   ├── api/              # fetch client + signals-backed resource hooks
+│   │   ├── auth/             # useAuth + SignalK /signalk/v1/auth/* client
+│   │   ├── pages/            # TaskList, TaskDetail, MasterLog
+│   │   ├── components/       # Table, modals, MarkdownView, ThemeToggle, LoginModal, AuthControl
+│   │   └── lib/              # slug, format, small helpers
+│   └── styles/               # plain CSS (Chromium-69-safe baseline, theme tokens)
+├── frontend/                 # dev-only tooling for the webapp (NOT shipped)
+│   ├── package.json          # dev deps: typescript, vitest, @testing-library/preact
+│   ├── tsconfig.json         # checkJs / noEmit — type-checks public/app/**/*.js
+│   └── test/                 # co-located *.test.js also allowed under public/app/
 └── docs/
     ├── initial-spec.md
     └── specification.md      # this file
 ```
 
-Rationale for the split: the backend and frontend have entirely different
-dependency trees and build steps. `frontend/` is a self-contained Vite project
-that builds into the repo-root `public/` directory, which SignalK serves as the
-webapp. The backend compiles `src/` → `dist/`.
+Rationale for the split: the backend still compiles `src/` → `dist/` via `tsc`.
+The frontend, by contrast, has **no build output** — the files under `public/`
+(hand-written ES modules + vendored deps + CSS) are exactly what ships and what the
+browser runs. `frontend/` holds only *dev-time* tooling (type-checking and tests)
+that never produces a runtime artifact. End users' reverse-proxy plugin transpiles
+the served JS/CSS for old browsers on the fly (§7.9); nothing here depends on a
+bundler.
 
 ---
 
@@ -328,57 +354,78 @@ stops resolving after a rename; this is acceptable in v1.
 ## 7. Frontend
 
 ### 7.1 Serving & routing
-The built SPA is served by SignalK at `/{pluginId}/` (i.e.
+The SPA is served by SignalK at `/{pluginId}/` (i.e.
 `/signalk-maintenance-tracker/`) because `package.json` includes the
-`signalk-webapp` keyword and a `public/` directory.
+`signalk-webapp` keyword and a `public/` directory. The files are served exactly
+as authored (no build output).
 
-- Vite `base: './'` so assets resolve relative to the mounted path.
-- **HashRouter** is used (confirmed choice) so deep links and page refreshes work
+- All asset references in `index.html` and ES-module imports use **relative paths**
+  (`./app/main.js`, `../vendor/preact.js`) so they resolve correctly under the
+  plugin mount without a configured base. No import maps (§3, §7.9).
+- **Hash-based routing** (confirmed choice) so deep links and page refreshes work
   under the plugin mount without any server-side SPA fallback — everything after
   the `#` is client-side only and never hits the server (e.g.
   `/signalk-maintenance-tracker/#/tasks/oil-change`). SignalK serves the app at
   both `/signalk-maintenance-tracker/` and `/signalk-maintenance-tracker/index.html`,
-  which is all HashRouter requires. (BrowserRouter + `basename` would need the
-  static handler to fall back to `index.html` for unknown deep paths; not relied
-  on.)
+  which is all a hash router requires. Implemented with `preact-router` in hash mode
+  (or a small hand-rolled `hashchange` router). History/path-based routing would
+  need the static handler to fall back to `index.html` for unknown deep paths; not
+  relied on.
 - API base URL: `/plugins/signalk-maintenance-tracker/api` (absolute path; the
   webapp and API share an origin). Because they are same-origin, the SignalK
   session cookie set at login is sent automatically with every API request
   (fetch `credentials: 'same-origin'`); no manual token handling is required for
   the common case (§7.7, §9).
 
-### 7.2 Providers & shell
-`App.tsx` wraps the tree in `MantineProvider` (with color scheme), a
-`QueryClientProvider`, an `AuthProvider` (§7.7), and Mantine's `ModalsProvider` +
-`Notifications`. The `AppShell` header contains: app title, nav links (Tasks /
-Log), a global search box, the theme toggle, and an **auth control** (`AuthControl`)
-— a "Log in" link when anonymous, or the username + "Log out" when authenticated.
+### 7.2 App root & shell
+`main.js` mounts the root `App` component (`app.js`) into `#app`. There is no
+provider tree in the React-Context sense; cross-cutting state lives in **module-level
+signals** imported where needed:
+- **auth** — `useAuth()` over an auth signal (§7.7);
+- **theme** — a color-scheme signal (§7.3);
+- **toasts** — a small signal-backed notification queue rendered by a `<Toaster/>`
+  in the shell (replaces Mantine's `Notifications`);
+- **modals** — rendered declaratively from component state (no global modal
+  provider); a shared `<Modal/>` primitive handles the overlay/focus-trap.
+
+The shell header contains: app title, nav links (Tasks / Log), a global search box,
+the theme toggle, and an **auth control** (`AuthControl`) — a "Log in" link when
+anonymous, or the username + "Log out" when authenticated.
 
 ### 7.3 Theme (light/dark)
-- On first load, initialize color scheme from `prefers-color-scheme`.
-- Persist the user's explicit choice to `localStorage`; explicit choice overrides
-  the media query on subsequent loads.
-- Toggle in the header cycles light/dark (Mantine `useMantineColorScheme`).
+Implemented with CSS custom properties: a `data-theme="light|dark"` attribute on
+`<html>` selects a set of color tokens defined in `public/styles/`. A theme signal
+drives the attribute.
+- Persisted explicit choice in `localStorage` is authoritative on load.
+- With no stored choice, initialize from the `prefers-color-scheme` media query.
+  This is a **progressive enhancement**: on Chromium 69 (which predates
+  `prefers-color-scheme`, Chrome 76) the query simply doesn't match and the app
+  falls back to the default (light) theme — the toggle still works everywhere. See
+  §7.9.
+- The header toggle flips the signal and updates `localStorage`; because color is
+  driven by CSS variables + the `data-theme` attribute, the switch is instant with
+  no component library involved.
 
 ### 7.4 Pages
 
 **Task List (`/`)** — the main page.
-- TanStack Table + Mantine, columns: status badge, name, tags, remaining runtime,
-  remaining time, next due date, action icons. `view` is always shown; the write
-  actions (`edit` / `delete` / `complete`) and the "New task" button are rendered
-  only when logged in (§7.7). Logged-out visitors see the data and the `view`
-  action.
+- Hand-rolled `<Table/>` component, columns: status badge, name, tags, remaining
+  runtime, remaining time, next due date, action icons. `view` is always shown; the
+  write actions (`edit` / `delete` / `complete`) and the "New task" button are
+  rendered only when logged in (§7.7). Logged-out visitors see the data and the
+  `view` action.
 - Default sort: overdue first, then due_soon, then upcoming — driven by the
   server's `status_rank` + remaining sort.
 - Controls: freeform search box; tag filter (multi-select chips, select/deselect);
   column-header sorting (name, remaining runtime, remaining time); pagination.
-- All list state (search, tags, sort, page) is held in URL query params so views
-  are shareable/bookmarkable and survive refresh.
-- Live-updating via react-query `refetchInterval` (default 5 s, configurable).
+- All list state (search, tags, sort, page) is held in the URL hash query string so
+  views are shareable/bookmarkable and survive refresh (a `useListParams` helper
+  over the hash router).
+- Live-updating via the data layer's polling (default 5 s, configurable — §7.6).
 
 **Task Detail (`/tasks/:slug`)**
 - Shows name, rendered markdown description, tags, both intervals, current
-  elapsed/remaining runtime and time (with Mantine progress bars from
+  elapsed/remaining runtime and time (with CSS progress bars from
   `runtime_fraction` / `time_fraction`), next due date(s), and current status
   badge.
 - A "Mark complete" button opening the Complete modal.
@@ -390,6 +437,8 @@ Log), a global search box, the theme toggle, and an **auth control** (`AuthContr
 - Sortable + searchable + paginated (server-side, same pattern as task list).
 
 ### 7.5 Modals
+All modals are built on a shared hand-rolled `<Modal/>` primitive (overlay,
+Escape-to-close, focus trap, `role="dialog"`) — no modal library.
 - **Task form (create/edit)** — fields: name; slug (on create, shown as a live
   preview derived from name but editable; on edit, an editable field that warns
   the change breaks existing deep links, §6.4); markdown description (textarea
@@ -408,21 +457,29 @@ Log), a global search box, the theme toggle, and an **auth control** (`AuthContr
   /tasks/:slug`.
 
 ### 7.6 Data layer
-- A thin `fetch` wrapper (`api/client.ts`) prefixing the API base and handling
-  JSON + error normalization. It sends `credentials: 'same-origin'` so the SignalK
-  session cookie rides along (§7.7). On any `401`/`403` it marks the session
-  logged-out and prompts re-login (Mantine notification + `openLoginModal()`) —
-  covering both an expired session on a write and (given today's admin-only API)
-  reads made while logged out.
-- react-query hooks: `useTasks(params)`, `useTask(slug)`, `useLogs(params)`,
-  `useTaskLogs(slug)`, `useTags()`; mutations `useCreateTask`, `useUpdateTask`,
-  `useDeleteTask`, `useAddLog` (mark complete), `useUpdateLog`, `useDeleteLog`.
-  A separate `useSignalKPaths()` query loads the `/signalk/v1/api/vessels/self`
-  snapshot once and caches the flattened candidate-path list with
-  `staleTime: Infinity` (fetched lazily on first task-editor open, never
-  re-fetched per keystroke — §8.4).
-- Mutations invalidate the relevant queries (`tasks`, `task/:slug`, `logs`,
-  `tags`) so the UI reflects changes immediately without waiting for the poll.
+No react-query. A small hand-rolled, **signals-backed resource layer** provides the
+same essentials (cache-by-key, polling, invalidation) in a fraction of the code and
+with no post-Chromium-69 runtime-API dependencies (§7.9).
+
+- A thin `fetch` wrapper (`api/client.js`) prefixes the API base and handles JSON +
+  error normalization. It sends `credentials: 'same-origin'` so the SignalK session
+  cookie rides along (§7.7). On any `401`/`403` it marks the session logged-out and
+  prompts re-login (a toast + `openLoginModal()`, §7.2/§7.7) — covering both an
+  expired session on a write and (given today's admin-only API) reads made while
+  logged out.
+- A `createResource(key, fetcher, { refetchInterval })` helper returns a signal of
+  `{ data, error, loading }`, dedupes by `key`, and (when an interval is set) polls
+  via a single shared `setInterval` while at least one component is subscribed. Hooks
+  wrap it: `useTasks(params)`, `useTask(slug)`, `useLogs(params)`, `useTaskLogs(slug)`,
+  `useTags()`.
+- Mutations are plain async functions (`createTask`, `updateTask`, `deleteTask`,
+  `addLog` (mark complete), `updateLog`, `deleteLog`) that, on success, **invalidate**
+  the relevant resource keys (`tasks`, `task/:slug`, `logs`, `tags`) — triggering an
+  immediate refetch so the UI reflects changes without waiting for the poll.
+- `useSignalKPaths()` loads the `/signalk/v1/api/vessels/self` snapshot **once**
+  (no `refetchInterval`, cached for the session), lazily on first task-editor open,
+  and serves every autocomplete keystroke from the flattened in-memory list — never
+  re-fetched per keystroke (§8.4).
 
 ### 7.7 Authentication (frontend)
 The webapp logs the user in against the **SignalK server's own** auth endpoints
@@ -431,9 +488,9 @@ it does not manage credentials or authorization itself. The plugin webapp is
 served same-origin with the server, so the session cookie SignalK sets at login is
 sent automatically with every subsequent request (API calls and loginStatus/logout).
 
-- **`AuthProvider` / `useAuth()`** (`auth/`) holds the login state and exposes
+- **`useAuth()`** (`auth/`) exposes a module-level auth signal as
   `{ isLoggedIn, username, login(username, password), logout(), openLoginModal() }`.
-  On mount it establishes the initial state by calling
+  On app start it establishes the initial state by calling
   `GET /skServer/loginStatus`, which returns a JSON body such as
   `{ "status": "loggedIn", "username": "admin", "userLevel": "admin", ... }` when
   authenticated or `{ "status": "notLoggedIn", ... }` when not — the provider reads
@@ -446,9 +503,9 @@ sent automatically with every subsequent request (API calls and loginStatus/logo
   error in the modal.
 - **Logout** — `PUT /signalk/v1/auth/logout`; clears local state regardless of
   outcome.
-- **`LoginModal`** — a Mantine modal with username + password fields and inline
-  error. Opened from the header `AuthControl`, and also auto-opened when an API
-  call returns `401` (see §7.6).
+- **`LoginModal`** — the shared `<Modal/>` primitive (§7.5) with username + password
+  fields and inline error. Opened from the header `AuthControl`, and also auto-opened
+  when an API call returns `401` (see §7.6).
 - **`AuthControl`** (header) — "Log in" when logged out; the username + a "Log out"
   action when logged in.
 - **Gating rule (single source of truth):** every affordance that triggers a
@@ -468,6 +525,55 @@ sent automatically with every subsequent request (API calls and loginStatus/logo
 > data. The logged-out read-only experience becomes real once SignalK enforces
 > per-route permission levels (§9); the gating above is already written for that
 > future and needs no change when it lands.
+
+### 7.8 Markdown rendering & safety
+Task descriptions and log notes are markdown (§5). They are rendered with
+**snarkdown** and the resulting HTML is **sanitized before insertion** (strip
+`<script>`/`<style>`/event-handler attributes and `javascript:` URLs) so a note can
+never inject script. A small `<MarkdownView/>` component owns render + sanitize +
+`dangerouslySetInnerHTML` (Preact supports the same prop as React) in one place;
+nothing else sets raw HTML.
+
+### 7.9 Browser support & compatibility
+**Floor: Chromium 69** (Navico/B&G MFDs, Sept 2018). **Ceiling: current evergreen
+browsers.** The app is authored once to run on the floor and *progressively enhance*
+upward — never the reverse.
+
+**How compatibility is achieved.** End users run the webapp behind a reverse-proxy
+plugin that transpiles the served JS/CSS on the fly, so **we do not bundle or
+transpile**. But transpilation only rewrites *syntax* — it does **not** polyfill
+runtime APIs and does **not** fix CSS. So the real rules are about APIs and CSS, and
+they hold regardless of the proxy:
+
+- **Author to an ES2017 baseline.** Chromium 69 natively supports ES2017 and most of
+  ES2018 (`async`/`await`, classes, spread, `Promise.finally`). Avoid newer *syntax*
+  (`?.`, `??`, logical-assignment, private `#fields`); if any vendored dep uses it,
+  the proxy down-levels it, but our own code stays proxy-independent.
+- **No post-69 runtime APIs without a polyfill** (the proxy will not add these):
+  `structuredClone`, `Array.prototype.at`, `Object.fromEntries`, `Promise.allSettled`,
+  `String.prototype.matchAll`, `globalThis`, `queueMicrotask`. This constraint is a
+  primary reason for the hand-rolled data layer (§7.6) over react-query and for
+  hand-rolled tables over TanStack Table.
+- **No import maps** (Chrome 89): imports use relative paths to vendored ESM (§3).
+- **CSS baseline (Chromium 69).** Safe to use: custom properties, flexbox, CSS grid
+  **incl. grid `gap`**, `position: sticky`, media queries, and woff2 webfonts
+  (Bootstrap Icons — Chrome 36+). **Avoid** (or use only as
+  non-essential enhancement): flexbox `gap` (Chrome 84 — use grid `gap` or margins
+  for spacing that must exist on the floor), `:has()` (105), `:is()`/`:where()` (88),
+  container queries (105), CSS nesting (112), `aspect-ratio` (88), `@layer` (99),
+  `light-dark()`.
+
+**Graceful degradation is explicitly fine.** Features that simply *don't apply* on
+old browsers — and leave the app fully usable — may be used freely as enhancement.
+Canonical example: `prefers-color-scheme` for initial theme (Chrome 76; on 69 it
+just doesn't match and we fall back to the default theme, toggle still works, §7.3).
+The rule of thumb: an unsupported feature must degrade to *acceptable*, never to
+*broken*.
+
+**Verification.** Because there is no build to catch this, compatibility is a review
+checklist item, and the polish phase (§14.10) includes a smoke test on a Chromium-69
+engine (e.g. via a matching Puppeteer/BrowserStack target) covering load, list,
+detail, and the complete-task flow.
 
 ---
 
@@ -582,8 +688,8 @@ session** — lazily, the first time the task editor is opened (so read-only
 sessions never pay the cost) — flattens it into a cached in-memory list of
 candidate path strings, and serves every keystroke of the autocomplete from that
 cached list. It is **never** re-fetched while the user types. In practice this is
-a react-query query with `staleTime: Infinity` (no `refetchInterval`, no
-per-keystroke request). Paths are effectively static, so refreshing the candidate
+the `useSignalKPaths()` resource (§7.6) with no `refetchInterval` and no
+per-keystroke request. Paths are effectively static, so refreshing the candidate
 list just means reloading the app; the picker does not live-sync when a new path
 appears at runtime.
 
@@ -741,8 +847,8 @@ These were open during drafting and are now settled:
   change re-checks uniqueness and migrates the notification path. (§6.4, §8.1)
 - **Search backend:** plain `LIKE` across name/description/tags/notes. Expected
   scale is < ~200 records, so no FTS5 needed. (§5.4, §6.3)
-- **Deep-link routing:** **HashRouter** (confirmed). The app is served at both
-  `/signalk-maintenance-tracker/` and `…/index.html`; HashRouter needs no
+- **Deep-link routing:** **hash-based routing** (confirmed). The app is served at
+  both `/signalk-maintenance-tracker/` and `…/index.html`; a hash router needs no
   server-side SPA fallback. (§7.1)
 - **Access control:** owned entirely by SignalK — the plugin builds no authz.
   Today all plugin routes are admin-only; a future SignalK release adds per-route
@@ -765,12 +871,11 @@ These were open during drafting and are now settled:
   "main": "dist/index.js",
   "keywords": ["signalk-node-server-plugin", "signalk-webapp"],
   "scripts": {
-    "build:backend": "tsc",
-    "build:frontend": "npm --prefix frontend run build",
-    "build": "npm run build:backend && npm run build:frontend",
+    "build": "tsc",
     "watch:backend": "tsc -w",
+    "typecheck:frontend": "npm --prefix frontend run typecheck",
     "test": "vitest run && npm --prefix frontend run test",
-    "clean": "rimraf dist public"
+    "clean": "rimraf dist"
   },
   "files": ["dist/", "public/"],
   "engines": { "node": ">=22.5" },
@@ -778,20 +883,26 @@ These were open during drafting and are now settled:
   "devDependencies": { "typescript": "…", "@types/node": "…" }
 }
 ```
+- **Backend only has a build** (`tsc` → `dist/`). The frontend has **no build**:
+  `public/` is hand-written source (ES modules + vendored ESM deps + CSS) that ships
+  and runs unchanged, so it is not gitignored, has no `outDir`, and `clean` never
+  touches it. `frontend/` supplies only dev-time type-checking + tests.
 - No runtime DB dependency: `node:sqlite` is part of Node itself (no
   `better-sqlite3`, no native build step). `engines.node` enforces the ≥22.5 floor
   the module requires; `@types/node` supplies its type definitions.
-- `frontend/` build output goes to `../public` (set `build.outDir` in
-  `vite.config.ts`).
-- Published package ships compiled `dist/` (backend) and `public/` (webapp); both
-  are gitignored but included via `files`.
+- Published package ships compiled `dist/` (backend) and the `public/` webapp
+  source; `dist/` is gitignored but included via `files`.
 
 ### 12.2 Dev workflow
 - Backend: `npm run watch:backend`, then restart the plugin from the SignalK admin
   UI (or run SignalK from a checkout with the plugin linked via `npm link`).
-- Frontend: `npm --prefix frontend run dev` with a Vite proxy forwarding
-  `/plugins/signalk-maintenance-tracker/api` (and `/signalk`) to the running
-  SignalK server, for hot-reload development against live data.
+- Frontend: because it is buildless, the simplest loop is to develop the plugin
+  linked into a running SignalK server and let SignalK serve `public/` directly —
+  edit a `.js`/`.css` file and reload the browser (no HMR, no bundler). For iterating
+  away from a server, any static file server pointed at `public/` works, fronted by a
+  small dev proxy that forwards `/plugins/signalk-maintenance-tracker/api` and
+  `/signalk` to the live SignalK server. `npm --prefix frontend run typecheck`
+  (tsc `--noEmit`, `checkJs`) type-checks the JSDoc-annotated modules.
 
 ### 12.3 Install (end user)
 Via the SignalK Appstore (once published) or `npm install` into the server's
@@ -821,11 +932,11 @@ Coverage expectations by layer:
   (§7.7), and the key page flows (task list filtering, complete modal), with the
   REST API mocked.
 
-Suggested tooling: **vitest** for both backend and frontend (it fits the
-existing Vite/TypeScript stack), with @testing-library/react on the frontend;
-final framework choice is an implementation detail. Test files live co-located
-with the code they test (`*.test.ts` / `*.test.tsx`), and `npm test` runs the
-backend and frontend suites.
+Suggested tooling: **vitest** for both backend and frontend, with
+**@testing-library/preact** (jsdom) on the frontend; final framework choice is an
+implementation detail. Test files live co-located with the code they test
+(`*.test.ts` for the backend, `*.test.js` for the frontend), and `npm test` runs
+the backend and frontend suites.
 
 ---
 
@@ -844,10 +955,11 @@ functionality; a phase is complete only when its tests pass.
    computed fields populated on the `/tasks` API. No plugin `/signalk/*` routes —
    the editor's runtime-path picker reads SignalK's own snapshot client-side (§8.4).
 5. **Notifications** — recompute tick + publishing with lead-window config.
-6. **Frontend scaffold** — Vite + Mantine + react-query + routing + theme,
-   building into `public/`.
+6. **Frontend scaffold** — buildless Preact app in `public/`: `index.html`, vendored
+   ESM deps, hash router, signals data layer (§7.6), theme (§7.3), shared `<Modal/>`
+   and `<Table/>` primitives, CSS baseline (§7.9).
 7. **Task list page** — table, search, tag filter, sort, pagination, polling.
 8. **Task detail + modals** — detail page, create/edit/complete/delete modals.
 9. **Master log page.**
 10. **Polish** — empty/loading/error states, responsive layout, accessibility,
-    docs/README, appstore metadata.
+    **Chromium-69 smoke test (§7.9)**, docs/README, appstore metadata.
