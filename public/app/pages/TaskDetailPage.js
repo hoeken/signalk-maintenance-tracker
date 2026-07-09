@@ -61,12 +61,6 @@ export function TaskDetailPage(props) {
       render: (/** @type {LogDTO} */ e) => formatHours(e.runtime_hours),
     },
     {
-      key: 'notes',
-      label: 'Notes',
-      className: 'log-notes',
-      render: (/** @type {LogDTO} */ e) => html`<${MarkdownView} markdown=${e.notes} />`,
-    },
-    {
       key: 'logged_by',
       label: 'By',
       render: (/** @type {LogDTO} */ e) => e.logged_by || html`<span class="muted">—</span>`,
@@ -100,15 +94,13 @@ export function TaskDetailPage(props) {
         </h1>
         ${auth.isLoggedIn
           ? html`
-              <span>
+              <span class="page-actions">
                 <button type="button" class="btn btn-success" onClick=${() => setCompleting(true)}>
                   <i class="bi bi-check2-circle" />Mark complete
                 </button>
-                ${' '}
                 <button type="button" class="btn btn-primary" onClick=${() => setEditing(true)}>
                   <i class="bi bi-pencil" />Edit
                 </button>
-                ${' '}
                 <button type="button" class="btn btn-danger" onClick=${() => setDeletingTask(true)}>
                   <i class="bi bi-trash" />Delete
                 </button>
@@ -176,6 +168,13 @@ export function TaskDetailPage(props) {
       <${Table}
         columns=${logColumns}
         rows=${logsRes.data ? logsRes.data.data : []}
+        renderDetail=${(/** @type {LogDTO} */ e) =>
+          e.notes
+            ? html`<div class="log-notes">
+                <strong class="log-notes-label">Notes:</strong>
+                <div class="log-notes-body"><${MarkdownView} markdown=${e.notes} /></div>
+              </div>`
+            : null}
         loading=${logsRes.loading}
         emptyMessage="No maintenance logged yet."
       />

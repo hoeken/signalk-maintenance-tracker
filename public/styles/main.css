@@ -92,9 +92,28 @@ pre { padding: 8px 10px; overflow-x: auto; }
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
-.page-title { font-size: 20px; font-weight: 700; margin: 0; }
+.page-header > * { margin-bottom: 8px; margin-right: 12px; }
+.page-header > *:last-child { margin-right: 0; }
+.page-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+/* flex drops the whitespace between title text and badge */
+.page-title .badge { margin-left: 10px; }
+
+/* header action buttons; wraps below the title on narrow screens */
+.page-actions { display: flex; flex-wrap: wrap; align-items: center; }
+.page-actions > * { margin-right: 8px; margin-bottom: 4px; }
+.page-actions > *:last-child { margin-right: 0; }
+@media (max-width: 640px) {
+  .page-actions { margin-top: 8px; margin-bottom: 4px; }
+}
 
 /* ---- buttons ---- */
 
@@ -216,11 +235,12 @@ pre { padding: 8px 10px; overflow-x: auto; }
 
 /* ---- toolbar (list controls) ---- */
 
+/* children/chips carry wrap margins, so the toolbar itself adds almost none */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 2px;
 }
 .toolbar > * { margin-right: 10px; margin-bottom: 6px; }
 .toolbar .search-box { width: 260px; }
@@ -292,6 +312,20 @@ pre { padding: 8px 10px; overflow-x: auto; }
 .table th .bi { margin-left: 4px; }
 .table td.actions, .table th.actions { text-align: right; white-space: nowrap; }
 .table td.num { font-variant-numeric: tabular-nums; }
+
+/* full-width detail row (log notes) rendered under its entry row */
+.table tr.has-detail td { border-bottom: none; }
+.table tr.detail-row td { padding-top: 0; }
+.table tbody tr.detail-row:hover td { background: transparent; }
+
+.log-notes { display: flex; }
+.log-notes-label { flex-shrink: 0; margin-right: 6px; }
+.log-notes-body { min-width: 0; }
+
+/* columns hidden on small screens */
+@media (max-width: 640px) {
+  .table th.hide-sm, .table td.hide-sm { display: none; }
+}
 
 .table-empty {
   padding: 32px 16px;
@@ -487,5 +521,3 @@ pre { padding: 8px 10px; overflow-x: auto; }
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .combo-list li:hover, .combo-list li.active { background: var(--bg-inset); }
-
-.log-notes { max-width: 380px; }

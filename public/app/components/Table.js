@@ -23,6 +23,7 @@ import { html } from '../lib/html.js';
  *   onSort?: (key: string) => void,
  *   loading?: boolean,
  *   emptyMessage?: string,
+ *   renderDetail?: (row: any) => any,
  * }} props
  */
 export function Table(props) {
@@ -36,15 +37,22 @@ export function Table(props) {
           </tr>
         </thead>
         <tbody>
-          ${rows.map(
-            (row) => html`
-              <tr key=${props.rowKey ? props.rowKey(row) : row.id}>
+          ${rows.map((row) => {
+            const key = props.rowKey ? props.rowKey(row) : row.id;
+            const detail = props.renderDetail ? props.renderDetail(row) : null;
+            return html`
+              <tr key=${key} class=${detail ? 'has-detail' : ''}>
                 ${props.columns.map(
                   (col) => html`<td class=${col.className || ''}>${col.render ? col.render(row) : row[col.key]}</td>`
                 )}
               </tr>
-            `
-          )}
+              ${detail
+                ? html`<tr key=${key + ':detail'} class="detail-row">
+                    <td colspan=${props.columns.length}>${detail}</td>
+                  </tr>`
+                : null}
+            `;
+          })}
         </tbody>
       </table>
       ${rows.length === 0

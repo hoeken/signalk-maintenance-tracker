@@ -82,32 +82,32 @@ export function MasterLogPage() {
       render: (/** @type {LogDTO} */ e) => formatHours(e.runtime_hours),
     },
     {
-      key: 'notes',
-      label: 'Notes',
-      className: 'log-notes',
-      render: (/** @type {LogDTO} */ e) => {
-        if (!e.notes) return html`<span class="muted">—</span>`;
-        const isLong = e.notes.length > NOTE_PREVIEW_CHARS;
-        if (expanded[e.id] || !isLong) {
-          return html`
-            <${MarkdownView} markdown=${e.notes} />
-            ${isLong
-              ? html`<button type="button" class="btn-link" onClick=${() => toggleExpanded(e.id)}>less</button>`
-              : null}
-          `;
-        }
-        return html`
-          ${truncate(e.notes, NOTE_PREVIEW_CHARS)}${' '}
-          <button type="button" class="btn-link" onClick=${() => toggleExpanded(e.id)}>more</button>
-        `;
-      },
-    },
-    {
       key: 'logged_by',
       label: 'By',
       render: (/** @type {LogDTO} */ e) => e.logged_by || html`<span class="muted">—</span>`,
     },
   ];
+
+  /** Notes render on their own full-width row under the entry. @param {LogDTO} e */
+  const renderNotes = (e) => {
+    if (!e.notes) return null;
+    const isLong = e.notes.length > NOTE_PREVIEW_CHARS;
+    const body = expanded[e.id] || !isLong
+      ? html`
+          <${MarkdownView} markdown=${e.notes} />
+          ${isLong
+            ? html`<button type="button" class="btn-link" onClick=${() => toggleExpanded(e.id)}>less</button>`
+            : null}
+        `
+      : html`
+          ${truncate(e.notes, NOTE_PREVIEW_CHARS)}${' '}
+          <button type="button" class="btn-link" onClick=${() => toggleExpanded(e.id)}>more</button>
+        `;
+    return html`<div class="log-notes">
+      <strong class="log-notes-label">Notes:</strong>
+      <div class="log-notes-body">${body}</div>
+    </div>`;
+  };
 
   const pageData = logsRes.data;
 
@@ -136,6 +136,7 @@ export function MasterLogPage() {
             <${Table}
               columns=${columns}
               rows=${pageData ? pageData.data : []}
+              renderDetail=${renderNotes}
               sort=${sort}
               order=${order}
               onSort=${onSort}

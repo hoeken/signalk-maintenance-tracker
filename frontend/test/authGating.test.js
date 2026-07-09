@@ -31,14 +31,15 @@ describe('auth gating (§7.7)', () => {
     expect(screen.getByLabelText('Complete Engine oil change')).toBeTruthy();
   });
 
-  it('AuthControl shows Log in when anonymous, username + logout when authenticated', () => {
+  it('AuthControl shows Log in when anonymous, Log out when authenticated', () => {
     authState.value = { checked: true, isLoggedIn: false, username: null };
     const { rerender } = render(html`<${AuthControl} />`);
     expect(screen.getByText('Log in')).toBeTruthy();
+    expect(screen.queryByText('Log out')).toBeNull();
 
     authState.value = { checked: true, isLoggedIn: true, username: 'skipper' };
     rerender(html`<${AuthControl} />`);
-    expect(screen.getByText('skipper')).toBeTruthy();
-    expect(screen.getByLabelText('Log out')).toBeTruthy();
+    expect(screen.getByText('Log out')).toBeTruthy();
+    expect(screen.queryByText('Log in')).toBeNull();
   });
 });

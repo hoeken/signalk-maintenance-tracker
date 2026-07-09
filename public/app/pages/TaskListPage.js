@@ -89,6 +89,7 @@ export function TaskListPage() {
     {
       key: 'tags',
       label: 'Tags',
+      className: 'hide-sm',
       render: (/** @type {TaskDTO} */ t) =>
         html`<span class="chips">${t.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}</span>`,
     },
@@ -96,7 +97,7 @@ export function TaskListPage() {
       key: 'remaining_runtime',
       label: 'Runtime left',
       sortable: true,
-      className: 'num',
+      className: 'num hide-sm',
       render: (/** @type {TaskDTO} */ t) =>
         html`<span class=${'remaining ' + (t.runtime_status || '')}>${formatRemainingHours(t.remaining_runtime)}</span>`,
     },
@@ -104,14 +105,14 @@ export function TaskListPage() {
       key: 'remaining_time',
       label: 'Time left',
       sortable: true,
-      className: 'num',
+      className: 'num hide-sm',
       render: (/** @type {TaskDTO} */ t) =>
         html`<span class=${'remaining ' + (t.time_status || '')}>${formatRemainingTime(t.remaining_time_ms)}</span>`,
     },
     {
       key: 'due_date',
       label: 'Next due',
-      className: 'num',
+      className: 'num hide-sm',
       render: (/** @type {TaskDTO} */ t) => formatDate(t.due_date),
     },
     {

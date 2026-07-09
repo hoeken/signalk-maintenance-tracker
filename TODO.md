@@ -1,9 +1,8 @@
 # 0.1.1
 
-- we need to make the site mobile friendly:
-  - nav bar should collapse into a dropdown on small viewports
-
+- mfd theme parameter
 - icon
+- ios/android bookmark app stuff
 - screenshots
 - package.json
 - get working on chromium 69
