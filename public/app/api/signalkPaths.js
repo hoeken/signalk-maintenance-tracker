@@ -35,7 +35,8 @@ export function flattenPaths(node, prefix, out) {
   const paths = out || [];
   if (!node || typeof node !== 'object') return paths;
   if (Object.prototype.hasOwnProperty.call(node, 'value')) {
-    if (prefix && (typeof node.value === 'number' || node.value === null)) paths.push(prefix);
+    if (prefix && (typeof node.value === 'number' || node.value === null))
+      paths.push(prefix);
     return paths;
   }
   for (const key of Object.keys(node)) {
@@ -54,8 +55,11 @@ export function flattenPaths(node, prefix, out) {
 export function useSignalKPaths() {
   // No refetchInterval: fetched once and cached for the session (§8.4).
   return useResource('sk-paths', async () => {
-    const res = await fetch('/signalk/v1/api/vessels/self', { credentials: 'same-origin' });
-    if (!res.ok) throw new Error('SignalK snapshot failed (' + res.status + ')');
+    const res = await fetch('/signalk/v1/api/vessels/self', {
+      credentials: 'same-origin',
+    });
+    if (!res.ok)
+      throw new Error('SignalK snapshot failed (' + res.status + ')');
     const snapshot = await res.json();
     return flattenPaths(snapshot);
   });

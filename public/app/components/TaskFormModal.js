@@ -30,24 +30,32 @@ export function TaskFormModal(props) {
   const [name, setName] = useState(task ? task.name : '');
   const [slug, setSlug] = useState(task ? task.slug : '');
   const [slugTouched, setSlugTouched] = useState(isEdit);
-  const [description, setDescription] = useState(task && task.description ? task.description : '');
+  const [description, setDescription] = useState(
+    task && task.description ? task.description : '',
+  );
   const [preview, setPreview] = useState(false);
   const [tags, setTags] = useState(task ? task.tags.slice() : []);
   const [runtimeInterval, setRuntimeInterval] = useState(
-    task && task.runtime_interval !== null ? String(task.runtime_interval) : ''
+    task && task.runtime_interval !== null ? String(task.runtime_interval) : '',
   );
-  const [runtimePath, setRuntimePath] = useState(task && task.runtime_path ? task.runtime_path : '');
+  const [runtimePath, setRuntimePath] = useState(
+    task && task.runtime_path ? task.runtime_path : '',
+  );
   const [timeInterval, setTimeInterval] = useState(
-    task && task.time_interval !== null ? String(task.time_interval) : ''
+    task && task.time_interval !== null ? String(task.time_interval) : '',
   );
-  const [timeUnit, setTimeUnit] = useState(task && task.time_interval_unit ? task.time_interval_unit : 'months');
+  const [timeUnit, setTimeUnit] = useState(
+    task && task.time_interval_unit ? task.time_interval_unit : 'months',
+  );
   const [seedMaintenance, setSeedMaintenance] = useState('');
   const [seedRuntime, setSeedRuntime] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const tagsRes = useTags();
-  const suggestions = (tagsRes.data ? tagsRes.data.data : []).map((t) => t.name);
+  const suggestions = (tagsRes.data ? tagsRes.data.data : []).map(
+    (t) => t.name,
+  );
 
   const effectiveSlug = slugTouched ? slug : slugify(name || '');
   const slugChanged = isEdit && task && effectiveSlug !== task.slug;
@@ -81,7 +89,11 @@ export function TaskFormModal(props) {
     }
     if (timeInterval.trim() !== '') {
       const magnitude = Number(timeInterval);
-      if (!isFinite(magnitude) || magnitude <= 0 || Math.floor(magnitude) !== magnitude) {
+      if (
+        !isFinite(magnitude) ||
+        magnitude <= 0 ||
+        Math.floor(magnitude) !== magnitude
+      ) {
         setError('Time interval must be a positive whole number.');
         return;
       }
@@ -105,7 +117,10 @@ export function TaskFormModal(props) {
 
     setBusy(true);
     try {
-      const saved = isEdit && task ? await updateTask(task.slug, input) : await createTask(input);
+      const saved =
+        isEdit && task
+          ? await updateTask(task.slug, input)
+          : await createTask(input);
       toast(isEdit ? 'Task updated.' : 'Task created.', 'success');
       if (props.onSaved) props.onSaved(saved);
       props.onClose();
@@ -116,14 +131,25 @@ export function TaskFormModal(props) {
   };
 
   const footer = html`
-    <button type="button" class="btn" onClick=${props.onClose} disabled=${busy}>Cancel</button>
-    <button type="submit" form="task-form" class="btn btn-primary" disabled=${busy}>
+    <button type="button" class="btn" onClick=${props.onClose} disabled=${busy}>
+      Cancel
+    </button>
+    <button
+      type="submit"
+      form="task-form"
+      class="btn btn-primary"
+      disabled=${busy}
+    >
       ${busy ? 'Saving…' : isEdit ? 'Save changes' : 'Create task'}
     </button>
   `;
 
   return html`
-    <${Modal} title=${isEdit ? 'Edit task' : 'New task'} onClose=${props.onClose} footer=${footer}>
+    <${Modal}
+      title=${isEdit ? 'Edit task' : 'New task'}
+      onClose=${props.onClose}
+      footer=${footer}
+    >
       <form id="task-form" onSubmit=${onSubmit}>
         ${error ? html`<div class="form-error">${error}</div>` : null}
 
@@ -148,38 +174,59 @@ export function TaskFormModal(props) {
               setSlug(e.currentTarget.value);
             }}
           />
-          ${slugChanged
-            ? html`<div class="field-hint">
-                <i class="bi bi-exclamation-triangle" /> Changing the slug breaks existing deep links to this task.
-              </div>`
-            : html`<div class="field-hint">Used in URLs and SignalK notifications.</div>`}
+          ${
+            slugChanged
+              ? html`<div class="field-hint">
+                  <i class="bi bi-exclamation-triangle" /> Changing the slug
+                  breaks existing deep links to this task.
+                </div>`
+              : html`<div class="field-hint">
+                  Used in URLs and SignalK notifications.
+                </div>`
+          }
         </div>
 
         <div class="field">
           <label class="field-label" for="task-description">
             Description (markdown)${' '}
-            <button type="button" class="btn-link" onClick=${() => setPreview(!preview)}>
+            <button
+              type="button"
+              class="btn-link"
+              onClick=${() => setPreview(!preview)}
+            >
               ${preview ? 'edit' : 'preview'}
             </button>
           </label>
-          ${preview
-            ? html`<div class="card"><${MarkdownView} markdown=${description || '_Nothing to preview._'} /></div>`
-            : html`<textarea
-                id="task-description"
-                class="textarea"
-                value=${description}
-                onInput=${(/** @type {any} */ e) => setDescription(e.currentTarget.value)}
-              />`}
+          ${
+            preview
+              ? html`<div class="card">
+                  <${MarkdownView}
+                    markdown=${description || '_Nothing to preview._'}
+                  />
+                </div>`
+              : html`<textarea
+                  id="task-description"
+                  class="textarea"
+                  value=${description}
+                  onInput=${(/** @type {any} */ e) => setDescription(e.currentTarget.value)}
+                />`
+          }
         </div>
 
         <div class="field">
           <label class="field-label">Tags</label>
-          <${TagInput} value=${tags} onChange=${setTags} suggestions=${suggestions} />
+          <${TagInput}
+            value=${tags}
+            onChange=${setTags}
+            suggestions=${suggestions}
+          />
         </div>
 
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="task-runtime-interval">Runtime interval (hours)</label>
+            <label class="field-label" for="task-runtime-interval"
+              >Runtime interval (hours)</label
+            >
             <input
               id="task-runtime-interval"
               class="input"
@@ -192,7 +239,9 @@ export function TaskFormModal(props) {
             <div class="field-hint">Empty = no runtime tracking.</div>
           </div>
           <div class="field">
-            <label class="field-label" for="task-time-interval">Time interval</label>
+            <label class="field-label" for="task-time-interval"
+              >Time interval</label
+            >
             <div class="field-row">
               <input
                 id="task-time-interval"
@@ -221,34 +270,40 @@ export function TaskFormModal(props) {
           <${PathPicker} value=${runtimePath} onChange=${setRuntimePath} />
         </div>
 
-        ${!isEdit
-          ? html`
-              <div class="field-row">
-                <div class="field">
-                  <label class="field-label" for="task-seed-date">Last maintenance (optional seed)</label>
-                  <input
-                    id="task-seed-date"
-                    class="input"
-                    type="date"
-                    value=${seedMaintenance}
-                    onInput=${(/** @type {any} */ e) => setSeedMaintenance(e.currentTarget.value)}
-                  />
+        ${
+          !isEdit
+            ? html`
+                <div class="field-row">
+                  <div class="field">
+                    <label class="field-label" for="task-seed-date"
+                      >Last maintenance (optional seed)</label
+                    >
+                    <input
+                      id="task-seed-date"
+                      class="input"
+                      type="date"
+                      value=${seedMaintenance}
+                      onInput=${(/** @type {any} */ e) => setSeedMaintenance(e.currentTarget.value)}
+                    />
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="task-seed-runtime"
+                      >Runtime at last maintenance (h)</label
+                    >
+                    <input
+                      id="task-seed-runtime"
+                      class="input"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value=${seedRuntime}
+                      onInput=${(/** @type {any} */ e) => setSeedRuntime(e.currentTarget.value)}
+                    />
+                  </div>
                 </div>
-                <div class="field">
-                  <label class="field-label" for="task-seed-runtime">Runtime at last maintenance (h)</label>
-                  <input
-                    id="task-seed-runtime"
-                    class="input"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value=${seedRuntime}
-                    onInput=${(/** @type {any} */ e) => setSeedRuntime(e.currentTarget.value)}
-                  />
-                </div>
-              </div>
-            `
-          : null}
+              `
+            : null
+        }
       </form>
     <//>
   `;

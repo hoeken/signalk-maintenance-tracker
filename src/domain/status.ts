@@ -1,4 +1,10 @@
-import { ComputedFields, Status, STATUS_RANK, TaskRow, TimeUnit } from '../types';
+import {
+  ComputedFields,
+  Status,
+  STATUS_RANK,
+  TaskRow,
+  TimeUnit,
+} from '../types';
 
 export interface StatusConfig {
   runtimeNotifyLeadHours: number;
@@ -33,7 +39,9 @@ function addMonths(d: Date, n: number): Date {
   const day = r.getUTCDate();
   r.setUTCDate(1);
   r.setUTCMonth(r.getUTCMonth() + n);
-  const daysInTarget = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + 1, 0)).getUTCDate();
+  const daysInTarget = new Date(
+    Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + 1, 0),
+  ).getUTCDate();
   r.setUTCDate(Math.min(day, daysInTarget));
   return r;
 }
@@ -59,7 +67,7 @@ export function computeTask(
   >,
   currentRuntime: number | null,
   now: Date,
-  cfg: StatusConfig
+  cfg: StatusConfig,
 ): ComputedFields {
   const out: ComputedFields = {
     current_runtime: currentRuntime,
@@ -87,7 +95,11 @@ export function computeTask(
       out.due_runtime_at = task.last_runtime + task.runtime_interval;
       out.runtime_fraction = elapsed / task.runtime_interval;
       out.runtime_status =
-        remaining <= 0 ? 'overdue' : remaining <= cfg.runtimeNotifyLeadHours ? 'due_soon' : 'ok';
+        remaining <= 0
+          ? 'overdue'
+          : remaining <= cfg.runtimeNotifyLeadHours
+            ? 'due_soon'
+            : 'ok';
     } else {
       out.runtime_status = 'unknown';
     }
@@ -97,12 +109,17 @@ export function computeTask(
   if (task.time_interval != null && task.time_interval_unit != null) {
     if (task.last_maintenance != null) {
       const last = new Date(task.last_maintenance);
-      const due = addInterval(task.last_maintenance, task.time_interval, task.time_interval_unit);
+      const due = addInterval(
+        task.last_maintenance,
+        task.time_interval,
+        task.time_interval_unit,
+      );
       const remainingMs = due.getTime() - now.getTime();
       out.due_date = due.toISOString();
       out.remaining_time_ms = remainingMs;
       const span = due.getTime() - last.getTime();
-      out.time_fraction = span > 0 ? (now.getTime() - last.getTime()) / span : 1;
+      out.time_fraction =
+        span > 0 ? (now.getTime() - last.getTime()) / span : 1;
       out.time_status =
         remainingMs <= 0
           ? 'overdue'
@@ -114,10 +131,14 @@ export function computeTask(
     }
   }
 
-  const dims = [out.runtime_status, out.time_status].filter((s): s is Status => s != null);
+  const dims = [out.runtime_status, out.time_status].filter(
+    (s): s is Status => s != null,
+  );
   out.status = mostUrgent(dims);
   out.status_rank = STATUS_RANK[out.status];
-  const fractions = [out.runtime_fraction, out.time_fraction].filter((f): f is number => f != null);
+  const fractions = [out.runtime_fraction, out.time_fraction].filter(
+    (f): f is number => f != null,
+  );
   out.urgency = fractions.length ? Math.max(...fractions) : -Infinity;
   return out;
 }

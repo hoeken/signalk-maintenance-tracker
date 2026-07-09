@@ -43,23 +43,30 @@ export function Table(props) {
             return html`
               <tr key=${key} class=${detail ? 'has-detail' : ''}>
                 ${props.columns.map(
-                  (col) => html`<td class=${col.className || ''}>${col.render ? col.render(row) : row[col.key]}</td>`
+                  (col) =>
+                    html`<td class=${col.className || ''}>
+                      ${col.render ? col.render(row) : row[col.key]}
+                    </td>`,
                 )}
               </tr>
-              ${detail
-                ? html`<tr key=${key + ':detail'} class="detail-row">
-                    <td colspan=${props.columns.length}>${detail}</td>
-                  </tr>`
-                : null}
+              ${
+                detail
+                  ? html`<tr key=${key + ':detail'} class="detail-row">
+                      <td colspan=${props.columns.length}>${detail}</td>
+                    </tr>`
+                  : null
+              }
             `;
           })}
         </tbody>
       </table>
-      ${rows.length === 0
-        ? html`<div class=${props.loading ? 'table-loading' : 'table-empty'}>
-            ${props.loading ? 'Loading…' : props.emptyMessage || 'Nothing here yet.'}
-          </div>`
-        : null}
+      ${
+        rows.length === 0
+          ? html`<div class=${props.loading ? 'table-loading' : 'table-empty'}>
+              ${props.loading ? 'Loading…' : props.emptyMessage || 'Nothing here yet.'}
+            </div>`
+          : null
+      }
     </div>
   `;
 }
@@ -72,9 +79,14 @@ function headerCell(col, props) {
   const sortable = !!col.sortable && !!props.onSort;
   const active = sortable && props.sort === col.key;
   const icon = active
-    ? html`<i class=${'bi ' + (props.order === 'desc' ? 'bi-caret-down-fill' : 'bi-caret-up-fill')} />`
+    ? html`<i
+        class=${'bi ' + (props.order === 'desc' ? 'bi-caret-down-fill' : 'bi-caret-up-fill')}
+      />`
     : null;
-  const onClick = sortable && props.onSort ? () => props.onSort && props.onSort(col.key) : undefined;
+  const onClick =
+    sortable && props.onSort
+      ? () => props.onSort && props.onSort(col.key)
+      : undefined;
   return html`
     <th
       class=${(col.className || '') + (sortable ? ' sortable' : '')}

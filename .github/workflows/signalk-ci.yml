@@ -1,0 +1,35 @@
+name: SignalK Plugin CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # SignalK's shared plugin validation: builds the backend, validates the
+  # plugin manifest/lifecycle, checks `npm pack` contents, and runs the backend
+  # test suite. Pinned to Node 24 — the plugin uses the built-in node:sqlite,
+  # which is only unflagged from Node 24 on (it's flagged on 22.x and absent on
+  # the Cerbo GX's Node 20), so the armv7/Node-20 job is disabled.
+  test:
+    uses: SignalK/signalk-server/.github/workflows/plugin-ci.yml@master
+    with:
+      build-command: 'npm run build'
+      test-command: 'npm run test:backend'
+      format-check-command: 'npm run format:check'
+      node-versions: '["24"]'
+      enable-armv7: false
+
+  # Full suite including the buildless frontend, which lives in its own package
+  # (frontend/) with a separate lockfile the reusable workflow doesn't install:
+  # type-check public/app via JSDoc and run both test suites.
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm --prefix frontend ci
+      - run: npm run typecheck:frontend
+      - run: npm test

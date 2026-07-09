@@ -1,12 +1,12 @@
 # signalk-maintenance-tracker plugin spec
 
-This is a plugin for SignalK to manage tracking maintenance tasks for the boat.  The primary interface should be a webapp.  Through the webapp, the user can create various maintenance tasks, mark the tasks as completed, view maintenance logs, and view overdue and upcoming maintenance tasks.
+This is a plugin for SignalK to manage tracking maintenance tasks for the boat. The primary interface should be a webapp. Through the webapp, the user can create various maintenance tasks, mark the tasks as completed, view maintenance logs, and view overdue and upcoming maintenance tasks.
 
-Maintenance tasks are repeatable things that must be done on the boat: change the oil, service the winches, etc.  The user can create any number of tasks.  Each task should have the following data:
+Maintenance tasks are repeatable things that must be done on the boat: change the oil, service the winches, etc. The user can create any number of tasks. Each task should have the following data:
 
 - name
 - description (markdown compatible)
-- slug, based on name.  must be unique
+- slug, based on name. must be unique
 - runtime interval (optional, hours between required maintenance. eg: engine hours)
 - time interval (optional, time between required maintenance)
 - last runtime (last runtime in hours when maintance was performed. eg: engine hours)
@@ -14,7 +14,7 @@ Maintenance tasks are repeatable things that must be done on the boat: change th
 - runtime path (signalk path to runtime variable (eg. propulsion.port.runTime))
 - freeform tag style category system (Engines, Winches, Watermaker, etc.)
 
-Each task should also have an associated log of previously completed maintenace.  Each log entry should include:
+Each task should also have an associated log of previously completed maintenace. Each log entry should include:
 
 - maintenance date
 - runtime hours (if available)
@@ -23,9 +23,9 @@ Each task should also have an associated log of previously completed maintenace.
 
 ## UI / Frontend
 
-The main page of the app should be a list of maintenance tasks.  It should be a sortable and searchable table with pagination.  Default should be to show past due maintenance items, followed by upcoming maintenance items.  User can sort by name, remaining runtime, remaining time, can select or deselect tags to filter, and can freeform search to look up based on name, description, tag, or log entry text.  UI should be dynamic and live updating.  Each row should have icons to view, edit, delete, and mark complete.
+The main page of the app should be a list of maintenance tasks. It should be a sortable and searchable table with pagination. Default should be to show past due maintenance items, followed by upcoming maintenance items. User can sort by name, remaining runtime, remaining time, can select or deselect tags to filter, and can freeform search to look up based on name, description, tag, or log entry text. UI should be dynamic and live updating. Each row should have icons to view, edit, delete, and mark complete.
 
-Each task should have a detail page where it shows all the relevant information about a task:  name, description, tags, intervals, current elapsed time/runtime, remaining time/runtime, next due dates, tags, and log entries for that task.  It should also have a button to allow the user to mark the maintenance complete.
+Each task should have a detail page where it shows all the relevant information about a task: name, description, tags, intervals, current elapsed time/runtime, remaining time/runtime, next due dates, tags, and log entries for that task. It should also have a button to allow the user to mark the maintenance complete.
 
 Editing a task should allow all of the pertinent information to be edited in a modern, responsive web app.
 
@@ -37,7 +37,7 @@ Marking a task as completed should also happen through a modal box with the foll
 - maintenance runtime (from sk path, if present)
 - notes
 
-Another page should be a master log of all completed maintenance tasks.  It should also be sortable and searchable with all of the relevant fields in a tabular data format.
+Another page should be a master log of all completed maintenance tasks. It should also be sortable and searchable with all of the relevant fields in a tabular data format.
 
 App should also have a light/dark mode with chooser that respects client theme on load.
 

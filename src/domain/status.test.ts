@@ -16,26 +16,26 @@ const baseTask = {
 describe('addInterval', () => {
   it('adds days and weeks', () => {
     expect(addInterval('2026-01-01T00:00:00Z', 10, 'days').toISOString()).toBe(
-      '2026-01-11T00:00:00.000Z'
+      '2026-01-11T00:00:00.000Z',
     );
     expect(addInterval('2026-01-01T00:00:00Z', 2, 'weeks').toISOString()).toBe(
-      '2026-01-15T00:00:00.000Z'
+      '2026-01-15T00:00:00.000Z',
     );
   });
 
   it('respects month lengths (calendar-aware)', () => {
     // Jan 31 + 1 month clamps to Feb 28 (2026 is not a leap year)
     expect(addInterval('2026-01-31T00:00:00Z', 1, 'months').toISOString()).toBe(
-      '2026-02-28T00:00:00.000Z'
+      '2026-02-28T00:00:00.000Z',
     );
     expect(addInterval('2026-01-15T10:00:00Z', 6, 'months').toISOString()).toBe(
-      '2026-07-15T10:00:00.000Z'
+      '2026-07-15T10:00:00.000Z',
     );
   });
 
   it('handles leap-day years', () => {
     expect(addInterval('2028-02-29T00:00:00Z', 1, 'years').toISOString()).toBe(
-      '2029-02-28T00:00:00.000Z'
+      '2029-02-28T00:00:00.000Z',
     );
   });
 });
@@ -97,7 +97,12 @@ describe('computeTask — time dimension', () => {
   });
 
   it('is ok well before due', () => {
-    const c = computeTask({ ...task, last_maintenance: '2026-07-01T00:00:00Z' }, null, now, cfg);
+    const c = computeTask(
+      { ...task, last_maintenance: '2026-07-01T00:00:00Z' },
+      null,
+      now,
+      cfg,
+    );
     expect(c.status).toBe('ok');
     expect(c.time_fraction).toBeGreaterThan(0);
     expect(c.time_fraction).toBeLessThan(1);
@@ -106,10 +111,15 @@ describe('computeTask — time dimension', () => {
   it('is due_soon within the lead window', () => {
     // due 2026-07-14, 5 days away, lead 7 days
     const c = computeTask(
-      { ...baseTask, time_interval: 1, time_interval_unit: 'weeks', last_maintenance: '2026-07-07T12:00:00Z' },
+      {
+        ...baseTask,
+        time_interval: 1,
+        time_interval_unit: 'weeks',
+        last_maintenance: '2026-07-07T12:00:00Z',
+      },
       null,
       now,
-      cfg
+      cfg,
     );
     expect(c.status).toBe('due_soon');
   });
@@ -134,7 +144,7 @@ describe('computeTask — combined & edge cases', () => {
       },
       1250, // runtime overdue
       now,
-      cfg
+      cfg,
     );
     expect(c.runtime_status).toBe('overdue');
     expect(c.time_status).toBe('ok');
@@ -154,7 +164,7 @@ describe('computeTask — combined & edge cases', () => {
       },
       null,
       now,
-      cfg
+      cfg,
     );
     expect(c.status).toBe('ok');
   });
@@ -173,7 +183,7 @@ describe('computeTask — combined & edge cases', () => {
       { ...baseTask, runtime_interval: 100, last_runtime: 50 }, // no path
       75,
       now,
-      cfg
+      cfg,
     );
     expect(c.runtime_status).toBeNull();
   });

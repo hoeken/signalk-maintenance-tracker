@@ -27,13 +27,19 @@ export function LogEntryModal(props) {
     ? entry && entry.runtime_hours !== null
       ? String(entry.runtime_hours)
       : ''
-    : task && task.current_runtime !== null && task.current_runtime !== undefined
+    : task &&
+        task.current_runtime !== null &&
+        task.current_runtime !== undefined
       ? String(Math.round(task.current_runtime * 10) / 10)
       : '';
 
-  const [date, setDate] = useState(isEdit && entry ? toDateInput(entry.maintenance_date) : toDateInput());
+  const [date, setDate] = useState(
+    isEdit && entry ? toDateInput(entry.maintenance_date) : toDateInput(),
+  );
   const [runtime, setRuntime] = useState(initialRuntime);
-  const [notes, setNotes] = useState(isEdit && entry && entry.notes ? entry.notes : '');
+  const [notes, setNotes] = useState(
+    isEdit && entry && entry.notes ? entry.notes : '',
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -76,13 +82,22 @@ export function LogEntryModal(props) {
   };
 
   const footer = html`
-    <button type="button" class="btn" onClick=${props.onClose} disabled=${busy}>Cancel</button>
-    <button type="submit" form="log-form" class="btn btn-primary" disabled=${busy}>
+    <button type="button" class="btn" onClick=${props.onClose} disabled=${busy}>
+      Cancel
+    </button>
+    <button
+      type="submit"
+      form="log-form"
+      class="btn btn-primary"
+      disabled=${busy}
+    >
       ${busy ? 'Saving…' : isEdit ? 'Save changes' : 'Mark complete'}
     </button>
   `;
 
-  const title = isEdit ? 'Edit log entry' : 'Mark complete' + (task ? ' — ' + task.name : '');
+  const title = isEdit
+    ? 'Edit log entry'
+    : 'Mark complete' + (task ? ' — ' + task.name : '');
 
   return html`
     <${Modal} title=${title} onClose=${props.onClose} footer=${footer}>
@@ -111,9 +126,13 @@ export function LogEntryModal(props) {
             value=${runtime}
             onInput=${(/** @type {any} */ e) => setRuntime(e.currentTarget.value)}
           />
-          ${!isEdit
-            ? html`<div class="field-hint">Prefilled with the current runtime reading when available.</div>`
-            : null}
+          ${
+            !isEdit
+              ? html`<div class="field-hint">
+                  Prefilled with the current runtime reading when available.
+                </div>`
+              : null
+          }
         </div>
 
         <div class="field">

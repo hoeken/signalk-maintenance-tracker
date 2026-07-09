@@ -17,7 +17,7 @@ export class RuntimeManager {
 
   constructor(
     private app: any,
-    private db: DatabaseSync
+    private db: DatabaseSync,
   ) {
     this.loadCache();
   }
@@ -26,7 +26,8 @@ export class RuntimeManager {
     const rows = this.db
       .prepare(`SELECT path, value, timestamp FROM runtime_cache`)
       .all() as unknown as { path: string; value: number; timestamp: string }[];
-    for (const r of rows) this.values.set(r.path, { value: r.value, timestamp: r.timestamp });
+    for (const r of rows)
+      this.values.set(r.path, { value: r.value, timestamp: r.timestamp });
   }
 
   /** Latest runtime in hours for a path, or null if never seen. */
@@ -57,13 +58,19 @@ export class RuntimeManager {
     this.app.subscriptionmanager.subscribe(
       {
         context: 'vessels.self',
-        subscribe: next.map((path) => ({ path, period: 5000, policy: 'instant' })),
+        subscribe: next.map((path) => ({
+          path,
+          period: 5000,
+          policy: 'instant',
+        })),
       },
       this.unsubscribes,
       (err: unknown) => {
-        this.app.error?.(`maintenance-tracker runtime subscription error: ${err}`);
+        this.app.error?.(
+          `maintenance-tracker runtime subscription error: ${err}`,
+        );
       },
-      (delta: any) => this.handleDelta(delta)
+      (delta: any) => this.handleDelta(delta),
     );
   }
 
@@ -71,14 +78,15 @@ export class RuntimeManager {
     let changed = false;
     for (const update of delta?.updates ?? []) {
       for (const v of update?.values ?? []) {
-        if (typeof v?.value !== 'number' || !this.paths.includes(v.path)) continue;
+        if (typeof v?.value !== 'number' || !this.paths.includes(v.path))
+          continue;
         const hours = v.value / 3600; // SignalK runtime is seconds (§10.2)
         const timestamp = new Date().toISOString();
         this.values.set(v.path, { value: hours, timestamp });
         this.db
           .prepare(
             `INSERT INTO runtime_cache (path, value, timestamp) VALUES (?, ?, ?)
-             ON CONFLICT(path) DO UPDATE SET value = excluded.value, timestamp = excluded.timestamp`
+             ON CONFLICT(path) DO UPDATE SET value = excluded.value, timestamp = excluded.timestamp`,
           )
           .run(v.path, hours, timestamp);
         this.lastUpdate = timestamp;

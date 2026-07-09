@@ -11,20 +11,26 @@ describe('auth gating (§7.7)', () => {
     mockFetch(apiRoutes({ tasks: [makeTask()] }));
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);
-    await waitFor(() => expect(screen.getByText('Engine oil change')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('Engine oil change')).toBeTruthy(),
+    );
     expect(screen.queryByText('New task')).toBeNull();
     expect(screen.queryByLabelText('Edit Engine oil change')).toBeNull();
     expect(screen.queryByLabelText('Delete Engine oil change')).toBeNull();
     expect(screen.queryByLabelText('Complete Engine oil change')).toBeNull();
     // read affordance stays: task name links to the detail page
-    expect(screen.getByRole('link', { name: 'Engine oil change' })).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: 'Engine oil change' }),
+    ).toBeTruthy();
   });
 
   it('logged in: write affordances render', async () => {
     mockFetch(apiRoutes({ tasks: [makeTask()] }));
     authState.value = { checked: true, isLoggedIn: true, username: 'admin' };
     render(html`<${TaskListPage} />`);
-    await waitFor(() => expect(screen.getByText('Engine oil change')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('Engine oil change')).toBeTruthy(),
+    );
     expect(screen.getByText('New task')).toBeTruthy();
     expect(screen.getByLabelText('Edit Engine oil change')).toBeTruthy();
     expect(screen.getByLabelText('Delete Engine oil change')).toBeTruthy();

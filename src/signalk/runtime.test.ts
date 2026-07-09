@@ -9,13 +9,18 @@ function makeStubApp() {
     app: {
       subscriptionmanager: {
         subscribe: vi.fn(
-          (command: any, unsubscribes: (() => void)[], _onErr: any, onDelta: any) => {
+          (
+            command: any,
+            unsubscribes: (() => void)[],
+            _onErr: any,
+            onDelta: any,
+          ) => {
             const sub = { command, active: true, onDelta };
             unsubscribes.push(() => {
               sub.active = false;
             });
             subscriptions.push(sub);
-          }
+          },
         ),
       },
       error: vi.fn(),

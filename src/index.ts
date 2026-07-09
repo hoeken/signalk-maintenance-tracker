@@ -8,7 +8,7 @@ import { NotificationManager } from './signalk/notifications';
 import { RuntimeManager } from './signalk/runtime';
 import { mountApi, Services } from './api/router';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { version: PLUGIN_VERSION } = require('../package.json');
 
 const PLUGIN_ID = 'signalk-maintenance-tracker';
@@ -39,7 +39,8 @@ export = function (app: any) {
   const plugin = {
     id: PLUGIN_ID,
     name: 'Maintenance Tracker',
-    description: 'Track recurring boat maintenance tasks with runtime- and time-based intervals.',
+    description:
+      'Track recurring boat maintenance tasks with runtime- and time-based intervals.',
     schema,
 
     start(options: Partial<PluginOptions>) {
@@ -67,7 +68,7 @@ export = function (app: any) {
         timer = setInterval(recomputeNotifications, opts.recomputeIntervalMs);
 
         app.setPluginStatus?.(
-          `Started — ${service.health().tasks} tasks, DB at ${dbPath}`
+          `Started — ${service.health().tasks} tasks, DB at ${dbPath}`,
         );
         app.debug?.(`${PLUGIN_ID} started`);
       } catch (err) {

@@ -69,7 +69,9 @@ export function formatRemainingTime(ms) {
  * @param {string} [iso]
  */
 export function toDateInput(iso) {
-  return iso === undefined ? dayjs().format('YYYY-MM-DD') : String(iso).slice(0, 10);
+  return iso === undefined
+    ? dayjs().format('YYYY-MM-DD')
+    : String(iso).slice(0, 10);
 }
 
 /**

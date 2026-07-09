@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseHash, formatHash, matchPath } from '../../public/app/lib/router.js';
+import {
+  parseHash,
+  formatHash,
+  matchPath,
+} from '../../public/app/lib/router.js';
 
 describe('parseHash', () => {
   it('parses empty hash as root', () => {
@@ -16,7 +20,9 @@ describe('parseHash', () => {
   });
 
   it('decodes query values', () => {
-    expect(parseHash('#/?search=port%20engine').query.search).toBe('port engine');
+    expect(parseHash('#/?search=port%20engine').query.search).toBe(
+      'port engine',
+    );
   });
 });
 
@@ -26,12 +32,17 @@ describe('formatHash', () => {
   });
 
   it('drops empty/undefined params', () => {
-    expect(formatHash('/', { search: '', page: undefined, tags: 'a,b' })).toBe('#/?tags=a%2Cb');
+    expect(formatHash('/', { search: '', page: undefined, tags: 'a,b' })).toBe(
+      '#/?tags=a%2Cb',
+    );
   });
 
   it('round-trips through parseHash', () => {
     const hash = formatHash('/tasks/x', { search: 'port engine', page: 3 });
-    expect(parseHash(hash)).toEqual({ path: '/tasks/x', query: { search: 'port engine', page: '3' } });
+    expect(parseHash(hash)).toEqual({
+      path: '/tasks/x',
+      query: { search: 'port engine', page: '3' },
+    });
   });
 });
 
@@ -42,7 +53,9 @@ describe('matchPath', () => {
   });
 
   it('extracts params', () => {
-    expect(matchPath('/tasks/:slug', '/tasks/oil-change')).toEqual({ slug: 'oil-change' });
+    expect(matchPath('/tasks/:slug', '/tasks/oil-change')).toEqual({
+      slug: 'oil-change',
+    });
   });
 
   it('decodes param values', () => {

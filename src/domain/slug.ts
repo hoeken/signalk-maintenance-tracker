@@ -12,7 +12,10 @@ export function slugify(input: string): string {
 /**
  * Make `base` unique by appending -2, -3, … until `exists` returns false.
  */
-export function uniqueSlug(base: string, exists: (slug: string) => boolean): string {
+export function uniqueSlug(
+  base: string,
+  exists: (slug: string) => boolean,
+): string {
   if (!exists(base)) return base;
   for (let n = 2; ; n++) {
     const candidate = `${base}-${n}`;

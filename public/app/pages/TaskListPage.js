@@ -7,8 +7,11 @@ import { useState, useEffect } from '../../vendor/preact-hooks.js';
 import { useTasks, useTags, deleteTask } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import { useListParams } from '../lib/useListParams.js';
-import { formatDate, formatRemainingHours, formatRemainingTime } from '../lib/format.js';
-import { navigate } from '../lib/router.js';
+import {
+  formatDate,
+  formatRemainingHours,
+  formatRemainingTime,
+} from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
@@ -38,7 +41,10 @@ export function TaskListPage() {
   }, [search]);
   useEffect(() => {
     if (searchText === search) return undefined;
-    const timer = setTimeout(() => update({ search: searchText, page: undefined }), 300);
+    const timer = setTimeout(
+      () => update({ search: searchText, page: undefined }),
+      300,
+    );
     return () => clearTimeout(timer);
   }, [searchText]);
 
@@ -53,16 +59,21 @@ export function TaskListPage() {
   const tagsRes = useTags();
 
   /** @type {[TaskDTO|null|undefined, any]} editor: undefined=closed, null=create, TaskDTO=edit */
-  const [editorTask, setEditorTask] = useState(/** @type {TaskDTO|null|undefined} */(undefined));
-  const [completing, setCompleting] = useState(/** @type {TaskDTO|null} */(null));
-  const [deleting, setDeleting] = useState(/** @type {TaskDTO|null} */(null));
+  const [editorTask, setEditorTask] = useState(
+    /** @type {TaskDTO|null|undefined} */ (undefined),
+  );
+  const [completing, setCompleting] = useState(
+    /** @type {TaskDTO|null} */ (null),
+  );
+  const [deleting, setDeleting] = useState(/** @type {TaskDTO|null} */ (null));
 
   const selectedTags = tagsCsv ? tagsCsv.split(',').filter(Boolean) : [];
   /** @param {string} tag */
   const toggleTag = (tag) => {
-    const next = selectedTags.indexOf(tag) === -1
-      ? selectedTags.concat([tag])
-      : selectedTags.filter((t) => t !== tag);
+    const next =
+      selectedTags.indexOf(tag) === -1
+        ? selectedTags.concat([tag])
+        : selectedTags.filter((t) => t !== tag);
     update({ tags: next.join(',') || undefined, page: undefined });
   };
 
@@ -78,20 +89,24 @@ export function TaskListPage() {
       key: 'status',
       label: 'Status',
       sortable: true,
-      render: (/** @type {TaskDTO} */ t) => html`<${StatusBadge} status=${t.status} />`,
+      render: (/** @type {TaskDTO} */ t) =>
+        html`<${StatusBadge} status=${t.status} />`,
     },
     {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (/** @type {TaskDTO} */ t) => html`<a href=${'#/tasks/' + encodeURIComponent(t.slug)}>${t.name}</a>`,
+      render: (/** @type {TaskDTO} */ t) =>
+        html`<a href=${'#/tasks/' + encodeURIComponent(t.slug)}>${t.name}</a>`,
     },
     {
       key: 'tags',
       label: 'Tags',
       className: 'hide-sm',
       render: (/** @type {TaskDTO} */ t) =>
-        html`<span class="chips">${t.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}</span>`,
+        html`<span class="chips"
+          >${t.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}</span
+        >`,
     },
     {
       key: 'remaining_runtime',
@@ -99,7 +114,9 @@ export function TaskListPage() {
       sortable: true,
       className: 'num hide-sm',
       render: (/** @type {TaskDTO} */ t) =>
-        html`<span class=${'remaining ' + (t.runtime_status || '')}>${formatRemainingHours(t.remaining_runtime)}</span>`,
+        html`<span class=${'remaining ' + (t.runtime_status || '')}
+          >${formatRemainingHours(t.remaining_runtime)}</span
+        >`,
     },
     {
       key: 'remaining_time',
@@ -107,7 +124,9 @@ export function TaskListPage() {
       sortable: true,
       className: 'num hide-sm',
       render: (/** @type {TaskDTO} */ t) =>
-        html`<span class=${'remaining ' + (t.time_status || '')}>${formatRemainingTime(t.remaining_time_ms)}</span>`,
+        html`<span class=${'remaining ' + (t.time_status || '')}
+          >${formatRemainingTime(t.remaining_time_ms)}</span
+        >`,
     },
     {
       key: 'due_date',
@@ -120,22 +139,39 @@ export function TaskListPage() {
       label: '',
       className: 'actions',
       render: (/** @type {TaskDTO} */ t) => html`
-        ${auth.isLoggedIn
-          ? html`
-              <button type="button" class="btn-icon success" aria-label=${'Complete ' + t.name} title="Mark complete"
-                onClick=${() => setCompleting(t)}>
-                <i class="bi bi-check2-circle" />
-              </button>
-              <button type="button" class="btn-icon primary" aria-label=${'Edit ' + t.name} title="Edit"
-                onClick=${() => setEditorTask(t)}>
-                <i class="bi bi-pencil" />
-              </button>
-              <button type="button" class="btn-icon danger" aria-label=${'Delete ' + t.name} title="Delete"
-                onClick=${() => setDeleting(t)}>
-                <i class="bi bi-trash" />
-              </button>
-            `
-          : null}
+        ${
+          auth.isLoggedIn
+            ? html`
+                <button
+                  type="button"
+                  class="btn-icon success"
+                  aria-label=${'Complete ' + t.name}
+                  title="Mark complete"
+                  onClick=${() => setCompleting(t)}
+                >
+                  <i class="bi bi-check2-circle" />
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon primary"
+                  aria-label=${'Edit ' + t.name}
+                  title="Edit"
+                  onClick=${() => setEditorTask(t)}
+                >
+                  <i class="bi bi-pencil" />
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon danger"
+                  aria-label=${'Delete ' + t.name}
+                  title="Delete"
+                  onClick=${() => setDeleting(t)}
+                >
+                  <i class="bi bi-trash" />
+                </button>
+              `
+            : null
+        }
       `,
     },
   ];
@@ -146,13 +182,19 @@ export function TaskListPage() {
     <div>
       <div class="page-header">
         <h1 class="page-title">Maintenance Tasks</h1>
-        ${auth.isLoggedIn
-      ? html`
-              <button type="button" class="btn btn-primary" onClick=${() => setEditorTask(null)}>
-                <i class="bi bi-plus-lg" />New task
-              </button>
-            `
-      : null}
+        ${
+          auth.isLoggedIn
+            ? html`
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  onClick=${() => setEditorTask(null)}
+                >
+                  <i class="bi bi-plus-lg" />New task
+                </button>
+              `
+            : null
+        }
       </div>
 
       <div class="toolbar">
@@ -168,7 +210,7 @@ export function TaskListPage() {
         </div>
         <div class="chips">
           ${(tagsRes.data ? tagsRes.data.data : []).map(
-        (tag) => html`
+            (tag) => html`
               <button
                 type="button"
                 key=${tag.name}
@@ -177,49 +219,61 @@ export function TaskListPage() {
               >
                 ${tag.name}<span class="chip-count">${tag.count}</span>
               </button>
-            `
-      )}
+            `,
+          )}
         </div>
       </div>
 
-      ${tasksRes.error && !pageData
-      ? html`<div class="error-box">Failed to load tasks: ${tasksRes.error.message}</div>`
-      : html`
-            <${Table}
-              columns=${columns}
-              rows=${pageData ? pageData.data : []}
-              sort=${sort}
-              order=${order}
-              onSort=${onSort}
-              loading=${tasksRes.loading}
-              emptyMessage=${search || tagsCsv ? 'No tasks match your filters.' : 'No maintenance tasks yet.'}
-            />
-            ${pageData
-          ? html`<${Pagination}
-                  page=${pageData.page}
-                  pageSize=${pageData.pageSize}
-                  total=${pageData.total}
-                  onPage=${(/** @type {number} */ p) => update({ page: p })}
-                />`
-          : null}
-          `}
-
-      ${editorTask !== undefined
-      ? html`<${TaskFormModal} task=${editorTask} onClose=${() => setEditorTask(undefined)} />`
-      : null}
+      ${
+        tasksRes.error && !pageData
+          ? html`<div class="error-box">
+              Failed to load tasks: ${tasksRes.error.message}
+            </div>`
+          : html`
+              <${Table}
+                columns=${columns}
+                rows=${pageData ? pageData.data : []}
+                sort=${sort}
+                order=${order}
+                onSort=${onSort}
+                loading=${tasksRes.loading}
+                emptyMessage=${search || tagsCsv ? 'No tasks match your filters.' : 'No maintenance tasks yet.'}
+              />
+              ${
+                pageData
+                  ? html`<${Pagination}
+                      page=${pageData.page}
+                      pageSize=${pageData.pageSize}
+                      total=${pageData.total}
+                      onPage=${(/** @type {number} */ p) => update({ page: p })}
+                    />`
+                  : null
+              }
+            `
+      }
+      ${
+        editorTask !== undefined
+          ? html`<${TaskFormModal}
+              task=${editorTask}
+              onClose=${() => setEditorTask(undefined)}
+            />`
+          : null
+      }
       ${completing ? html`<${LogEntryModal} task=${completing} onClose=${() => setCompleting(null)} />` : null}
-      ${deleting
-      ? html`<${ConfirmModal}
-            title="Delete task"
-            message=${'Delete "' + deleting.name + '" and its entire maintenance log? This cannot be undone.'}
-            onConfirm=${async () => {
-          await deleteTask(deleting.slug);
-          toast('Task deleted.', 'success');
-          setDeleting(null);
-        }}
-            onClose=${() => setDeleting(null)}
-          />`
-      : null}
+      ${
+        deleting
+          ? html`<${ConfirmModal}
+              title="Delete task"
+              message=${'Delete "' + deleting.name + '" and its entire maintenance log? This cannot be undone.'}
+              onConfirm=${async () => {
+                await deleteTask(deleting.slug);
+                toast('Task deleted.', 'success');
+                setDeleting(null);
+              }}
+              onClose=${() => setDeleting(null)}
+            />`
+          : null
+      }
     </div>
   `;
 }

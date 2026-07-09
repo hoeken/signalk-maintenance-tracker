@@ -10,7 +10,11 @@ import { invalidateAll } from '../api/resource.js';
 /** @typedef {{ checked: boolean, isLoggedIn: boolean, username: string|null }} AuthState */
 
 /** @type {import('../../vendor/signals.js').Signal<AuthState>} */
-export const authState = signal({ checked: false, isLoggedIn: false, username: null });
+export const authState = signal({
+  checked: false,
+  isLoggedIn: false,
+  username: null,
+});
 
 export const loginModalOpen = signal(false);
 
@@ -32,16 +36,19 @@ export function closeLoginModal() {
  */
 export async function refreshLoginStatus() {
   try {
-    const res = await fetch('/skServer/loginStatus', { credentials: 'same-origin' });
+    const res = await fetch('/skServer/loginStatus', {
+      credentials: 'same-origin',
+    });
     if (!res.ok) throw new Error('loginStatus returned ' + res.status);
     const body = await res.json();
     const isLoggedIn = !!body && body.status === 'loggedIn';
     authState.value = {
       checked: true,
       isLoggedIn: isLoggedIn,
-      username: isLoggedIn && typeof body.username === 'string' ? body.username : null,
+      username:
+        isLoggedIn && typeof body.username === 'string' ? body.username : null,
     };
-  } catch (err) {
+  } catch {
     // Can't reach the server or no security configured — treat as logged out.
     authState.value = { checked: true, isLoggedIn: false, username: null };
   }
@@ -59,21 +66,31 @@ export async function login(username, password, rememberMe) {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: username, password: password, rememberMe: !!rememberMe }),
+    body: JSON.stringify({
+      username: username,
+      password: password,
+      rememberMe: !!rememberMe,
+    }),
   });
   if (!res.ok) {
-    throw new Error(res.status === 401 ? 'Invalid username or password' : 'Login failed (' + res.status + ')');
+    throw new Error(
+      res.status === 401
+        ? 'Invalid username or password'
+        : 'Login failed (' + res.status + ')',
+    );
   }
   /** @type {{ token?: string, timeToLive?: number }|null} */
-  let body = null;
+  let body;
   try {
     body = await res.json();
-  } catch (err) {
+  } catch {
     body = null;
   }
   authState.value = { checked: true, isLoggedIn: true, username: username };
   unauthorizedNotified = false;
-  scheduleRenewal(body && typeof body.timeToLive === 'number' ? body.timeToLive : null);
+  scheduleRenewal(
+    body && typeof body.timeToLive === 'number' ? body.timeToLive : null,
+  );
   // Data fetched while logged out may have 401'd — refetch everything live.
   invalidateAll();
 }
@@ -81,8 +98,11 @@ export async function login(username, password, rememberMe) {
 /** PUT /signalk/v1/auth/logout; local state is cleared regardless of outcome. */
 export async function logout() {
   try {
-    await fetch('/signalk/v1/auth/logout', { method: 'PUT', credentials: 'same-origin' });
-  } catch (err) {
+    await fetch('/signalk/v1/auth/logout', {
+      method: 'PUT',
+      credentials: 'same-origin',
+    });
+  } catch {
     // ignore — we still drop the local session
   }
   if (renewTimer) {

@@ -51,8 +51,18 @@ describe('NotificationManager (§10.3)', () => {
   it('publishes to notifications.maintenance.{slug} with correct state mapping', () => {
     const { app, manager } = makeManager();
     manager.publishAll([
-      makeTask({ slug: 'a', status: 'overdue', runtime_status: 'overdue', remaining_runtime: -20 }),
-      makeTask({ slug: 'b', status: 'due_soon', time_status: 'due_soon', remaining_time_ms: 3 * 86_400_000 }),
+      makeTask({
+        slug: 'a',
+        status: 'overdue',
+        runtime_status: 'overdue',
+        remaining_runtime: -20,
+      }),
+      makeTask({
+        slug: 'b',
+        status: 'due_soon',
+        time_status: 'due_soon',
+        remaining_time_ms: 3 * 86_400_000,
+      }),
       makeTask({ slug: 'c', status: 'ok' }),
     ]);
     const values = sentValues(app);
@@ -68,7 +78,11 @@ describe('NotificationManager (§10.3)', () => {
 
   it('deduplicates: republishing the same state sends nothing', () => {
     const { app, manager } = makeManager();
-    const task = makeTask({ status: 'overdue', runtime_status: 'overdue', remaining_runtime: -5 });
+    const task = makeTask({
+      status: 'overdue',
+      runtime_status: 'overdue',
+      remaining_runtime: -5,
+    });
     manager.publishAll([task]);
     manager.publishAll([task]);
     expect(app.handleMessage).toHaveBeenCalledTimes(1);
@@ -82,7 +96,9 @@ describe('NotificationManager (§10.3)', () => {
     manager.publishAll([makeTask({ status: 'unknown' })]);
     expect(app.handleMessage).not.toHaveBeenCalled();
 
-    manager.publishAll([makeTask({ status: 'overdue', runtime_status: 'overdue' })]);
+    manager.publishAll([
+      makeTask({ status: 'overdue', runtime_status: 'overdue' }),
+    ]);
     manager.publishAll([makeTask({ status: 'unknown' })]);
     const values = sentValues(app);
     expect(values.at(-1)?.value.state).toBe('normal');
@@ -98,7 +114,9 @@ describe('NotificationManager (§10.3)', () => {
 
   it('is silent when notifications are disabled', () => {
     const { app, manager } = makeManager(false);
-    manager.publishAll([makeTask({ status: 'overdue', runtime_status: 'overdue' })]);
+    manager.publishAll([
+      makeTask({ status: 'overdue', runtime_status: 'overdue' }),
+    ]);
     manager.clear('x');
     expect(app.handleMessage).not.toHaveBeenCalled();
   });
@@ -108,20 +126,32 @@ describe('buildMessage', () => {
   it('names the dimension that triggered the status', () => {
     expect(
       buildMessage(
-        makeTask({ status: 'overdue', runtime_status: 'overdue', remaining_runtime: -20.04 })
-      )
+        makeTask({
+          status: 'overdue',
+          runtime_status: 'overdue',
+          remaining_runtime: -20.04,
+        }),
+      ),
     ).toBe('Engine oil change is overdue by 20 runtime hours');
 
     expect(
       buildMessage(
-        makeTask({ status: 'overdue', time_status: 'overdue', remaining_time_ms: -86_400_000 })
-      )
+        makeTask({
+          status: 'overdue',
+          time_status: 'overdue',
+          remaining_time_ms: -86_400_000,
+        }),
+      ),
     ).toBe('Engine oil change is overdue by 1 day');
 
     expect(
       buildMessage(
-        makeTask({ status: 'due_soon', runtime_status: 'due_soon', remaining_runtime: 8.26 })
-      )
+        makeTask({
+          status: 'due_soon',
+          runtime_status: 'due_soon',
+          remaining_runtime: 8.26,
+        }),
+      ),
     ).toBe('Engine oil change is due in 8.3 runtime hours');
   });
 
@@ -135,7 +165,7 @@ describe('buildMessage', () => {
         time_fraction: 1.5,
         remaining_runtime: -10,
         remaining_time_ms: -5 * 86_400_000,
-      })
+      }),
     );
     expect(msg).toBe('Engine oil change is overdue by 5 days');
   });

@@ -7,14 +7,22 @@ import { mockFetch, makeTask } from './helpers.js';
 describe('LogEntryModal — mark complete (§7.5)', () => {
   it('prefills runtime hours from the task current_runtime (plugin API value, §8.4)', () => {
     mockFetch([]);
-    render(html`<${LogEntryModal} task=${makeTask({ current_runtime: 1360 })} onClose=${() => {}} />`);
+    render(
+      html`<${LogEntryModal}
+        task=${makeTask({ current_runtime: 1360 })}
+        onClose=${() => {}}
+      />`,
+    );
     expect(screen.getByLabelText('Runtime hours').value).toBe('1360');
   });
 
   it('rounds the prefilled runtime to 0.1 h like the rest of the UI', () => {
     mockFetch([]);
     render(
-      html`<${LogEntryModal} task=${makeTask({ current_runtime: 1360.2588888888889 })} onClose=${() => {}} />`
+      html`<${LogEntryModal}
+        task=${makeTask({ current_runtime: 1360.2588 })}
+        onClose=${() => {}}
+      />`,
     );
     expect(screen.getByLabelText('Runtime hours').value).toBe('1360.3');
   });
@@ -25,7 +33,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
       html`<${LogEntryModal}
         task=${makeTask({ runtime_path: null, current_runtime: null })}
         onClose=${() => {}}
-      />`
+      />`,
     );
     expect(screen.getByLabelText('Runtime hours').value).toBe('');
   });
@@ -33,14 +41,17 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
   it('POSTs the log entry and closes', async () => {
     const fn = mockFetch([
       {
-        match: (m, u) => m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
         status: 201,
         body: { id: 9, task_slug: 'engine-oil-change' },
       },
     ]);
     const onClose = vi.fn();
     render(html`<${LogEntryModal} task=${makeTask()} onClose=${onClose} />`);
-    fireEvent.input(screen.getByLabelText('Notes (markdown)'), { target: { value: 'Replaced filter.' } });
+    fireEvent.input(screen.getByLabelText('Notes (markdown)'), {
+      target: { value: 'Replaced filter.' },
+    });
     fireEvent.submit(document.getElementById('log-form'));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
@@ -71,7 +82,9 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     };
     render(html`<${LogEntryModal} entry=${entry} onClose=${onClose} />`);
     expect(screen.getByLabelText('Runtime hours').value).toBe('1300');
-    fireEvent.input(screen.getByLabelText('Notes (markdown)'), { target: { value: 'corrected' } });
+    fireEvent.input(screen.getByLabelText('Notes (markdown)'), {
+      target: { value: 'corrected' },
+    });
     fireEvent.submit(document.getElementById('log-form'));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'PUT');

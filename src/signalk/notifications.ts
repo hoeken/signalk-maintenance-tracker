@@ -19,7 +19,10 @@ export class NotificationManager {
   constructor(
     private app: any,
     private pluginId: string,
-    private opts: Pick<PluginOptions, 'enableNotifications' | 'notificationMethods'>
+    private opts: Pick<
+      PluginOptions,
+      'enableNotifications' | 'notificationMethods'
+    >,
   ) {}
 
   publishAll(tasks: TaskDTO[]): void {
@@ -28,7 +31,10 @@ export class NotificationManager {
       const state = STATE_FOR_STATUS[task.status];
       if (!state) {
         // unknown: publish nothing, but clear a previously-raised alarm/warn
-        if (this.lastState.get(task.slug) && this.lastState.get(task.slug) !== 'normal') {
+        if (
+          this.lastState.get(task.slug) &&
+          this.lastState.get(task.slug) !== 'normal'
+        ) {
           this.send(task.slug, 'normal', `${task.name}: status unknown`);
         }
         continue;

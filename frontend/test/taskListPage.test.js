@@ -11,29 +11,48 @@ describe('TaskListPage (§7.4)', () => {
     mockFetch(
       apiRoutes({
         tasks: [
-          makeTask({ id: 1, name: 'Engine oil change', status: 'overdue', remaining_runtime: -20, tags: ['Engines'] }),
-          makeTask({ id: 2, slug: 'winch-service', name: 'Winch service', status: 'ok' }),
+          makeTask({
+            id: 1,
+            name: 'Engine oil change',
+            status: 'overdue',
+            remaining_runtime: -20,
+            tags: ['Engines'],
+          }),
+          makeTask({
+            id: 2,
+            slug: 'winch-service',
+            name: 'Winch service',
+            status: 'ok',
+          }),
         ],
         tags: [{ id: 1, name: 'Engines', count: 1 }],
-      })
+      }),
     );
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);
-    await waitFor(() => expect(screen.getByText('Engine oil change')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('Engine oil change')).toBeTruthy(),
+    );
     expect(screen.getByText('Winch service')).toBeTruthy();
     expect(screen.getByText('overdue')).toBeTruthy();
     expect(screen.getByText('20 h overdue')).toBeTruthy();
     // task detail links use hash routes
-    expect(screen.getByText('Engine oil change').getAttribute('href')).toBe('#/tasks/engine-oil-change');
+    expect(screen.getByText('Engine oil change').getAttribute('href')).toBe(
+      '#/tasks/engine-oil-change',
+    );
   });
 
   it('sends filters from the URL hash to the API', async () => {
     const fn = mockFetch(apiRoutes({ tasks: [] }));
-    route.value = parseHash('#/?search=oil&tags=Engines&sort=name&order=desc&page=2');
+    route.value = parseHash(
+      '#/?search=oil&tags=Engines&sort=name&order=desc&page=2',
+    );
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);
     await waitFor(() => {
-      const tasksCall = fn.mock.calls.find((c) => String(c[0]).indexOf('/api/tasks?') !== -1);
+      const tasksCall = fn.mock.calls.find(
+        (c) => String(c[0]).indexOf('/api/tasks?') !== -1,
+      );
       expect(tasksCall).toBeTruthy();
       const url = String(tasksCall[0]);
       expect(url).toContain('search=oil');
@@ -45,7 +64,9 @@ describe('TaskListPage (§7.4)', () => {
   });
 
   it('toggling a tag chip updates the hash query and resets the page', async () => {
-    mockFetch(apiRoutes({ tasks: [], tags: [{ id: 1, name: 'Engines', count: 3 }] }));
+    mockFetch(
+      apiRoutes({ tasks: [], tags: [{ id: 1, name: 'Engines', count: 3 }] }),
+    );
     route.value = parseHash('#/?page=4');
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);

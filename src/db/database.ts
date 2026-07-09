@@ -12,10 +12,12 @@ export function openDatabase(dbPath: string): DatabaseSync {
 }
 
 export function migrate(db: DatabaseSync): void {
-  db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
-  const row = db.prepare(`SELECT value FROM meta WHERE key = 'schema_version'`).get() as
-    | { value: string }
-    | undefined;
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  );
+  const row = db
+    .prepare(`SELECT value FROM meta WHERE key = 'schema_version'`)
+    .get() as { value: string } | undefined;
   let version = row ? Number(row.value) : 0;
 
   for (const m of migrations) {
@@ -26,7 +28,7 @@ export function migrate(db: DatabaseSync): void {
       m.up(db);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       ).run(String(m.version));
       db.exec('COMMIT');
       version = m.version;
@@ -38,8 +40,8 @@ export function migrate(db: DatabaseSync): void {
 }
 
 export function schemaVersion(db: DatabaseSync): number {
-  const row = db.prepare(`SELECT value FROM meta WHERE key = 'schema_version'`).get() as
-    | { value: string }
-    | undefined;
+  const row = db
+    .prepare(`SELECT value FROM meta WHERE key = 'schema_version'`)
+    .get() as { value: string } | undefined;
   return row ? Number(row.value) : 0;
 }

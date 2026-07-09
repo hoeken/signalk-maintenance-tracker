@@ -15,16 +15,27 @@ export function mockFetch(routes) {
         const status = routeDef.status || 200;
         const body = routeDef.body === undefined ? null : routeDef.body;
         // 204/205/304 must have a null body per the Response constructor
-        return new Response(body === null || status === 204 ? null : JSON.stringify(body), {
-          status,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          body === null || status === 204 ? null : JSON.stringify(body),
+          {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
     }
-    return new Response(JSON.stringify({ error: { code: 'not_found', message: 'no mock for ' + method + ' ' + url } }), {
-      status: 404,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        error: {
+          code: 'not_found',
+          message: 'no mock for ' + method + ' ' + url,
+        },
+      }),
+      {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
   });
   vi.stubGlobal('fetch', fn);
   return fn;
@@ -45,7 +56,10 @@ export function apiRoutes(overrides) {
       match: (m, u) => m === 'GET' && u.indexOf('/api/logs') !== -1,
       body: { data: logs, total: logs.length, page: 1, pageSize: 25 },
     },
-    { match: (m, u) => m === 'GET' && u.indexOf('/api/tags') !== -1, body: { data: tags } },
+    {
+      match: (m, u) => m === 'GET' && u.indexOf('/api/tags') !== -1,
+      body: { data: tags },
+    },
   ];
 }
 
@@ -80,6 +94,6 @@ export function makeTask(overrides) {
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
     },
-    overrides || {}
+    overrides || {},
   );
 }

@@ -26,7 +26,9 @@ function encodeSlug(slug) {
  */
 export function useTasks(params) {
   const query = buildQuery(params);
-  return useResource('tasks' + query, () => apiFetch('/tasks' + query), { refetchInterval: POLL_MS });
+  return useResource('tasks' + query, () => apiFetch('/tasks' + query), {
+    refetchInterval: POLL_MS,
+  });
 }
 
 /**
@@ -34,9 +36,13 @@ export function useTasks(params) {
  * @returns {import('./resource.js').ResourceState<TaskDTO>}
  */
 export function useTask(slug) {
-  return useResource('task/' + slug, () => apiFetch('/tasks/' + encodeSlug(slug)), {
-    refetchInterval: POLL_MS,
-  });
+  return useResource(
+    'task/' + slug,
+    () => apiFetch('/tasks/' + encodeSlug(slug)),
+    {
+      refetchInterval: POLL_MS,
+    },
+  );
 }
 
 /**
@@ -44,9 +50,13 @@ export function useTask(slug) {
  * @returns {import('./resource.js').ResourceState<{data: LogDTO[]}>}
  */
 export function useTaskLogs(slug) {
-  return useResource('task/' + slug + '/logs', () => apiFetch('/tasks/' + encodeSlug(slug) + '/logs'), {
-    refetchInterval: POLL_MS,
-  });
+  return useResource(
+    'task/' + slug + '/logs',
+    () => apiFetch('/tasks/' + encodeSlug(slug) + '/logs'),
+    {
+      refetchInterval: POLL_MS,
+    },
+  );
 }
 
 /**
@@ -55,14 +65,18 @@ export function useTaskLogs(slug) {
  */
 export function useLogs(params) {
   const query = buildQuery(params);
-  return useResource('logs' + query, () => apiFetch('/logs' + query), { refetchInterval: POLL_MS });
+  return useResource('logs' + query, () => apiFetch('/logs' + query), {
+    refetchInterval: POLL_MS,
+  });
 }
 
 /**
  * @returns {import('./resource.js').ResourceState<{data: TagDTO[]}>}
  */
 export function useTags() {
-  return useResource('tags', () => apiFetch('/tags'), { refetchInterval: POLL_MS });
+  return useResource('tags', () => apiFetch('/tags'), {
+    refetchInterval: POLL_MS,
+  });
 }
 
 /**
@@ -92,7 +106,10 @@ export async function createTask(input) {
  * @returns {Promise<TaskDTO>}
  */
 export async function updateTask(slug, input) {
-  const task = await apiFetch('/tasks/' + encodeSlug(slug), { method: 'PUT', body: input });
+  const task = await apiFetch('/tasks/' + encodeSlug(slug), {
+    method: 'PUT',
+    body: input,
+  });
   invalidate('tasks', 'task/' + slug, 'tags', 'logs');
   if (task && task.slug !== slug) invalidate('task/' + task.slug);
   return task;
@@ -111,7 +128,10 @@ export async function deleteTask(slug) {
  * @returns {Promise<LogDTO>}
  */
 export async function addLog(slug, input) {
-  const entry = await apiFetch('/tasks/' + encodeSlug(slug) + '/logs', { method: 'POST', body: input });
+  const entry = await apiFetch('/tasks/' + encodeSlug(slug) + '/logs', {
+    method: 'POST',
+    body: input,
+  });
   invalidate('tasks', 'task/' + slug, 'logs');
   return entry;
 }

@@ -42,7 +42,7 @@ export async function apiFetch(path, options) {
   if (text) {
     try {
       body = JSON.parse(text);
-    } catch (err) {
+    } catch {
       body = null;
     }
   }
@@ -51,7 +51,7 @@ export async function apiFetch(path, options) {
     throw new ApiError(
       res.status,
       errInfo.code || 'http_' + res.status,
-      errInfo.message || 'Request failed (' + res.status + ')'
+      errInfo.message || 'Request failed (' + res.status + ')',
     );
   }
   return body;
@@ -67,7 +67,8 @@ export function buildQuery(params) {
   const usp = new URLSearchParams();
   for (const key of Object.keys(params)) {
     const value = params[key];
-    if (value !== undefined && value !== null && value !== '') usp.set(key, String(value));
+    if (value !== undefined && value !== null && value !== '')
+      usp.set(key, String(value));
   }
   const qs = usp.toString();
   return qs ? '?' + qs : '';

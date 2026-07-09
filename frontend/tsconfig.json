@@ -18,7 +18,9 @@
       "preact": ["./node_modules/preact/src/index.d.ts"],
       "preact/hooks": ["./node_modules/preact/hooks/src/index.d.ts"],
       "@preact/signals": ["./node_modules/@preact/signals/dist/signals.d.ts"],
-      "@preact/signals-core": ["./node_modules/@preact/signals-core/dist/signals-core.d.ts"],
+      "@preact/signals-core": [
+        "./node_modules/@preact/signals-core/dist/signals-core.d.ts"
+      ],
       "htm": ["./node_modules/htm/dist/htm.d.ts"],
       "dayjs": ["./node_modules/dayjs/index.d.ts"]
     }

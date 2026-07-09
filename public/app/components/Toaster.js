@@ -9,10 +9,15 @@ export function Toaster() {
     <div class="toaster">
       ${items.map(
         (t) => html`
-          <div key=${t.id} class=${'toast ' + t.kind} role="status" onClick=${() => dismissToast(t.id)}>
+          <div
+            key=${t.id}
+            class=${'toast ' + t.kind}
+            role="status"
+            onClick=${() => dismissToast(t.id)}
+          >
             ${t.message}
           </div>
-        `
+        `,
       )}
     </div>
   `;

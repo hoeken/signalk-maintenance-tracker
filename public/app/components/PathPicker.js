@@ -18,7 +18,9 @@ export function PathPicker(props) {
   const value = props.value || '';
   const candidates = paths.data || [];
   const matches = candidates
-    .filter((p) => !value || p.toLowerCase().indexOf(value.toLowerCase()) !== -1)
+    .filter(
+      (p) => !value || p.toLowerCase().indexOf(value.toLowerCase()) !== -1,
+    )
     .slice(0, 10);
 
   return html`
@@ -34,24 +36,31 @@ export function PathPicker(props) {
         onFocus=${() => setOpen(true)}
         onBlur=${() => setTimeout(() => setOpen(false), 150)}
       />
-      ${open && matches.length
-        ? html`<ul class="combo-list">
-            ${matches.map(
-              (p) => html`<li
-                key=${p}
-                onMouseDown=${() => {
-                  props.onChange(p);
-                  setOpen(false);
-                }}
-              >
-                ${p}
-              </li>`
-            )}
-          </ul>`
-        : null}
-      ${paths.error
-        ? html`<div class="field-hint">Could not load paths from SignalK — free text still works.</div>`
-        : null}
+      ${
+        open && matches.length
+          ? html`<ul class="combo-list">
+              ${matches.map(
+                (p) =>
+                  html`<li
+                    key=${p}
+                    onMouseDown=${() => {
+                      props.onChange(p);
+                      setOpen(false);
+                    }}
+                  >
+                    ${p}
+                  </li>`,
+              )}
+            </ul>`
+          : null
+      }
+      ${
+        paths.error
+          ? html`<div class="field-hint">
+              Could not load paths from SignalK — free text still works.
+            </div>`
+          : null
+      }
     </div>
   `;
 }

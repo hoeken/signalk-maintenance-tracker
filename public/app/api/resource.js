@@ -38,7 +38,8 @@ function getEntry(key, fetcher, options) {
     entry = {
       key: key,
       fetcher: fetcher,
-      refetchInterval: options && options.refetchInterval ? options.refetchInterval : 0,
+      refetchInterval:
+        options && options.refetchInterval ? options.refetchInterval : 0,
       state: signal({ data: null, error: null, loading: true }),
       subscribers: 0,
       timer: null,
@@ -59,12 +60,14 @@ function runFetch(entry) {
   entry.fetched = true;
   entry.fetcher().then(
     function (data) {
-      if (id === entry.fetchId) entry.state.value = { data: data, error: null, loading: false };
+      if (id === entry.fetchId)
+        entry.state.value = { data: data, error: null, loading: false };
     },
     function (error) {
       // keep stale data visible; surface the error alongside it
-      if (id === entry.fetchId) entry.state.value = { data: prev.data, error: error, loading: false };
-    }
+      if (id === entry.fetchId)
+        entry.state.value = { data: prev.data, error: error, loading: false };
+    },
   );
 }
 
@@ -103,7 +106,7 @@ export function useResource(key, fetcher, options) {
         }
       };
     },
-    [key]
+    [key],
   );
   return entry.state.value;
 }
@@ -119,7 +122,11 @@ export function invalidate() {
   const keys = Array.from(registry.keys());
   for (const key of keys) {
     const hit = prefixes.some(function (prefix) {
-      return key === prefix || key.indexOf(prefix + '?') === 0 || key.indexOf(prefix + '/') === 0;
+      return (
+        key === prefix ||
+        key.indexOf(prefix + '?') === 0 ||
+        key.indexOf(prefix + '/') === 0
+      );
     });
     if (!hit) continue;
     const entry = registry.get(key);

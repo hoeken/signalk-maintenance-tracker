@@ -20,7 +20,10 @@ type Handler = (req: Request, res: Response) => void;
  * No authorization here by design (§9): SignalK gates access to these routes
  * before requests reach us.
  */
-export function mountApi(router: Router, getServices: () => Services | null): void {
+export function mountApi(
+  router: Router,
+  getServices: () => Services | null,
+): void {
   router.use(jsonBody);
 
   const withServices =
@@ -28,19 +31,24 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
     (req, res) => {
       const services = getServices();
       if (!services) {
-        res
-          .status(503)
-          .json({ error: { code: 'not_started', message: 'Plugin is not started' } });
+        res.status(503).json({
+          error: { code: 'not_started', message: 'Plugin is not started' },
+        });
         return;
       }
       try {
         fn(services, req, res);
       } catch (err) {
         if (err instanceof ApiError) {
-          res.status(err.status).json({ error: { code: err.code, message: err.message } });
+          res
+            .status(err.status)
+            .json({ error: { code: err.code, message: err.message } });
         } else {
           res.status(500).json({
-            error: { code: 'internal', message: err instanceof Error ? err.message : String(err) },
+            error: {
+              code: 'internal',
+              message: err instanceof Error ? err.message : String(err),
+            },
           });
         }
       }
@@ -52,28 +60,28 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
     '/api/tasks',
     withServices((s, req, res) => {
       res.json(s.service.listTasks(parseTaskListQuery(req)));
-    })
+    }),
   );
 
   router.post(
     '/api/tasks',
     withServices((s, req, res) => {
       res.status(201).json(s.service.createTask(req.body ?? {}));
-    })
+    }),
   );
 
   router.get(
     '/api/tasks/:slug',
     withServices((s, req, res) => {
       res.json(s.service.getTask(req.params.slug));
-    })
+    }),
   );
 
   router.put(
     '/api/tasks/:slug',
     withServices((s, req, res) => {
       res.json(s.service.updateTask(req.params.slug, req.body ?? {}));
-    })
+    }),
   );
 
   router.delete(
@@ -81,7 +89,7 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
     withServices((s, req, res) => {
       s.service.deleteTask(req.params.slug);
       res.status(204).end();
-    })
+    }),
   );
 
   // ---- logs (§8.2) ----
@@ -90,23 +98,31 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
     '/api/tasks/:slug/logs',
     withServices((s, req, res) => {
       res.json({ data: s.service.listTaskLogs(req.params.slug) });
-    })
+    }),
   );
 
   router.post(
     '/api/tasks/:slug/logs',
     withServices((s, req, res) => {
       // logged_by comes from the SignalK principal, never the body (§9.1)
-      const entry = s.service.addLog(req.params.slug, req.body ?? {}, getRequestUser(req));
+      const entry = s.service.addLog(
+        req.params.slug,
+        req.body ?? {},
+        getRequestUser(req),
+      );
       res.status(201).json(entry);
-    })
+    }),
   );
 
   router.get(
     '/api/logs',
     withServices((s, req, res) => {
       const { page, pageSize } = parsePaging(req);
-      const sort = pickEnum(req.query.sort, ['maintenance_date', 'task', 'runtime_hours'] as const);
+      const sort = pickEnum(req.query.sort, [
+        'maintenance_date',
+        'task',
+        'runtime_hours',
+      ] as const);
       const order = pickEnum(req.query.order, ['asc', 'desc'] as const);
       res.json(
         s.service.listMasterLog({
@@ -115,16 +131,16 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
           order,
           page,
           pageSize,
-        })
+        }),
       );
-    })
+    }),
   );
 
   router.put(
     '/api/logs/:id',
     withServices((s, req, res) => {
       res.json(s.service.updateLog(intParam(req.params.id), req.body ?? {}));
-    })
+    }),
   );
 
   router.delete(
@@ -132,7 +148,7 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
     withServices((s, req, res) => {
       s.service.deleteLog(intParam(req.params.id));
       res.status(204).end();
-    })
+    }),
   );
 
   // ---- tags (§8.3) ----
@@ -141,7 +157,7 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
     '/api/tags',
     withServices((s, _req, res) => {
       res.json({ data: s.service.listTags() });
-    })
+    }),
   );
 
   // ---- health (§8.5) ----
@@ -155,7 +171,7 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
         lastRuntimeUpdate: s.runtime.lastUpdateAt,
         version: s.version,
       });
-    })
+    }),
   );
 }
 
@@ -164,7 +180,11 @@ export function mountApi(router: Router, getServices: () => Services | null): vo
  * get body-parsing middleware, so parse only if req.body is still unset.
  */
 function jsonBody(req: Request, res: Response, next: NextFunction): void {
-  if (req.body !== undefined || req.method === 'GET' || req.method === 'DELETE') {
+  if (
+    req.body !== undefined ||
+    req.method === 'GET' ||
+    req.method === 'DELETE'
+  ) {
     next();
     return;
   }
@@ -183,7 +203,12 @@ function jsonBody(req: Request, res: Response, next: NextFunction): void {
       req.body = JSON.parse(data);
       next();
     } catch {
-      res.status(400).json({ error: { code: 'invalid_json', message: 'Request body is not valid JSON' } });
+      res.status(400).json({
+        error: {
+          code: 'invalid_json',
+          message: 'Request body is not valid JSON',
+        },
+      });
     }
   });
 }
@@ -194,9 +219,14 @@ function parseTaskListQuery(req: Request): TaskListQuery {
     search: str(req.query.search),
     tags: csv(req.query.tags),
     status: csv(req.query.status)?.filter((s): s is Status =>
-      ['overdue', 'due_soon', 'ok', 'unknown'].includes(s)
+      ['overdue', 'due_soon', 'ok', 'unknown'].includes(s),
     ),
-    sort: pickEnum(req.query.sort, ['name', 'remaining_runtime', 'remaining_time', 'status'] as const),
+    sort: pickEnum(req.query.sort, [
+      'name',
+      'remaining_runtime',
+      'remaining_time',
+      'status',
+    ] as const),
     order: pickEnum(req.query.order, ['asc', 'desc'] as const),
     page,
     pageSize,
@@ -230,11 +260,17 @@ function int(v: unknown): number | undefined {
 
 function intParam(v: string): number {
   const n = Number.parseInt(v, 10);
-  if (!Number.isFinite(n)) throw new ApiError(400, 'invalid_id', 'id must be an integer');
+  if (!Number.isFinite(n))
+    throw new ApiError(400, 'invalid_id', 'id must be an integer');
   return n;
 }
 
-function pickEnum<T extends string>(v: unknown, allowed: readonly T[]): T | undefined {
+function pickEnum<T extends string>(
+  v: unknown,
+  allowed: readonly T[],
+): T | undefined {
   const s = str(v);
-  return s !== undefined && (allowed as readonly string[]).includes(s) ? (s as T) : undefined;
+  return s !== undefined && (allowed as readonly string[]).includes(s)
+    ? (s as T)
+    : undefined;
 }

@@ -46,7 +46,9 @@ async function fetchAllLogs() {
   const entries = [];
   for (let page = 1; ; page += 1) {
     /** @type {import('../types.js').Page<LogDTO>} */
-    const res = await apiFetch('/logs' + buildQuery({ page, pageSize: EXPORT_PAGE_SIZE }));
+    const res = await apiFetch(
+      '/logs' + buildQuery({ page, pageSize: EXPORT_PAGE_SIZE }),
+    );
     entries.push(...res.data);
     if (res.data.length === 0 || entries.length >= res.total) break;
   }
@@ -67,7 +69,10 @@ export function MasterLogPage() {
   }, [search]);
   useEffect(() => {
     if (searchText === search) return undefined;
-    const timer = setTimeout(() => update({ search: searchText, page: undefined }), 300);
+    const timer = setTimeout(
+      () => update({ search: searchText, page: undefined }),
+      300,
+    );
     return () => clearTimeout(timer);
   }, [searchText]);
 
@@ -80,7 +85,9 @@ export function MasterLogPage() {
   });
 
   const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState(/** @type {string|null} */(null));
+  const [downloadError, setDownloadError] = useState(
+    /** @type {string|null} */ (null),
+  );
   const downloadCsv = async () => {
     if (downloading) return;
     setDownloading(true);
@@ -90,7 +97,12 @@ export function MasterLogPage() {
       const now = new Date();
       /** @param {number} n */
       const pad = (n) => String(n).padStart(2, '0');
-      const stamp = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+      const stamp =
+        now.getFullYear() +
+        '-' +
+        pad(now.getMonth() + 1) +
+        '-' +
+        pad(now.getDate());
       const blob = new Blob([buildCsv(entries)], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -107,7 +119,9 @@ export function MasterLogPage() {
     }
   };
 
-  const [expanded, setExpanded] = useState(/** @type {Record<string, boolean>} */({}));
+  const [expanded, setExpanded] = useState(
+    /** @type {Record<string, boolean>} */ ({}),
+  );
   /** @param {number} id */
   const toggleExpanded = (id) => {
     /** @type {Record<string, boolean>} */
@@ -120,7 +134,8 @@ export function MasterLogPage() {
   /** @param {string} key */
   const onSort = (key) => {
     if (sort === key) update({ order: order === 'asc' ? 'desc' : 'asc' });
-    else update({ sort: key, order: key === 'maintenance_date' ? 'desc' : 'asc' });
+    else
+      update({ sort: key, order: key === 'maintenance_date' ? 'desc' : 'asc' });
   };
 
   /** @type {import('../components/Table.js').Column[]} */
@@ -130,7 +145,9 @@ export function MasterLogPage() {
       label: 'Task',
       sortable: true,
       render: (/** @type {LogDTO} */ e) =>
-        html`<a href=${'#/tasks/' + encodeURIComponent(e.task_slug)}>${e.task_name}</a>`,
+        html`<a href=${'#/tasks/' + encodeURIComponent(e.task_slug)}
+          >${e.task_name}</a
+        >`,
     },
     {
       key: 'maintenance_date',
@@ -149,7 +166,8 @@ export function MasterLogPage() {
     {
       key: 'logged_by',
       label: 'By',
-      render: (/** @type {LogDTO} */ e) => e.logged_by || html`<span class="muted">—</span>`,
+      render: (/** @type {LogDTO} */ e) =>
+        e.logged_by || html`<span class="muted">—</span>`,
     },
   ];
 
@@ -157,17 +175,32 @@ export function MasterLogPage() {
   const renderNotes = (e) => {
     if (!e.notes) return null;
     const isLong = e.notes.length > NOTE_PREVIEW_CHARS;
-    const body = expanded[e.id] || !isLong
-      ? html`
-          <${MarkdownView} markdown=${e.notes} />
-          ${isLong
-            ? html`<button type="button" class="btn-link" onClick=${() => toggleExpanded(e.id)}>less</button>`
-            : null}
-        `
-      : html`
-          ${truncate(e.notes, NOTE_PREVIEW_CHARS)}${' '}
-          <button type="button" class="btn-link" onClick=${() => toggleExpanded(e.id)}>more</button>
-        `;
+    const body =
+      expanded[e.id] || !isLong
+        ? html`
+            <${MarkdownView} markdown=${e.notes} />
+            ${
+              isLong
+                ? html`<button
+                    type="button"
+                    class="btn-link"
+                    onClick=${() => toggleExpanded(e.id)}
+                  >
+                    less
+                  </button>`
+                : null
+            }
+          `
+        : html`
+            ${truncate(e.notes, NOTE_PREVIEW_CHARS)}${' '}
+            <button
+              type="button"
+              class="btn-link"
+              onClick=${() => toggleExpanded(e.id)}
+            >
+              more
+            </button>
+          `;
     return html`<div class="log-notes">
       <strong class="log-notes-label">Notes:</strong>
       <div class="log-notes-body">${body}</div>
@@ -180,14 +213,25 @@ export function MasterLogPage() {
     <div>
       <div class="page-header">
         <h1 class="page-title">Maintenance Log</h1>
-        <button type="button" class="btn btn-primary" disabled=${downloading} onClick=${downloadCsv}>
-          <i class="bi bi-download" />${downloading ? 'Preparing…' : 'Download Log'}
+        <button
+          type="button"
+          class="btn btn-primary"
+          disabled=${downloading}
+          onClick=${downloadCsv}
+        >
+          <i
+            class="bi bi-download"
+          />${downloading ? 'Preparing…' : 'Download Log'}
         </button>
       </div>
 
-      ${downloadError
-      ? html`<div class="error-box">Failed to download log: ${downloadError}</div>`
-      : null}
+      ${
+        downloadError
+          ? html`<div class="error-box">
+              Failed to download log: ${downloadError}
+            </div>`
+          : null
+      }
 
       <div class="toolbar">
         <div class="search-box">
@@ -202,28 +246,34 @@ export function MasterLogPage() {
         </div>
       </div>
 
-      ${logsRes.error && !pageData
-      ? html`<div class="error-box">Failed to load log: ${logsRes.error.message}</div>`
-      : html`
-            <${Table}
-              columns=${columns}
-              rows=${pageData ? pageData.data : []}
-              renderDetail=${renderNotes}
-              sort=${sort}
-              order=${order}
-              onSort=${onSort}
-              loading=${logsRes.loading}
-              emptyMessage=${search ? 'No log entries match your search.' : 'No maintenance logged yet.'}
-            />
-            ${pageData
-          ? html`<${Pagination}
-                  page=${pageData.page}
-                  pageSize=${pageData.pageSize}
-                  total=${pageData.total}
-                  onPage=${(/** @type {number} */ p) => update({ page: p })}
-                />`
-          : null}
-          `}
+      ${
+        logsRes.error && !pageData
+          ? html`<div class="error-box">
+              Failed to load log: ${logsRes.error.message}
+            </div>`
+          : html`
+              <${Table}
+                columns=${columns}
+                rows=${pageData ? pageData.data : []}
+                renderDetail=${renderNotes}
+                sort=${sort}
+                order=${order}
+                onSort=${onSort}
+                loading=${logsRes.loading}
+                emptyMessage=${search ? 'No log entries match your search.' : 'No maintenance logged yet.'}
+              />
+              ${
+                pageData
+                  ? html`<${Pagination}
+                      page=${pageData.page}
+                      pageSize=${pageData.pageSize}
+                      total=${pageData.total}
+                      onPage=${(/** @type {number} */ p) => update({ page: p })}
+                    />`
+                  : null
+              }
+            `
+      }
     </div>
   `;
 }

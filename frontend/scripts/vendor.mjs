@@ -6,7 +6,13 @@
  * import maps (Chrome 89+; our floor is Chromium 69). Re-run after bumping a
  * dependency version in frontend/package.json:  npm run vendor
  */
-import { copyFileSync, cpSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,7 +42,10 @@ vendorFile('preact/dist/preact.module.js', 'preact.js');
 vendorFile('preact/hooks/dist/hooks.module.js', 'preact-hooks.js', {
   preact: './preact.js',
 });
-vendorFile('@preact/signals-core/dist/signals-core.module.js', 'signals-core.js');
+vendorFile(
+  '@preact/signals-core/dist/signals-core.module.js',
+  'signals-core.js',
+);
 vendorFile('@preact/signals/dist/signals.module.js', 'signals.js', {
   // longest first so "preact/hooks" is not clobbered by the "preact" rewrite
   '@preact/signals-core': './signals-core.js',
@@ -52,7 +61,7 @@ function vendorDayjsFile(rel) {
   const src = join(nm, 'dayjs', 'esm', `${rel}.js`);
   let code = readFileSync(src, 'utf8');
   code = code.replace(/(from\s+['"])(\.[^'"]+)(['"])/g, (m, pre, path, post) =>
-    path.endsWith('.js') ? m : `${pre}${path}.js${post}`
+    path.endsWith('.js') ? m : `${pre}${path}.js${post}`,
   );
   const dest = join(vendor, 'dayjs', `${rel}.js`);
   mkdirSync(dirname(dest), { recursive: true });
@@ -64,8 +73,13 @@ for (const f of ['index', 'constant', 'utils', 'locale/en']) vendorDayjsFile(f);
 // Bootstrap Icons — stylesheet + woff2 webfont, loaded via <link> in index.html.
 const biDir = join(vendor, 'bootstrap-icons');
 mkdirSync(join(biDir, 'fonts'), { recursive: true });
-copyFileSync(join(nm, 'bootstrap-icons/font/bootstrap-icons.css'), join(biDir, 'bootstrap-icons.css'));
-cpSync(join(nm, 'bootstrap-icons/font/fonts'), join(biDir, 'fonts'), { recursive: true });
+copyFileSync(
+  join(nm, 'bootstrap-icons/font/bootstrap-icons.css'),
+  join(biDir, 'bootstrap-icons.css'),
+);
+cpSync(join(nm, 'bootstrap-icons/font/fonts'), join(biDir, 'fonts'), {
+  recursive: true,
+});
 console.log('vendored bootstrap-icons');
 
 // Sibling .d.ts shims so the frontend type-check (tsc --checkJs over
@@ -80,13 +94,27 @@ const shims = {
   'snarkdown.d.ts': "export { default } from 'snarkdown';\n",
   'dayjs/index.d.ts': "export { default } from 'dayjs';\n",
 };
-for (const [file, body] of Object.entries(shims)) writeFileSync(join(vendor, file), body);
+for (const [file, body] of Object.entries(shims))
+  writeFileSync(join(vendor, file), body);
 console.log('wrote type shims');
 
 // Record what was vendored, for humans diffing public/vendor.
 const versions = {};
-for (const pkg of ['preact', '@preact/signals', '@preact/signals-core', 'htm', 'snarkdown', 'dayjs', 'bootstrap-icons']) {
-  versions[pkg] = JSON.parse(readFileSync(join(nm, pkg, 'package.json'), 'utf8')).version;
+for (const pkg of [
+  'preact',
+  '@preact/signals',
+  '@preact/signals-core',
+  'htm',
+  'snarkdown',
+  'dayjs',
+  'bootstrap-icons',
+]) {
+  versions[pkg] = JSON.parse(
+    readFileSync(join(nm, pkg, 'package.json'), 'utf8'),
+  ).version;
 }
-writeFileSync(join(vendor, 'VERSIONS.json'), JSON.stringify(versions, null, 2) + '\n');
+writeFileSync(
+  join(vendor, 'VERSIONS.json'),
+  JSON.stringify(versions, null, 2) + '\n',
+);
 console.log('wrote VERSIONS.json', versions);

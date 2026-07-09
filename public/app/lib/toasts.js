@@ -16,7 +16,9 @@ export const toasts = signal([]);
  */
 export function toast(message, kind) {
   const id = nextId++;
-  toasts.value = toasts.value.concat([{ id: id, message: message, kind: kind || 'info' }]);
+  toasts.value = toasts.value.concat([
+    { id: id, message: message, kind: kind || 'info' },
+  ]);
   setTimeout(function () {
     dismissToast(id);
   }, 5000);

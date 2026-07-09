@@ -21,7 +21,10 @@ export function App() {
 
   let page;
   if (detailParams) {
-    page = html`<${TaskDetailPage} slug=${detailParams.slug} key=${detailParams.slug} />`;
+    page = html`<${TaskDetailPage}
+      slug=${detailParams.slug}
+      key=${detailParams.slug}
+    />`;
   } else if (current.path === '/log') {
     page = html`<${MasterLogPage} />`;
   } else {
@@ -33,15 +36,28 @@ export function App() {
       <header class="shell-header">
         <a class="shell-title" href="#/">Maintenance Tracker</a>
         <nav class="shell-nav">
-          <a class=${'nav-link' + (!detailParams && current.path !== '/log' ? ' active' : '')} href="#/">Tasks</a>
-          <a class=${'nav-link' + (current.path === '/log' ? ' active' : '')} href="#/log">Log</a>
+          <a
+            class=${'nav-link' + (!detailParams && current.path !== '/log' ? ' active' : '')}
+            href="#/"
+            >Tasks</a
+          >
+          <a
+            class=${'nav-link' + (current.path === '/log' ? ' active' : '')}
+            href="#/log"
+            >Log</a
+          >
         </nav>
         <${ThemeToggle} />
       </header>
       <main class="shell-main">${page}</main>
       <footer class="shell-footer">
         <div class="shell-footer-links">
-          <a href="https://www.npmjs.com/package/signalk-maintenance-tracker" target="_blank" rel="noopener">signalk-maintenance-tracker</a>
+          <a
+            href="https://www.npmjs.com/package/signalk-maintenance-tracker"
+            target="_blank"
+            rel="noopener"
+            >signalk-maintenance-tracker</a
+          >
           ${version && html`<span class="dot-spacer">·</span><span>v${version}</span>`}
         </div>
         <div class="shell-footer-auth">

@@ -19,7 +19,13 @@ const BLOCKED_TAGS = {
 };
 
 /** @type {Record<string, boolean>} */
-const URL_ATTRS = { href: true, src: true, 'xlink:href': true, action: true, formaction: true };
+const URL_ATTRS = {
+  href: true,
+  src: true,
+  'xlink:href': true,
+  action: true,
+  formaction: true,
+};
 
 /**
  * @param {string} dirty raw HTML from snarkdown
@@ -46,7 +52,10 @@ function cleanElement(root) {
       const name = attrs[j].name.toLowerCase();
       if (name.indexOf('on') === 0) {
         el.removeAttribute(attrs[j].name);
-      } else if (URL_ATTRS[name] && /^\s*(javascript|vbscript|data):/i.test(attrs[j].value)) {
+      } else if (
+        URL_ATTRS[name] &&
+        /^\s*(javascript|vbscript|data):/i.test(attrs[j].value)
+      ) {
         el.removeAttribute(attrs[j].name);
       }
     }

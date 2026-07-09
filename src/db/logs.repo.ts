@@ -27,7 +27,7 @@ export class LogsRepo {
     const result = this.db
       .prepare(
         `INSERT INTO log_entries (task_id, maintenance_date, runtime_hours, notes, logged_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(
         entry.task_id,
@@ -35,7 +35,7 @@ export class LogsRepo {
         entry.runtime_hours,
         entry.notes,
         entry.logged_by,
-        nowIso
+        nowIso,
       );
     return this.get(Number(result.lastInsertRowid))!;
   }
@@ -46,9 +46,18 @@ export class LogsRepo {
       .get(id) as LogRow | undefined;
   }
 
-  update(id: number, fields: { maintenance_date: string; runtime_hours: number | null; notes: string | null }): void {
+  update(
+    id: number,
+    fields: {
+      maintenance_date: string;
+      runtime_hours: number | null;
+      notes: string | null;
+    },
+  ): void {
     this.db
-      .prepare(`UPDATE log_entries SET maintenance_date = ?, runtime_hours = ?, notes = ? WHERE id = ?`)
+      .prepare(
+        `UPDATE log_entries SET maintenance_date = ?, runtime_hours = ?, notes = ? WHERE id = ?`,
+      )
       .run(fields.maintenance_date, fields.runtime_hours, fields.notes, id);
   }
 
@@ -60,7 +69,7 @@ export class LogsRepo {
     return this.db
       .prepare(
         `SELECT ${LOG_COLUMNS} FROM log_entries l
-         WHERE l.task_id = ? ORDER BY l.maintenance_date DESC, l.id DESC LIMIT 1`
+         WHERE l.task_id = ? ORDER BY l.maintenance_date DESC, l.id DESC LIMIT 1`,
       )
       .get(taskId) as LogRow | undefined;
   }
@@ -69,7 +78,7 @@ export class LogsRepo {
     return this.db
       .prepare(
         `SELECT ${LOG_COLUMNS} FROM log_entries l
-         WHERE l.task_id = ? ORDER BY l.maintenance_date DESC, l.id DESC`
+         WHERE l.task_id = ? ORDER BY l.maintenance_date DESC, l.id DESC`,
       )
       .all(taskId) as unknown as LogRow[];
   }
@@ -77,13 +86,17 @@ export class LogsRepo {
   /** Task ids that have at least one log note matching the LIKE pattern. */
   taskIdsWithNotesLike(pattern: string): Set<number> {
     const rows = this.db
-      .prepare(`SELECT DISTINCT task_id AS id FROM log_entries WHERE notes LIKE ?`)
+      .prepare(
+        `SELECT DISTINCT task_id AS id FROM log_entries WHERE notes LIKE ?`,
+      )
       .all(pattern) as unknown as { id: number }[];
     return new Set(rows.map((r) => r.id));
   }
 
   count(): number {
-    const row = this.db.prepare(`SELECT COUNT(*) AS n FROM log_entries`).get() as { n: number };
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS n FROM log_entries`)
+      .get() as { n: number };
     return row.n;
   }
 
@@ -113,7 +126,9 @@ export class LogsRepo {
     const orderSql = q.order === 'asc' ? 'ASC' : 'DESC';
 
     const totalRow = this.db
-      .prepare(`SELECT COUNT(*) AS n FROM log_entries l JOIN tasks t ON t.id = l.task_id ${whereSql}`)
+      .prepare(
+        `SELECT COUNT(*) AS n FROM log_entries l JOIN tasks t ON t.id = l.task_id ${whereSql}`,
+      )
       .get(...params) as { n: number };
 
     const data = this.db
@@ -122,9 +137,13 @@ export class LogsRepo {
          FROM log_entries l JOIN tasks t ON t.id = l.task_id
          ${whereSql}
          ORDER BY ${sortCol} ${orderSql}, l.id DESC
-         LIMIT ? OFFSET ?`
+         LIMIT ? OFFSET ?`,
       )
-      .all(...params, q.pageSize, (q.page - 1) * q.pageSize) as unknown as LogDTO[];
+      .all(
+        ...params,
+        q.pageSize,
+        (q.page - 1) * q.pageSize,
+      ) as unknown as LogDTO[];
 
     return { data, total: totalRow.n };
   }

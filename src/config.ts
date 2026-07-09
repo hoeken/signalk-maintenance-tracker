@@ -24,7 +24,8 @@ export const schema = {
     enableNotifications: {
       type: 'boolean',
       title: 'Enable notifications',
-      description: 'Publish overdue/upcoming status to notifications.maintenance.*',
+      description:
+        'Publish overdue/upcoming status to notifications.maintenance.*',
       default: DEFAULT_OPTIONS.enableNotifications,
     },
     notificationMethods: {
@@ -48,7 +49,8 @@ export const schema = {
     recomputeIntervalMs: {
       type: 'number',
       title: 'Recompute interval (ms)',
-      description: 'How often to re-evaluate task status and refresh notifications',
+      description:
+        'How often to re-evaluate task status and refresh notifications',
       default: DEFAULT_OPTIONS.recomputeIntervalMs,
     },
   },

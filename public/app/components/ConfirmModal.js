@@ -28,14 +28,26 @@ export function ConfirmModal(props) {
   };
 
   const footer = html`
-    <button type="button" class="btn" onClick=${props.onClose} disabled=${busy}>Cancel</button>
-    <button type="button" class="btn btn-danger" onClick=${confirm} disabled=${busy}>
+    <button type="button" class="btn" onClick=${props.onClose} disabled=${busy}>
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="btn btn-danger"
+      onClick=${confirm}
+      disabled=${busy}
+    >
       ${busy ? 'Working…' : props.confirmLabel || 'Delete'}
     </button>
   `;
 
   return html`
-    <${Modal} title=${props.title} narrow onClose=${props.onClose} footer=${footer}>
+    <${Modal}
+      title=${props.title}
+      narrow
+      onClose=${props.onClose}
+      footer=${footer}
+    >
       ${error ? html`<div class="form-error">${error}</div>` : null}
       <p style="margin:0">${props.message}</p>
     <//>

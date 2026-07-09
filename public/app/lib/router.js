@@ -40,7 +40,8 @@ export function formatHash(path, query) {
   if (query) {
     for (const key of Object.keys(query)) {
       const value = query[key];
-      if (value !== undefined && value !== null && value !== '') usp.set(key, String(value));
+      if (value !== undefined && value !== null && value !== '')
+        usp.set(key, String(value));
     }
   }
   const qs = usp.toString();
@@ -71,7 +72,9 @@ export function matchPath(pattern, path) {
 }
 
 /** The current route; components read route.value to re-render on navigation. */
-export const route = signal(parseHash(typeof location !== 'undefined' ? location.hash : ''));
+export const route = signal(
+  parseHash(typeof location !== 'undefined' ? location.hash : ''),
+);
 
 /** Install the hashchange listener and sync the signal to the current hash. */
 export function initRouter() {

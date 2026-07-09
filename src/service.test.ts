@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { openDatabase, schemaVersion } from './db/database';
 import { ApiError, MaintenanceService } from './service';
 
@@ -21,9 +21,18 @@ describe('migrations', () => {
     const { db } = makeService();
     expect(schemaVersion(db)).toBe(1);
     const tables = (
-      db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as { name: string }[]
+      db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
+        name: string;
+      }[]
     ).map((r) => r.name);
-    for (const t of ['tasks', 'tags', 'task_tags', 'log_entries', 'runtime_cache', 'meta']) {
+    for (const t of [
+      'tasks',
+      'tags',
+      'task_tags',
+      'log_entries',
+      'runtime_cache',
+      'meta',
+    ]) {
       expect(tables).toContain(t);
     }
   });
@@ -62,26 +71,34 @@ describe('task CRUD', () => {
   it('rejects an explicit slug collision with 409', () => {
     const { service } = makeService();
     service.createTask({ name: 'A', slug: 'shared' });
-    expect(() => service.createTask({ name: 'B', slug: 'shared' })).toThrowError(
-      expect.objectContaining({ status: 409, code: 'slug_conflict' })
+    expect(() =>
+      service.createTask({ name: 'B', slug: 'shared' }),
+    ).toThrowError(
+      expect.objectContaining({ status: 409, code: 'slug_conflict' }),
     );
   });
 
   it('requires a name', () => {
     const { service } = makeService();
     expect(() => service.createTask({})).toThrowError(
-      expect.objectContaining({ status: 400 })
+      expect.objectContaining({ status: 400 }),
     );
   });
 
   it('rejects time_interval without unit (and vice versa)', () => {
     const { service } = makeService();
-    expect(() => service.createTask({ name: 'X', time_interval: 6 })).toThrow(ApiError);
+    expect(() => service.createTask({ name: 'X', time_interval: 6 })).toThrow(
+      ApiError,
+    );
     expect(() =>
-      service.createTask({ name: 'X', time_interval_unit: 'months' })
+      service.createTask({ name: 'X', time_interval_unit: 'months' }),
     ).toThrow(ApiError);
     expect(() =>
-      service.createTask({ name: 'X', time_interval: 6, time_interval_unit: 'decades' as any })
+      service.createTask({
+        name: 'X',
+        time_interval: 6,
+        time_interval_unit: 'decades' as any,
+      }),
     ).toThrow(ApiError);
   });
 
@@ -113,21 +130,25 @@ describe('task CRUD', () => {
     service.createTask({ name: 'One' });
     service.createTask({ name: 'Two' });
     expect(() => service.updateTask('two', { slug: 'one' })).toThrowError(
-      expect.objectContaining({ status: 409 })
+      expect.objectContaining({ status: 409 }),
     );
   });
 
   it('404s on missing tasks', () => {
     const { service } = makeService();
     expect(() => service.getTask('nope')).toThrowError(
-      expect.objectContaining({ status: 404 })
+      expect.objectContaining({ status: 404 }),
     );
   });
 
   it('deletes a task, cascading logs and reporting slug for notification clear', () => {
     const { service, events } = makeService();
     service.createTask({ name: 'Doomed' });
-    service.addLog('doomed', { maintenance_date: '2026-07-01T00:00:00Z' }, 'admin');
+    service.addLog(
+      'doomed',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      'admin',
+    );
     service.deleteTask('doomed');
     expect(events.at(-1)).toEqual({ clearedSlug: 'doomed' });
     expect(service.listMasterLog({}).total).toBe(0);
@@ -167,13 +188,21 @@ describe('denormalization invariant (§5.6)', () => {
       last_maintenance: '2026-01-01T00:00:00Z',
       last_runtime: 100,
     });
-    service.addLog('oil', { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 150 }, null);
+    service.addLog(
+      'oil',
+      { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 150 },
+      null,
+    );
     let t = service.getTask('oil');
     expect(t.last_maintenance).toBe('2026-03-01T00:00:00.000Z');
     expect(t.last_runtime).toBe(150);
 
     // an older entry must NOT displace the newer one
-    service.addLog('oil', { maintenance_date: '2026-02-01T00:00:00Z', runtime_hours: 120 }, null);
+    service.addLog(
+      'oil',
+      { maintenance_date: '2026-02-01T00:00:00Z', runtime_hours: 120 },
+      null,
+    );
     t = service.getTask('oil');
     expect(t.last_maintenance).toBe('2026-03-01T00:00:00.000Z');
   });
@@ -188,11 +217,13 @@ describe('denormalization invariant (§5.6)', () => {
     const entry = service.addLog(
       'oil',
       { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 150 },
-      null
+      null,
     );
 
     service.updateLog(entry.id, { maintenance_date: '2026-04-01T00:00:00Z' });
-    expect(service.getTask('oil').last_maintenance).toBe('2026-04-01T00:00:00.000Z');
+    expect(service.getTask('oil').last_maintenance).toBe(
+      '2026-04-01T00:00:00.000Z',
+    );
 
     service.deleteLog(entry.id);
     const t = service.getTask('oil');
@@ -203,10 +234,17 @@ describe('denormalization invariant (§5.6)', () => {
   it('seed last_* is only editable while the task has no logs (§8.1)', () => {
     const { service } = makeService();
     service.createTask({ name: 'Oil' });
-    service.updateTask('oil', { last_maintenance: '2026-02-01T00:00:00Z', last_runtime: 42 });
+    service.updateTask('oil', {
+      last_maintenance: '2026-02-01T00:00:00Z',
+      last_runtime: 42,
+    });
     expect(service.getTask('oil').last_runtime).toBe(42);
 
-    service.addLog('oil', { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 99 }, null);
+    service.addLog(
+      'oil',
+      { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 99 },
+      null,
+    );
     service.updateTask('oil', { last_runtime: 1 }); // ignored: has logs
     expect(service.getTask('oil').last_runtime).toBe(99);
   });
@@ -217,7 +255,7 @@ describe('denormalization invariant (§5.6)', () => {
     const entry = service.addLog(
       'check-bilge-pump',
       { maintenance_date: '2026-07-01T00:00:00Z', runtime_hours: 1234.5 },
-      'zach'
+      'zach',
     );
     expect(entry.runtime_hours).toBe(1234.5);
 
@@ -231,10 +269,16 @@ describe('denormalization invariant (§5.6)', () => {
   it('stamps logged_by from the caller, and validates maintenance_date', () => {
     const { service } = makeService();
     service.createTask({ name: 'Oil' });
-    const entry = service.addLog('oil', { maintenance_date: '2026-03-01T00:00:00Z' }, 'zach');
+    const entry = service.addLog(
+      'oil',
+      { maintenance_date: '2026-03-01T00:00:00Z' },
+      'zach',
+    );
     expect(entry.logged_by).toBe('zach');
-    expect(() => service.addLog('oil', { maintenance_date: 'not-a-date' }, null)).toThrowError(
-      expect.objectContaining({ status: 400, code: 'invalid_date' })
+    expect(() =>
+      service.addLog('oil', { maintenance_date: 'not-a-date' }, null),
+    ).toThrowError(
+      expect.objectContaining({ status: 400, code: 'invalid_date' }),
     );
     expect(() => service.addLog('oil', {}, null)).toThrow(ApiError);
   });
@@ -274,19 +318,24 @@ describe('task list query (§8.1)', () => {
     const { service } = makeService({ 'propulsion.port.runTime': 150 });
     seed(service);
     const page = service.listTasks({});
-    expect(page.data.map((t) => t.status)).toEqual(['overdue', 'due_soon', 'ok', 'unknown']);
+    expect(page.data.map((t) => t.status)).toEqual([
+      'overdue',
+      'due_soon',
+      'ok',
+      'unknown',
+    ]);
     expect(page.total).toBe(4);
   });
 
   it('filters by search across name, description, and tags', () => {
     const { service } = makeService({ 'propulsion.port.runTime': 150 });
     seed(service);
-    expect(service.listTasks({ search: 'zinc' }).data.map((t) => t.name)).toEqual([
-      'Soon zinc check',
-    ]);
-    expect(service.listTasks({ search: 'water' }).data.map((t) => t.name)).toEqual([
-      'Ok watermaker',
-    ]);
+    expect(
+      service.listTasks({ search: 'zinc' }).data.map((t) => t.name),
+    ).toEqual(['Soon zinc check']);
+    expect(
+      service.listTasks({ search: 'water' }).data.map((t) => t.name),
+    ).toEqual(['Ok watermaker']);
   });
 
   it('searches log notes too (§6.3)', () => {
@@ -294,22 +343,27 @@ describe('task list query (§8.1)', () => {
     seed(service);
     service.addLog(
       'unknown-paperwork',
-      { maintenance_date: '2026-07-01T00:00:00Z', notes: 'renewed the documentation' },
-      null
+      {
+        maintenance_date: '2026-07-01T00:00:00Z',
+        notes: 'renewed the documentation',
+      },
+      null,
     );
-    expect(service.listTasks({ search: 'documentation' }).data.map((t) => t.name)).toEqual([
-      'Unknown paperwork',
-    ]);
+    expect(
+      service.listTasks({ search: 'documentation' }).data.map((t) => t.name),
+    ).toEqual(['Unknown paperwork']);
   });
 
   it('filters by tags (AND) and status', () => {
     const { service } = makeService({ 'propulsion.port.runTime': 150 });
     seed(service);
     expect(service.listTasks({ tags: ['engines'] }).data).toHaveLength(2);
-    expect(service.listTasks({ tags: ['Engines', 'Water'] }).data.map((t) => t.name)).toEqual([
-      'Ok watermaker',
-    ]);
-    expect(service.listTasks({ status: ['overdue', 'due_soon'] }).data).toHaveLength(2);
+    expect(
+      service.listTasks({ tags: ['Engines', 'Water'] }).data.map((t) => t.name),
+    ).toEqual(['Ok watermaker']);
+    expect(
+      service.listTasks({ status: ['overdue', 'due_soon'] }).data,
+    ).toHaveLength(2);
   });
 
   it('sorts by name and by remaining_time with nulls last', () => {
@@ -348,9 +402,21 @@ describe('master log (§8.2)', () => {
     const { service } = makeService();
     service.createTask({ name: 'Alpha' });
     service.createTask({ name: 'Bravo' });
-    service.addLog('alpha', { maintenance_date: '2026-01-01T00:00:00Z', notes: 'first' }, 'u1');
-    service.addLog('bravo', { maintenance_date: '2026-02-01T00:00:00Z', notes: 'second' }, 'u2');
-    service.addLog('alpha', { maintenance_date: '2026-03-01T00:00:00Z', notes: 'third' }, 'u1');
+    service.addLog(
+      'alpha',
+      { maintenance_date: '2026-01-01T00:00:00Z', notes: 'first' },
+      'u1',
+    );
+    service.addLog(
+      'bravo',
+      { maintenance_date: '2026-02-01T00:00:00Z', notes: 'second' },
+      'u2',
+    );
+    service.addLog(
+      'alpha',
+      { maintenance_date: '2026-03-01T00:00:00Z', notes: 'third' },
+      'u1',
+    );
 
     const all = service.listMasterLog({});
     expect(all.total).toBe(3);
@@ -362,7 +428,11 @@ describe('master log (§8.2)', () => {
     expect(service.listMasterLog({ search: 'Bravo' }).data).toHaveLength(1); // task name
 
     const byTask = service.listMasterLog({ sort: 'task', order: 'asc' });
-    expect(byTask.data.map((l) => l.task_name)).toEqual(['Alpha', 'Alpha', 'Bravo']);
+    expect(byTask.data.map((l) => l.task_name)).toEqual([
+      'Alpha',
+      'Alpha',
+      'Bravo',
+    ]);
 
     const paged = service.listMasterLog({ page: 2, pageSize: 2 });
     expect(paged.data).toHaveLength(1);

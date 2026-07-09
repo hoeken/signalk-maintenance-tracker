@@ -10,5 +10,8 @@ import { sanitizeHtml } from '../lib/sanitize.js';
 export function MarkdownView(props) {
   if (!props.markdown) return null;
   const clean = sanitizeHtml(snarkdown(props.markdown));
-  return html`<div class="markdown" dangerouslySetInnerHTML=${{ __html: clean }} />`;
+  return html`<div
+    class="markdown"
+    dangerouslySetInnerHTML=${{ __html: clean }}
+  />`;
 }

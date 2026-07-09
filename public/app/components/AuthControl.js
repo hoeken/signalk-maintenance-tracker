@@ -9,10 +9,14 @@ export function AuthControl() {
   const auth = useAuth();
   if (!auth.isLoggedIn) {
     return html`
-      <button type="button" class="btn-link" onClick=${auth.openLoginModal}>Log in</button>
+      <button type="button" class="btn-link" onClick=${auth.openLoginModal}>
+        Log in
+      </button>
     `;
   }
   return html`
-    <button type="button" class="btn-link" onClick=${() => auth.logout()}>Log out</button>
+    <button type="button" class="btn-link" onClick=${() => auth.logout()}>
+      Log out
+    </button>
   `;
 }

@@ -20,7 +20,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     public code: string,
-    message: string
+    message: string,
   ) {
     super(message);
   }
@@ -60,7 +60,7 @@ export class MaintenanceService {
 
   constructor(
     private db: DatabaseSync,
-    private deps: ServiceDeps
+    private deps: ServiceDeps,
   ) {
     this.tasks = new TasksRepo(db);
     this.logs = new LogsRepo(db);
@@ -78,7 +78,9 @@ export class MaintenanceService {
   // ---- DTO assembly ----
 
   private toDTO(row: TaskRow, tags: string[]): TaskDTO {
-    const current = row.runtime_path ? this.deps.getRuntime(row.runtime_path) : null;
+    const current = row.runtime_path
+      ? this.deps.getRuntime(row.runtime_path)
+      : null;
     const computed = computeTask(row, current, this.now(), this.deps.config);
     return {
       id: row.id,
@@ -102,10 +104,15 @@ export class MaintenanceService {
 
   listTasks(q: TaskListQuery): Page<TaskDTO> {
     const page = Math.max(1, q.page ?? 1);
-    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE));
+    const pageSize = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE),
+    );
 
     const tagsByTask = this.tags.tagsByTask();
-    let items = this.tasks.listAll().map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
+    let items = this.tasks
+      .listAll()
+      .map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
 
     if (q.search) {
       const needle = q.search.toLowerCase();
@@ -115,7 +122,7 @@ export class MaintenanceService {
           t.name.toLowerCase().includes(needle) ||
           (t.description ?? '').toLowerCase().includes(needle) ||
           t.tags.some((tag) => tag.toLowerCase().includes(needle)) ||
-          noteMatches.has(t.id)
+          noteMatches.has(t.id),
       );
     }
 
@@ -148,16 +155,26 @@ export class MaintenanceService {
         items.sort((a, b) => dir * byName(a, b));
         break;
       case 'remaining_runtime':
-        items.sort((a, b) => byNullable(a.remaining_runtime, b.remaining_runtime) || byName(a, b));
+        items.sort(
+          (a, b) =>
+            byNullable(a.remaining_runtime, b.remaining_runtime) ||
+            byName(a, b),
+        );
         break;
       case 'remaining_time':
-        items.sort((a, b) => byNullable(a.remaining_time_ms, b.remaining_time_ms) || byName(a, b));
+        items.sort(
+          (a, b) =>
+            byNullable(a.remaining_time_ms, b.remaining_time_ms) ||
+            byName(a, b),
+        );
         break;
       case 'status':
       default:
         // default sort: most urgent first — status rank, then highest fraction
         items.sort(
-          (a, b) => dir * (a.status_rank - b.status_rank || b.urgency - a.urgency) || byName(a, b)
+          (a, b) =>
+            dir * (a.status_rank - b.status_rank || b.urgency - a.urgency) ||
+            byName(a, b),
         );
         break;
     }
@@ -169,7 +186,9 @@ export class MaintenanceService {
 
   listAllComputed(): TaskDTO[] {
     const tagsByTask = this.tags.tagsByTask();
-    return this.tasks.listAll().map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
+    return this.tasks
+      .listAll()
+      .map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
   }
 
   getTask(slug: string): TaskDTO {
@@ -180,13 +199,21 @@ export class MaintenanceService {
   createTask(body: TaskInput): TaskDTO {
     const name = (body.name ?? '').trim();
     if (!name) throw new ApiError(400, 'invalid_name', 'Task name is required');
-    this.validateIntervals(body.runtime_interval, body.time_interval, body.time_interval_unit);
+    this.validateIntervals(
+      body.runtime_interval,
+      body.time_interval,
+      body.time_interval_unit,
+    );
 
     let slug: string;
     if (body.slug != null && body.slug.trim() !== '') {
       slug = slugify(body.slug);
       if (this.tasks.slugExists(slug))
-        throw new ApiError(409, 'slug_conflict', `Slug "${slug}" is already in use`);
+        throw new ApiError(
+          409,
+          'slug_conflict',
+          `Slug "${slug}" is already in use`,
+        );
     } else {
       slug = uniqueSlug(slugify(name), (s) => this.tasks.slugExists(s));
     }
@@ -208,7 +235,10 @@ export class MaintenanceService {
     const row = this.tasks.create(seed, nowIso);
     if (body.tags) this.tags.setTaskTags(row.id, body.tags);
     this.emit();
-    return this.toDTO(this.tasks.getById(row.id)!, this.tags.tagsForTask(row.id));
+    return this.toDTO(
+      this.tasks.getById(row.id)!,
+      this.tags.tagsForTask(row.id),
+    );
   }
 
   updateTask(slug: string, body: TaskInput): TaskDTO {
@@ -217,31 +247,54 @@ export class MaintenanceService {
     const merged: NewTask = {
       slug: row.slug,
       name: body.name !== undefined ? (body.name ?? '').trim() : row.name,
-      description: body.description !== undefined ? body.description : row.description,
+      description:
+        body.description !== undefined ? body.description : row.description,
       runtime_interval:
-        body.runtime_interval !== undefined ? body.runtime_interval : row.runtime_interval,
-      time_interval: body.time_interval !== undefined ? body.time_interval : row.time_interval,
+        body.runtime_interval !== undefined
+          ? body.runtime_interval
+          : row.runtime_interval,
+      time_interval:
+        body.time_interval !== undefined
+          ? body.time_interval
+          : row.time_interval,
       time_interval_unit:
-        body.time_interval_unit !== undefined ? body.time_interval_unit : row.time_interval_unit,
+        body.time_interval_unit !== undefined
+          ? body.time_interval_unit
+          : row.time_interval_unit,
       runtime_path:
-        body.runtime_path !== undefined ? body.runtime_path?.trim() || null : row.runtime_path,
+        body.runtime_path !== undefined
+          ? body.runtime_path?.trim() || null
+          : row.runtime_path,
       last_maintenance: row.last_maintenance,
       last_runtime: row.last_runtime,
       seed_last_maintenance: row.seed_last_maintenance,
       seed_last_runtime: row.seed_last_runtime,
     };
 
-    if (!merged.name) throw new ApiError(400, 'invalid_name', 'Task name is required');
-    this.validateIntervals(merged.runtime_interval, merged.time_interval, merged.time_interval_unit);
+    if (!merged.name)
+      throw new ApiError(400, 'invalid_name', 'Task name is required');
+    this.validateIntervals(
+      merged.runtime_interval,
+      merged.time_interval,
+      merged.time_interval_unit,
+    );
 
     // Slug change: normalize, uniqueness-check, remember old slug so the
     // notification path can be migrated (§6.4).
     let clearedSlug: string | undefined;
-    if (body.slug !== undefined && body.slug != null && body.slug.trim() !== '') {
+    if (
+      body.slug !== undefined &&
+      body.slug != null &&
+      body.slug.trim() !== ''
+    ) {
       const newSlug = slugify(body.slug);
       if (newSlug !== row.slug) {
         if (this.tasks.slugExists(newSlug, row.id))
-          throw new ApiError(409, 'slug_conflict', `Slug "${newSlug}" is already in use`);
+          throw new ApiError(
+            409,
+            'slug_conflict',
+            `Slug "${newSlug}" is already in use`,
+          );
         merged.slug = newSlug;
         clearedSlug = row.slug;
       }
@@ -263,7 +316,10 @@ export class MaintenanceService {
     this.tasks.update(row.id, merged, this.now().toISOString());
     if (body.tags !== undefined) this.tags.setTaskTags(row.id, body.tags ?? []);
     this.emit({ clearedSlug });
-    return this.toDTO(this.tasks.getById(row.id)!, this.tags.tagsForTask(row.id));
+    return this.toDTO(
+      this.tasks.getById(row.id)!,
+      this.tags.tagsForTask(row.id),
+    );
   }
 
   deleteTask(slug: string): void {
@@ -280,9 +336,17 @@ export class MaintenanceService {
     return this.logs.listForTask(row.id);
   }
 
-  listMasterLog(q: Omit<MasterLogQuery, 'page' | 'pageSize'> & { page?: number; pageSize?: number }): Page<LogDTO> {
+  listMasterLog(
+    q: Omit<MasterLogQuery, 'page' | 'pageSize'> & {
+      page?: number;
+      pageSize?: number;
+    },
+  ): Page<LogDTO> {
     const page = Math.max(1, q.page ?? 1);
-    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE));
+    const pageSize = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE),
+    );
     const { data, total } = this.logs.listMaster({ ...q, page, pageSize });
     return { data, total, page, pageSize };
   }
@@ -304,7 +368,7 @@ export class MaintenanceService {
           notes: body.notes ?? null,
           logged_by: loggedBy,
         },
-        nowIso
+        nowIso,
       );
       this.recomputeDenorm(task.id);
       this.db.exec('COMMIT');
@@ -318,7 +382,8 @@ export class MaintenanceService {
 
   updateLog(id: number, body: LogInput): LogRow {
     const existing = this.logs.get(id);
-    if (!existing) throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
+    if (!existing)
+      throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
     const date =
       body.maintenance_date !== undefined
         ? this.validateDate(body.maintenance_date, 'maintenance_date')
@@ -329,7 +394,9 @@ export class MaintenanceService {
       this.logs.update(id, {
         maintenance_date: date,
         runtime_hours:
-          body.runtime_hours !== undefined ? body.runtime_hours : existing.runtime_hours,
+          body.runtime_hours !== undefined
+            ? body.runtime_hours
+            : existing.runtime_hours,
         notes: body.notes !== undefined ? body.notes : existing.notes,
       });
       this.recomputeDenorm(existing.task_id);
@@ -344,7 +411,8 @@ export class MaintenanceService {
 
   deleteLog(id: number): void {
     const existing = this.logs.get(id);
-    if (!existing) throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
+    if (!existing)
+      throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
     this.db.exec('BEGIN');
     try {
       this.logs.delete(id);
@@ -390,7 +458,11 @@ export class MaintenanceService {
     if (latest) {
       this.tasks.setLast(taskId, latest.maintenance_date, latest.runtime_hours);
     } else {
-      this.tasks.setLast(taskId, task.seed_last_maintenance, task.seed_last_runtime);
+      this.tasks.setLast(
+        taskId,
+        task.seed_last_maintenance,
+        task.seed_last_runtime,
+      );
     }
   }
 
@@ -403,31 +475,46 @@ export class MaintenanceService {
   private validateIntervals(
     runtimeInterval: number | null | undefined,
     timeInterval: number | null | undefined,
-    timeUnit: string | null | undefined
+    timeUnit: string | null | undefined,
   ): void {
-    if (runtimeInterval != null && (typeof runtimeInterval !== 'number' || runtimeInterval <= 0))
-      throw new ApiError(400, 'invalid_interval', 'runtime_interval must be a positive number');
+    if (
+      runtimeInterval != null &&
+      (typeof runtimeInterval !== 'number' || runtimeInterval <= 0)
+    )
+      throw new ApiError(
+        400,
+        'invalid_interval',
+        'runtime_interval must be a positive number',
+      );
     const hasMagnitude = timeInterval != null;
     const hasUnit = timeUnit != null;
     if (hasMagnitude !== hasUnit)
       throw new ApiError(
         400,
         'invalid_interval',
-        'time_interval and time_interval_unit must be set (or cleared) together'
+        'time_interval and time_interval_unit must be set (or cleared) together',
       );
     if (hasMagnitude && (typeof timeInterval !== 'number' || timeInterval <= 0))
-      throw new ApiError(400, 'invalid_interval', 'time_interval must be a positive number');
+      throw new ApiError(
+        400,
+        'invalid_interval',
+        'time_interval must be a positive number',
+      );
     if (hasUnit && !TIME_UNITS.includes(timeUnit as never))
       throw new ApiError(
         400,
         'invalid_interval',
-        `time_interval_unit must be one of ${TIME_UNITS.join(', ')}`
+        `time_interval_unit must be one of ${TIME_UNITS.join(', ')}`,
       );
   }
 
   private validateDate(value: string | undefined, field: string): string {
     if (!value || Number.isNaN(new Date(value).getTime()))
-      throw new ApiError(400, 'invalid_date', `${field} must be a valid ISO-8601 timestamp`);
+      throw new ApiError(
+        400,
+        'invalid_date',
+        `${field} must be a valid ISO-8601 timestamp`,
+      );
     return new Date(value).toISOString();
   }
 }

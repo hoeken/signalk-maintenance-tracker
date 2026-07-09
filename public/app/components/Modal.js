@@ -5,7 +5,8 @@
 import { html } from '../lib/html.js';
 import { useEffect, useRef } from '../../vendor/preact-hooks.js';
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
 
 /**
  * @param {{ title: string, onClose: () => void, children?: any, footer?: any, narrow?: boolean }} props
@@ -37,10 +38,18 @@ export function Modal(props) {
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first && last instanceof HTMLElement) {
+    if (
+      e.shiftKey &&
+      document.activeElement === first &&
+      last instanceof HTMLElement
+    ) {
       e.preventDefault();
       last.focus();
-    } else if (!e.shiftKey && document.activeElement === last && first instanceof HTMLElement) {
+    } else if (
+      !e.shiftKey &&
+      document.activeElement === last &&
+      first instanceof HTMLElement
+    ) {
       e.preventDefault();
       first.focus();
     }
@@ -63,7 +72,12 @@ export function Modal(props) {
       >
         <div class="modal-header">
           <h2 class="modal-title">${props.title}</h2>
-          <button type="button" class="btn-icon" aria-label="Close" onClick=${props.onClose}>
+          <button
+            type="button"
+            class="btn-icon"
+            aria-label="Close"
+            onClick=${props.onClose}
+          >
             <i class="bi bi-x-lg" />
           </button>
         </div>

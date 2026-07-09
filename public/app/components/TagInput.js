@@ -48,17 +48,25 @@ export function TagInput(props) {
 
   return html`
     <div>
-      ${selected.length
-        ? html`<div class="chips" style="margin-bottom:6px">
-            ${selected.map(
-              (tag) => html`
-                <button type="button" key=${tag} class="chip selected" onClick=${() => remove(tag)} title="Remove tag">
-                  ${tag}<i class="bi bi-x" />
-                </button>
-              `
-            )}
-          </div>`
-        : null}
+      ${
+        selected.length
+          ? html`<div class="chips" style="margin-bottom:6px">
+              ${selected.map(
+                (tag) => html`
+                  <button
+                    type="button"
+                    key=${tag}
+                    class="chip selected"
+                    onClick=${() => remove(tag)}
+                    title="Remove tag"
+                  >
+                    ${tag}<i class="bi bi-x" />
+                  </button>
+                `,
+              )}
+            </div>`
+          : null
+      }
       <div class="combo">
         <input
           class="input"
@@ -72,11 +80,13 @@ export function TagInput(props) {
           onFocus=${() => setOpen(true)}
           onBlur=${() => setTimeout(() => setOpen(false), 150)}
         />
-        ${open && matches.length
-          ? html`<ul class="combo-list">
-              ${matches.map((s) => html`<li key=${s} onMouseDown=${() => add(s)}>${s}</li>`)}
-            </ul>`
-          : null}
+        ${
+          open && matches.length
+            ? html`<ul class="combo-list">
+                ${matches.map((s) => html`<li key=${s} onMouseDown=${() => add(s)}>${s}</li>`)}
+              </ul>`
+            : null
+        }
       </div>
     </div>
   `;

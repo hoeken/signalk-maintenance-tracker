@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/preact';
-import { useResource, invalidate, invalidateAll } from '../../public/app/api/resource.js';
+import {
+  useResource,
+  invalidate,
+  invalidateAll,
+} from '../../public/app/api/resource.js';
 
 describe('useResource (§7.6)', () => {
   it('fetches on first subscribe and exposes data', async () => {
@@ -51,7 +55,9 @@ describe('useResource (§7.6)', () => {
     vi.useFakeTimers();
     try {
       const fetcher = vi.fn(async () => 'tick');
-      const { unmount } = renderHook(() => useResource('k4', fetcher, { refetchInterval: 5000 }));
+      const { unmount } = renderHook(() =>
+        useResource('k4', fetcher, { refetchInterval: 5000 }),
+      );
       expect(fetcher).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(5000);
       expect(fetcher).toHaveBeenCalledTimes(2);

@@ -68,12 +68,16 @@ describe('tasks endpoints', () => {
   it('GET /tasks supports search/status/sort/pagination params', async () => {
     await request(app).post(`${base}/tasks`).send({ name: 'Zeta' });
     await request(app).post(`${base}/tasks`).send({ name: 'Alpha' });
-    const res = await request(app).get(`${base}/tasks?sort=name&order=desc&page=1&pageSize=1`);
+    const res = await request(app).get(
+      `${base}/tasks?sort=name&order=desc&page=1&pageSize=1`,
+    );
     expect(res.body.data[0].name).toBe('Zeta');
     expect(res.body.total).toBe(2);
     expect(res.body.pageSize).toBe(1);
 
-    const filtered = await request(app).get(`${base}/tasks?status=unknown&search=alp`);
+    const filtered = await request(app).get(
+      `${base}/tasks?status=unknown&search=alp`,
+    );
     expect(filtered.body.data.map((t: any) => t.name)).toEqual(['Alpha']);
   });
 
@@ -102,12 +106,16 @@ describe('tasks endpoints', () => {
       error: { code: 'not_found', message: expect.stringContaining('nope') },
     });
 
-    const invalid = await request(app).post(`${base}/tasks`).send({ time_interval: 3, name: 'X' });
+    const invalid = await request(app)
+      .post(`${base}/tasks`)
+      .send({ time_interval: 3, name: 'X' });
     expect(invalid.status).toBe(400);
     expect(invalid.body.error.code).toBe('invalid_interval');
 
     await request(app).post(`${base}/tasks`).send({ name: 'Dup', slug: 'dup' });
-    const conflict = await request(app).post(`${base}/tasks`).send({ name: 'Dup2', slug: 'dup' });
+    const conflict = await request(app)
+      .post(`${base}/tasks`)
+      .send({ name: 'Dup2', slug: 'dup' });
     expect(conflict.status).toBe(409);
   });
 
@@ -124,14 +132,12 @@ describe('tasks endpoints', () => {
 describe('log endpoints', () => {
   it('POST /tasks/:slug/logs stamps logged_by from the principal, not the body', async () => {
     await request(app).post(`${base}/tasks`).send({ name: 'Oil' });
-    const res = await request(app)
-      .post(`${base}/tasks/oil/logs`)
-      .send({
-        maintenance_date: '2026-07-08T14:30:00Z',
-        runtime_hours: 1360,
-        notes: 'done',
-        logged_by: 'spoofed',
-      });
+    const res = await request(app).post(`${base}/tasks/oil/logs`).send({
+      maintenance_date: '2026-07-08T14:30:00Z',
+      runtime_hours: 1360,
+      notes: 'done',
+      logged_by: 'spoofed',
+    });
     expect(res.status).toBe(201);
     expect(res.body.logged_by).toBe('admin');
 
@@ -152,7 +158,10 @@ describe('log endpoints', () => {
 
     const master = await request(app).get(`${base}/logs`);
     expect(master.body.total).toBe(1);
-    expect(master.body.data[0]).toMatchObject({ task_slug: 'oil', task_name: 'Oil' });
+    expect(master.body.data[0]).toMatchObject({
+      task_slug: 'oil',
+      task_name: 'Oil',
+    });
 
     const put = await request(app)
       .put(`${base}/logs/${created.body.id}`)
@@ -164,15 +173,23 @@ describe('log endpoints', () => {
     expect(del.status).toBe(204);
     expect((await request(app).get(`${base}/logs`)).body.total).toBe(0);
 
-    expect((await request(app).put(`${base}/logs/999`).send({})).status).toBe(404);
-    expect((await request(app).put(`${base}/logs/abc`).send({})).status).toBe(400);
+    expect((await request(app).put(`${base}/logs/999`).send({})).status).toBe(
+      404,
+    );
+    expect((await request(app).put(`${base}/logs/abc`).send({})).status).toBe(
+      400,
+    );
   });
 });
 
 describe('tags & health endpoints', () => {
   it('GET /tags returns usage counts', async () => {
-    await request(app).post(`${base}/tasks`).send({ name: 'A', tags: ['Engines'] });
-    await request(app).post(`${base}/tasks`).send({ name: 'B', tags: ['Engines', 'Hull'] });
+    await request(app)
+      .post(`${base}/tasks`)
+      .send({ name: 'A', tags: ['Engines'] });
+    await request(app)
+      .post(`${base}/tasks`)
+      .send({ name: 'B', tags: ['Engines', 'Hull'] });
     const res = await request(app).get(`${base}/tags`);
     expect(res.body.data).toEqual([
       { id: expect.any(Number), name: 'Engines', count: 2 },
@@ -181,9 +198,11 @@ describe('tags & health endpoints', () => {
   });
 
   it('GET /health reports counts, paths, version', async () => {
-    await request(app)
-      .post(`${base}/tasks`)
-      .send({ name: 'A', runtime_interval: 10, runtime_path: 'propulsion.port.runTime' });
+    await request(app).post(`${base}/tasks`).send({
+      name: 'A',
+      runtime_interval: 10,
+      runtime_path: 'propulsion.port.runTime',
+    });
     const res = await request(app).get(`${base}/health`);
     expect(res.body).toMatchObject({
       tasks: 1,

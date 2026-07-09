@@ -73,7 +73,11 @@ function LoginForm() {
             ${' '}Remember me
           </label>
         </div>
-        <button type="submit" class="btn btn-primary" disabled=${busy || !username}>
+        <button
+          type="submit"
+          class="btn btn-primary"
+          disabled=${busy || !username}
+        >
           ${busy ? 'Logging in…' : 'Log in'}
         </button>
       </form>
