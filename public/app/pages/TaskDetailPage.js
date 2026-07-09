@@ -79,7 +79,7 @@ export function TaskDetailPage(props) {
       label: '',
       className: 'actions',
       render: (/** @type {LogDTO} */ e) => html`
-        <button type="button" class="btn-icon" aria-label="Edit log entry" title="Edit" onClick=${() => setEditingEntry(e)}>
+        <button type="button" class="btn-icon primary" aria-label="Edit log entry" title="Edit" onClick=${() => setEditingEntry(e)}>
           <i class="bi bi-pencil" />
         </button>
         <button type="button" class="btn-icon danger" aria-label="Delete log entry" title="Delete"
@@ -102,11 +102,11 @@ export function TaskDetailPage(props) {
         ${auth.isLoggedIn
           ? html`
               <span>
-                <button type="button" class="btn btn-primary" onClick=${() => setCompleting(true)}>
+                <button type="button" class="btn btn-success" onClick=${() => setCompleting(true)}>
                   <i class="bi bi-check2-circle" />Mark complete
                 </button>
                 ${' '}
-                <button type="button" class="btn" onClick=${() => setEditing(true)}>
+                <button type="button" class="btn btn-primary" onClick=${() => setEditing(true)}>
                   <i class="bi bi-pencil" />Edit
                 </button>
                 ${' '}
@@ -141,7 +141,7 @@ export function TaskDetailPage(props) {
                 <div class="stat-row">
                   <div class="stat-label">
                     <span>Runtime — every ${formatHours(task.runtime_interval)}</span>
-                    <span class="stat-value">${formatRemainingHours(task.remaining_runtime)} left</span>
+                    <span class="stat-value">${formatRemainingHours(task.remaining_runtime)}${task.remaining_runtime >= 0 ? ' left' : ''}</span>
                   </div>
                   <${ProgressBar} fraction=${task.runtime_fraction} status=${task.runtime_status} />
                   <div class="field-hint">
@@ -156,7 +156,7 @@ export function TaskDetailPage(props) {
                 <div class="stat-row">
                   <div class="stat-label">
                     <span>Time — every ${task.time_interval} ${task.time_interval_unit}</span>
-                    <span class="stat-value">${formatRemainingTime(task.remaining_time_ms)} left</span>
+                    <span class="stat-value">${formatRemainingTime(task.remaining_time_ms)}${task.remaining_time_ms >= 0 ? ' left' : ''}</span>
                   </div>
                   <${ProgressBar} fraction=${task.time_fraction} status=${task.time_status} />
                   <div class="field-hint">

@@ -16,8 +16,8 @@ describe('auth gating (§7.7)', () => {
     expect(screen.queryByLabelText('Edit Engine oil change')).toBeNull();
     expect(screen.queryByLabelText('Delete Engine oil change')).toBeNull();
     expect(screen.queryByLabelText('Complete Engine oil change')).toBeNull();
-    // read affordance stays
-    expect(screen.getByLabelText('View Engine oil change')).toBeTruthy();
+    // read affordance stays: task name links to the detail page
+    expect(screen.getByRole('link', { name: 'Engine oil change' })).toBeTruthy();
   });
 
   it('logged in: write affordances render', async () => {

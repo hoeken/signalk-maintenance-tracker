@@ -157,7 +157,7 @@ export class MaintenanceService {
       default:
         // default sort: most urgent first — status rank, then highest fraction
         items.sort(
-          (a, b) => a.status_rank - b.status_rank || b.urgency - a.urgency || byName(a, b)
+          (a, b) => dir * (a.status_rank - b.status_rank || b.urgency - a.urgency) || byName(a, b)
         );
         break;
     }

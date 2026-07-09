@@ -77,6 +77,7 @@ export function TaskListPage() {
     {
       key: 'status',
       label: 'Status',
+      sortable: true,
       render: (/** @type {TaskDTO} */ t) => html`<${StatusBadge} status=${t.status} />`,
     },
     {
@@ -96,14 +97,16 @@ export function TaskListPage() {
       label: 'Runtime left',
       sortable: true,
       className: 'num',
-      render: (/** @type {TaskDTO} */ t) => formatRemainingHours(t.remaining_runtime),
+      render: (/** @type {TaskDTO} */ t) =>
+        html`<span class=${'remaining ' + (t.runtime_status || '')}>${formatRemainingHours(t.remaining_runtime)}</span>`,
     },
     {
       key: 'remaining_time',
       label: 'Time left',
       sortable: true,
       className: 'num',
-      render: (/** @type {TaskDTO} */ t) => formatRemainingTime(t.remaining_time_ms),
+      render: (/** @type {TaskDTO} */ t) =>
+        html`<span class=${'remaining ' + (t.time_status || '')}>${formatRemainingTime(t.remaining_time_ms)}</span>`,
     },
     {
       key: 'due_date',
@@ -116,16 +119,13 @@ export function TaskListPage() {
       label: '',
       className: 'actions',
       render: (/** @type {TaskDTO} */ t) => html`
-        <a class="btn-icon" href=${'#/tasks/' + encodeURIComponent(t.slug)} aria-label=${'View ' + t.name} title="View">
-          <i class="bi bi-eye" />
-        </a>
         ${auth.isLoggedIn
           ? html`
-              <button type="button" class="btn-icon" aria-label=${'Complete ' + t.name} title="Mark complete"
+              <button type="button" class="btn-icon success" aria-label=${'Complete ' + t.name} title="Mark complete"
                 onClick=${() => setCompleting(t)}>
                 <i class="bi bi-check2-circle" />
               </button>
-              <button type="button" class="btn-icon" aria-label=${'Edit ' + t.name} title="Edit"
+              <button type="button" class="btn-icon primary" aria-label=${'Edit ' + t.name} title="Edit"
                 onClick=${() => setEditorTask(t)}>
                 <i class="bi bi-pencil" />
               </button>
