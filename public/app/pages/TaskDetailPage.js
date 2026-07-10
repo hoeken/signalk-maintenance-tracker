@@ -172,10 +172,7 @@ export function TaskDetailPage(props) {
               ? html`
                   <div class="stat-row">
                     <div class="stat-label">
-                      <span
-                        >Runtime — every
-                        ${formatHours(task.runtime_interval)}</span
-                      >
+                      <span>Runtime — every ${formatHours(task.runtime_interval)}</span>
                       <span class="stat-value"
                         >${formatRemainingHours(task.remaining_runtime)}${task.remaining_runtime !== null && task.remaining_runtime >= 0 ? ' left' : ''}</span
                       >
@@ -186,8 +183,8 @@ export function TaskDetailPage(props) {
                     />
                     <div class="field-hint">
                       Current ${formatHours(task.current_runtime)} · last done
-                      at ${formatHours(task.last_runtime)} · due at
-                      ${formatHours(task.due_runtime_at)}
+                      at ${formatHours(task.last_runtime)} · due
+                      at ${formatHours(task.due_runtime_at)}
                     </div>
                   </div>
                 `
@@ -198,10 +195,7 @@ export function TaskDetailPage(props) {
               ? html`
                   <div class="stat-row">
                     <div class="stat-label">
-                      <span
-                        >Time — every ${task.time_interval}
-                        ${task.time_interval_unit}</span
-                      >
+                      <span>Time — every ${task.time_interval} ${task.time_interval_unit}</span>
                       <span class="stat-value"
                         >${formatRemainingTime(task.remaining_time_ms)}${task.remaining_time_ms !== null && task.remaining_time_ms >= 0 ? ' left' : ''}</span
                       >
@@ -211,8 +205,8 @@ export function TaskDetailPage(props) {
                       status=${task.time_status}
                     />
                     <div class="field-hint">
-                      Last done ${formatDate(task.last_maintenance)} · next due
-                      ${formatDate(task.due_date)}
+                      Last done ${formatDate(task.last_maintenance)} · next
+                      due ${formatDate(task.due_date)}
                     </div>
                   </div>
                 `

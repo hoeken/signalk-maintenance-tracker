@@ -1,12 +1,21 @@
 # 1.1.0
 
-- tags page
-- publish tasks to maintenance.{slug}.*
-- fix small spacing typos on task detail page:
-  - Runtime — every250 h
-  - Current 1620.1 h · last done at 1300 h · due at1550 h
-  - Time — every 6months
-  - Last done 2026-07-09 · next due2027-01-09
+- token users show as a massive username (eg. 158dccd5-f82c-42a3-9909-42ac7d3c8e88). detect that its a token and shorten it.
+
+- publish tasks to signalk paths
+  - add boolean publishPaths config option to the schema
+  - default true
+  - paths in the form of maintenance.{slug}.*
+  - publish the same task json that we use in /tasks api under maintenance.{slug}.data
+  - publish status at maintenance.{slug}.status
+
+- notifications
+  - remove the alert notification type.
+  - add boolean config option publishNotifications to enable/disable notification publication
+  - default true
+  - add configuration dropdowns to select the default alarm state for our various task states:
+    - sk alarm states: "normal" | "alert" | "warn" | "alarm" | "emergency"
+    - default them to what we're currently using
 
 # 1.2.0
 
