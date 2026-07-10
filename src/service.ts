@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { publicUser } from './auth';
 import { LogsRepo, MasterLogQuery } from './db/logs.repo';
 import { TagsRepo, TagCount } from './db/tags.repo';
 import { TasksRepo, NewTask } from './db/tasks.repo';
@@ -333,7 +334,7 @@ export class MaintenanceService {
 
   listTaskLogs(slug: string): LogRow[] {
     const row = this.requireTask(slug);
-    return this.logs.listForTask(row.id);
+    return this.logs.listForTask(row.id).map((r) => this.redactLog(r));
   }
 
   listMasterLog(
@@ -348,7 +349,7 @@ export class MaintenanceService {
       Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE),
     );
     const { data, total } = this.logs.listMaster({ ...q, page, pageSize });
-    return { data, total, page, pageSize };
+    return { data: data.map((r) => this.redactLog(r)), total, page, pageSize };
   }
 
   addLog(slug: string, body: LogInput, loggedBy: string | null): LogRow {
@@ -377,7 +378,7 @@ export class MaintenanceService {
       throw err;
     }
     this.emit();
-    return entry;
+    return this.redactLog(entry);
   }
 
   updateLog(id: number, body: LogInput): LogRow {
@@ -406,7 +407,7 @@ export class MaintenanceService {
       throw err;
     }
     this.emit();
-    return this.logs.get(id)!;
+    return this.redactLog(this.logs.get(id)!);
   }
 
   deleteLog(id: number): void {
@@ -446,6 +447,14 @@ export class MaintenanceService {
   }
 
   // ---- internals ----
+
+  /**
+   * Copy of a log row safe to serialize over the (possibly public) API:
+   * device-token principals are shortened so the full identifier never leaks.
+   */
+  private redactLog<T extends LogRow>(row: T): T {
+    return { ...row, logged_by: publicUser(row.logged_by) };
+  }
 
   /**
    * §5.6: keep tasks.last_maintenance / last_runtime equal to the latest log

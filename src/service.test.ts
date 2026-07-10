@@ -282,6 +282,22 @@ describe('denormalization invariant (§5.6)', () => {
     );
     expect(() => service.addLog('oil', {}, null)).toThrow(ApiError);
   });
+
+  it('shortens device-token principals so the full UUID never leaves the API', () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Oil' });
+    const token = '158dccd5-f82c-42a3-9909-42ac7d3c8e88';
+    const entry = service.addLog(
+      'oil',
+      { maintenance_date: '2026-03-01T00:00:00Z' },
+      token,
+    );
+    expect(entry.logged_by).toBe('158dccd5');
+
+    // and via the list paths, not just the create response
+    expect(service.listTaskLogs('oil')[0].logged_by).toBe('158dccd5');
+    expect(service.listMasterLog({}).data[0].logged_by).toBe('158dccd5');
+  });
 });
 
 describe('task list query (§8.1)', () => {
