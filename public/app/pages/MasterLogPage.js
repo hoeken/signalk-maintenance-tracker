@@ -7,7 +7,12 @@ import { useState, useEffect } from '../../vendor/preact-hooks.js';
 import { useLogs } from '../api/hooks.js';
 import { apiFetch, buildQuery } from '../api/client.js';
 import { useListParams } from '../lib/useListParams.js';
-import { formatDate, formatHours, truncate } from '../lib/format.js';
+import {
+  formatDate,
+  formatHours,
+  formatUser,
+  truncate,
+} from '../lib/format.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { MarkdownView } from '../components/MarkdownView.js';
@@ -167,7 +172,9 @@ export function MasterLogPage() {
       key: 'logged_by',
       label: 'By',
       render: (/** @type {LogDTO} */ e) =>
-        e.logged_by || html`<span class="muted">—</span>`,
+        e.logged_by
+          ? formatUser(e.logged_by)
+          : html`<span class="muted">—</span>`,
     },
   ];
 

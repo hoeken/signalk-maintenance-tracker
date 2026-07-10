@@ -83,6 +83,34 @@ export function truncate(s, max) {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
+/**
+ * SignalK stamps device-token principals with a raw UUID identifier
+ * (e.g. "158dccd5-f82c-42a3-9909-42ac7d3c8e88") rather than a human name.
+ */
+const TOKEN_USER_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * True when a "logged by" name is a SignalK device-token UUID rather than a
+ * human username.
+ * @param {string|null|undefined} name
+ */
+export function isTokenUser(name) {
+  return typeof name === 'string' && TOKEN_USER_RE.test(name.trim());
+}
+
+/**
+ * Display form for a "logged by" name: human usernames pass through unchanged,
+ * but token UUIDs collapse to their first segment ("158dccd5") so the table
+ * stays readable. Pair with the full value in a title tooltip at the call site.
+ * @param {string|null|undefined} name
+ */
+export function formatUser(name) {
+  if (!name) return '';
+  const trimmed = String(name).trim();
+  return isTokenUser(trimmed) ? trimmed.slice(0, 8) : trimmed;
+}
+
 /** Status → human label. @param {string} status */
 export function statusLabel(status) {
   if (status === 'due_soon') return 'due soon';

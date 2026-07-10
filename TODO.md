@@ -1,7 +1,5 @@
 # 1.1.0
 
-- token users show as a massive username (eg. 158dccd5-f82c-42a3-9909-42ac7d3c8e88). detect that its a token and shorten it.
-
 - publish tasks to signalk paths
   - add boolean publishPaths config option to the schema
   - default true

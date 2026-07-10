@@ -11,6 +11,7 @@ import {
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
+  formatUser,
 } from '../lib/format.js';
 import { navigate } from '../lib/router.js';
 import { toast } from '../lib/toasts.js';
@@ -70,7 +71,9 @@ export function TaskDetailPage(props) {
       key: 'logged_by',
       label: 'By',
       render: (/** @type {LogDTO} */ e) =>
-        e.logged_by || html`<span class="muted">—</span>`,
+        e.logged_by
+          ? formatUser(e.logged_by)
+          : html`<span class="muted">—</span>`,
     },
   ];
   if (auth.isLoggedIn) {

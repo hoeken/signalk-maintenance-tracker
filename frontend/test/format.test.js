@@ -4,7 +4,9 @@ import {
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
+  formatUser,
   humanizeMs,
+  isTokenUser,
   toDateInput,
   truncate,
 } from '../../public/app/lib/format.js';
@@ -46,5 +48,20 @@ describe('format helpers', () => {
   it('truncates with ellipsis', () => {
     expect(truncate('abcdef', 4)).toBe('abc…');
     expect(truncate('abc', 10)).toBe('abc');
+  });
+
+  it('detects SignalK device-token UUIDs, not human usernames', () => {
+    expect(isTokenUser('158dccd5-f82c-42a3-9909-42ac7d3c8e88')).toBe(true);
+    expect(isTokenUser('158DCCD5-F82C-42A3-9909-42AC7D3C8E88')).toBe(true);
+    expect(isTokenUser('zach')).toBe(false);
+    expect(isTokenUser('admin')).toBe(false);
+    expect(isTokenUser('158dccd5-f82c-42a3-9909')).toBe(false);
+    expect(isTokenUser(null)).toBe(false);
+  });
+
+  it('shortens token usernames but leaves human names untouched', () => {
+    expect(formatUser('158dccd5-f82c-42a3-9909-42ac7d3c8e88')).toBe('158dccd5');
+    expect(formatUser('zach')).toBe('zach');
+    expect(formatUser(null)).toBe('');
   });
 });
