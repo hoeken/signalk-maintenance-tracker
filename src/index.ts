@@ -7,6 +7,7 @@ import { MaintenanceService } from './service';
 import { NotificationManager } from './signalk/notifications';
 import { RuntimeManager } from './signalk/runtime';
 import { mountApi, Services } from './api/router';
+import { StowageClient } from './stowage/client';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { version: PLUGIN_VERSION } = require('../package.json');
@@ -60,6 +61,9 @@ export = function (app: any) {
             if (event.clearedSlug) notifier?.clear(event.clearedSlug);
             refresh();
           },
+          stowageClient: opts.stowageMgmtUrl
+            ? new StowageClient({ baseUrl: opts.stowageMgmtUrl })
+            : undefined,
         });
         runtime.onUpdate(() => recomputeNotifications());
         services = { service, runtime, version: PLUGIN_VERSION };

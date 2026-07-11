@@ -101,4 +101,8 @@ export interface LogInput {
   maintenance_date?: string;
   runtime_hours?: number | null;
   notes?: string | null;
+  /** Opt-in per completion, defaults to true when the task has linked
+   * consumables — set false to log the work without touching stowage-mgmt
+   * stock (docs/inventory-interaction.md). */
+  consume_stock?: boolean;
 }

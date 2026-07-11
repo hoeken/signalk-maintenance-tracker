@@ -1,10 +1,12 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { publicUser } from './auth';
+import { ConsumablesRepo } from './db/consumables.repo';
 import { LogsRepo, MasterLogQuery } from './db/logs.repo';
 import { TagsRepo, TagCount } from './db/tags.repo';
 import { TasksRepo, NewTask } from './db/tasks.repo';
 import { slugify, uniqueSlug } from './domain/slug';
 import { computeTask, StatusConfig } from './domain/status';
+import { StowageClient, StowageUnavailableError } from './stowage/client';
 import {
   LogDTO,
   LogInput,
@@ -49,6 +51,18 @@ export interface ServiceDeps {
    * subscriptions and refresh notifications */
   onMutation?: (event: MutationEvent) => void;
   now?: () => Date;
+  /** Undefined when the stowage-mgmt integration isn't configured
+   * (stowageMgmtUrl left blank) — addLog then skips stock consumption
+   * entirely, same as if the task had no linked consumables. */
+  stowageClient?: StowageClient;
+}
+
+/** addLog's result: the log entry, plus any non-fatal problems hit while
+ * decrementing linked stowage-mgmt stock. A completion always succeeds even
+ * if stock consumption partially or fully fails — warnings are informational
+ * (docs/inventory-interaction.md: "toast, don't block the task view"). */
+export interface LogResult extends LogRow {
+  consumable_warnings?: string[];
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -58,6 +72,7 @@ export class MaintenanceService {
   readonly tasks: TasksRepo;
   readonly logs: LogsRepo;
   readonly tags: TagsRepo;
+  readonly consumables: ConsumablesRepo;
 
   constructor(
     private db: DatabaseSync,
@@ -66,6 +81,7 @@ export class MaintenanceService {
     this.tasks = new TasksRepo(db);
     this.logs = new LogsRepo(db);
     this.tags = new TagsRepo(db);
+    this.consumables = new ConsumablesRepo(db);
   }
 
   private now(): Date {
@@ -352,7 +368,12 @@ export class MaintenanceService {
     return { data: data.map((r) => this.redactLog(r)), total, page, pageSize };
   }
 
-  addLog(slug: string, body: LogInput, loggedBy: string | null): LogRow {
+  async addLog(
+    slug: string,
+    body: LogInput,
+    loggedBy: string | null,
+    forwardHeaders: Record<string, string> = {},
+  ): Promise<LogResult> {
     const task = this.requireTask(slug);
     const date = this.validateDate(body.maintenance_date, 'maintenance_date');
     const nowIso = this.now().toISOString();
@@ -378,7 +399,62 @@ export class MaintenanceService {
       throw err;
     }
     this.emit();
-    return this.redactLog(entry);
+
+    // Stock consumption is a best-effort side effect, deliberately outside
+    // the transaction above: the log entry is the source of truth for "was
+    // this task completed", and must never be rolled back because
+    // stowage-mgmt was unreachable or an item was misconfigured
+    // (docs/inventory-interaction.md).
+    const warnings = await this.consumeStock(
+      task.id,
+      task.name,
+      date,
+      body,
+      forwardHeaders,
+    );
+
+    return {
+      ...this.redactLog(entry),
+      ...(warnings.length ? { consumable_warnings: warnings } : {}),
+    };
+  }
+
+  /**
+   * Decrements stowage-mgmt stock for every consumable linked to a task, on
+   * an opt-in-by-default basis (consume_stock: false skips it entirely).
+   * Returns human-readable warnings for failures worth surfacing — a missing
+   * stowage-mgmt integration or no linked consumables both produce an empty
+   * list, not a warning, per the resolved discovery/failure-handling
+   * decision (docs/inventory-interaction.md).
+   */
+  private async consumeStock(
+    taskId: number,
+    taskName: string,
+    isoDate: string,
+    body: LogInput,
+    forwardHeaders: Record<string, string>,
+  ): Promise<string[]> {
+    if (body.consume_stock === false) return [];
+    if (!this.deps.stowageClient) return [];
+    const items = this.consumables.forTask(taskId);
+    if (!items.length) return [];
+
+    const note = `Used for maintenance task: ${taskName} (${isoDate.slice(0, 10)})`;
+    const warnings: string[] = [];
+    for (const item of items) {
+      try {
+        await this.deps.stowageClient.consumeForTask(
+          item.item_id,
+          item.qty_per_service,
+          note,
+          forwardHeaders,
+        );
+      } catch (err) {
+        if (err instanceof StowageUnavailableError) continue; // not a real problem — see class doc
+        warnings.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+    return warnings;
   }
 
   updateLog(id: number, body: LogInput): LogRow {
