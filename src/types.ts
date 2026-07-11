@@ -61,6 +61,12 @@ export interface ComputedFields {
   urgency: number;
 }
 
+export interface TaskConsumableDTO {
+  item_id: string;
+  item_name: string;
+  qty_per_service: number;
+}
+
 export interface TaskDTO extends ComputedFields {
   id: number;
   slug: string;
@@ -75,6 +81,10 @@ export interface TaskDTO extends ComputedFields {
   last_runtime: number | null;
   created_at: string;
   updated_at: string;
+  /** Items in signalk-stowage-mgmt this task consumes on completion — see
+   * docs/inventory-interaction.md. Empty when the integration isn't
+   * configured (stowageMgmtUrl unset) or none are linked. */
+  consumables: TaskConsumableDTO[];
 }
 
 export interface Page<T> {
@@ -95,6 +105,9 @@ export interface TaskInput {
   tags?: string[];
   last_maintenance?: string | null;
   last_runtime?: number | null;
+  /** Wholesale-replaces the task's linked consumables when present, same
+   * semantics as `tags` (docs/inventory-interaction.md). */
+  consumables?: TaskConsumableDTO[];
 }
 
 export interface LogInput {

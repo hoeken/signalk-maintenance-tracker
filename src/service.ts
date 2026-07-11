@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { publicUser } from './auth';
-import { ConsumablesRepo } from './db/consumables.repo';
+import { ConsumableRow, ConsumablesRepo } from './db/consumables.repo';
 import { LogsRepo, MasterLogQuery } from './db/logs.repo';
 import { TagsRepo, TagCount } from './db/tags.repo';
 import { TasksRepo, NewTask } from './db/tasks.repo';
@@ -94,7 +94,11 @@ export class MaintenanceService {
 
   // ---- DTO assembly ----
 
-  private toDTO(row: TaskRow, tags: string[]): TaskDTO {
+  private toDTO(
+    row: TaskRow,
+    tags: string[],
+    consumables: ConsumableRow[],
+  ): TaskDTO {
     const current = row.runtime_path
       ? this.deps.getRuntime(row.runtime_path)
       : null;
@@ -113,6 +117,11 @@ export class MaintenanceService {
       last_runtime: row.last_runtime,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      consumables: consumables.map((c) => ({
+        item_id: c.item_id,
+        item_name: c.item_name,
+        qty_per_service: c.qty_per_service,
+      })),
       ...computed,
     };
   }
@@ -127,9 +136,16 @@ export class MaintenanceService {
     );
 
     const tagsByTask = this.tags.tagsByTask();
+    const consumablesByTask = this.consumables.byTask();
     let items = this.tasks
       .listAll()
-      .map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
+      .map((row) =>
+        this.toDTO(
+          row,
+          tagsByTask.get(row.id) ?? [],
+          consumablesByTask.get(row.id) ?? [],
+        ),
+      );
 
     if (q.search) {
       const needle = q.search.toLowerCase();
@@ -203,14 +219,25 @@ export class MaintenanceService {
 
   listAllComputed(): TaskDTO[] {
     const tagsByTask = this.tags.tagsByTask();
+    const consumablesByTask = this.consumables.byTask();
     return this.tasks
       .listAll()
-      .map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
+      .map((row) =>
+        this.toDTO(
+          row,
+          tagsByTask.get(row.id) ?? [],
+          consumablesByTask.get(row.id) ?? [],
+        ),
+      );
   }
 
   getTask(slug: string): TaskDTO {
     const row = this.requireTask(slug);
-    return this.toDTO(row, this.tags.tagsForTask(row.id));
+    return this.toDTO(
+      row,
+      this.tags.tagsForTask(row.id),
+      this.consumables.forTask(row.id),
+    );
   }
 
   createTask(body: TaskInput): TaskDTO {
@@ -251,10 +278,17 @@ export class MaintenanceService {
     };
     const row = this.tasks.create(seed, nowIso);
     if (body.tags) this.tags.setTaskTags(row.id, body.tags);
+    if (body.consumables)
+      this.consumables.setForTask(
+        row.id,
+        this.validateConsumables(body.consumables),
+        nowIso,
+      );
     this.emit();
     return this.toDTO(
       this.tasks.getById(row.id)!,
       this.tags.tagsForTask(row.id),
+      this.consumables.forTask(row.id),
     );
   }
 
@@ -332,10 +366,17 @@ export class MaintenanceService {
 
     this.tasks.update(row.id, merged, this.now().toISOString());
     if (body.tags !== undefined) this.tags.setTaskTags(row.id, body.tags ?? []);
+    if (body.consumables !== undefined)
+      this.consumables.setForTask(
+        row.id,
+        this.validateConsumables(body.consumables ?? []),
+        this.now().toISOString(),
+      );
     this.emit({ clearedSlug });
     return this.toDTO(
       this.tasks.getById(row.id)!,
       this.tags.tagsForTask(row.id),
+      this.consumables.forTask(row.id),
     );
   }
 
@@ -555,6 +596,29 @@ export class MaintenanceService {
     const row = this.tasks.getBySlug(slug);
     if (!row) throw new ApiError(404, 'not_found', `Task "${slug}" not found`);
     return row;
+  }
+
+  private validateConsumables(
+    items: TaskDTO['consumables'],
+  ): { item_id: string; item_name: string; qty_per_service: number }[] {
+    return items.map((item) => {
+      const item_id = (item.item_id ?? '').trim();
+      const item_name = (item.item_name ?? '').trim();
+      if (!item_id || !item_name)
+        throw new ApiError(
+          400,
+          'invalid_consumable',
+          'Each consumable requires item_id and item_name',
+        );
+      const qty = item.qty_per_service;
+      if (typeof qty !== 'number' || !(qty > 0))
+        throw new ApiError(
+          400,
+          'invalid_consumable',
+          'qty_per_service must be a positive number',
+        );
+      return { item_id, item_name, qty_per_service: qty };
+    });
   }
 
   private validateIntervals(

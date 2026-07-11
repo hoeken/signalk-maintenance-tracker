@@ -100,6 +100,51 @@ describe('tasks endpoints', () => {
     expect(list.body.data[0].tags).toEqual(['Engines']);
   });
 
+  it('round-trips linked consumables through POST/GET/PUT /tasks', async () => {
+    const create = await request(app)
+      .post(`${base}/tasks`)
+      .send({
+        name: 'Oil change',
+        consumables: [
+          {
+            item_id: 'item-filter',
+            item_name: 'Oil filter',
+            qty_per_service: 1,
+          },
+        ],
+      });
+    expect(create.status).toBe(201);
+    expect(create.body.consumables).toEqual([
+      { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+    ]);
+
+    const detail = await request(app).get(`${base}/tasks/oil-change`);
+    expect(detail.body.consumables).toEqual(create.body.consumables);
+
+    const updated = await request(app)
+      .put(`${base}/tasks/oil-change`)
+      .send({
+        consumables: [
+          { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+        ],
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.consumables).toEqual([
+      { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+    ]);
+  });
+
+  it('rejects an invalid consumable with a 400', async () => {
+    const res = await request(app)
+      .post(`${base}/tasks`)
+      .send({
+        name: 'Oil change',
+        consumables: [{ item_id: '', item_name: '', qty_per_service: 1 }],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('invalid_consumable');
+  });
+
   it('GET /tasks supports search/status/sort/pagination params', async () => {
     await request(app).post(`${base}/tasks`).send({ name: 'Zeta' });
     await request(app).post(`${base}/tasks`).send({ name: 'Alpha' });

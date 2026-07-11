@@ -186,6 +186,102 @@ describe('tags', () => {
   });
 });
 
+describe('task consumables (docs/inventory-interaction.md)', () => {
+  it('createTask links consumables and returns them in the DTO', () => {
+    const { service } = makeService();
+    const task = service.createTask({
+      name: 'Oil change',
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+    expect(task.consumables).toEqual([
+      { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+    ]);
+    expect(service.getTask('oil-change').consumables).toEqual(task.consumables);
+  });
+
+  it('defaults to no consumables when omitted on create', () => {
+    const { service } = makeService();
+    const task = service.createTask({ name: 'Bilge check' });
+    expect(task.consumables).toEqual([]);
+  });
+
+  it('updateTask replaces consumables wholesale, and omitting the field leaves them untouched', () => {
+    const { service } = makeService();
+    service.createTask({
+      name: 'Oil change',
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+
+    // omitted -> untouched
+    service.updateTask('oil-change', { description: 'note' });
+    expect(service.getTask('oil-change').consumables).toHaveLength(1);
+
+    // replaced wholesale
+    const updated = service.updateTask('oil-change', {
+      consumables: [
+        { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+      ],
+    });
+    expect(updated.consumables).toEqual([
+      { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+    ]);
+
+    // explicit [] clears them
+    const cleared = service.updateTask('oil-change', { consumables: [] });
+    expect(cleared.consumables).toEqual([]);
+  });
+
+  it('rejects a consumable missing item_id or item_name', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({
+        name: 'Oil',
+        consumables: [
+          { item_id: '', item_name: 'Oil filter', qty_per_service: 1 },
+        ],
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'invalid_consumable' }));
+  });
+
+  it('rejects a non-positive qty_per_service', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({
+        name: 'Oil',
+        consumables: [
+          { item_id: 'item-1', item_name: 'Oil filter', qty_per_service: 0 },
+        ],
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'invalid_consumable' }));
+  });
+
+  it('listTasks and listAllComputed include consumables via the batched query', () => {
+    const { service } = makeService();
+    service.createTask({
+      name: 'Oil change',
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+    service.createTask({ name: 'Bilge check' });
+
+    const list = service.listTasks({}).data;
+    expect(list.find((t) => t.slug === 'oil-change')?.consumables).toHaveLength(
+      1,
+    );
+    expect(list.find((t) => t.slug === 'bilge-check')?.consumables).toEqual([]);
+
+    const all = service.listAllComputed();
+    expect(all.find((t) => t.slug === 'oil-change')?.consumables).toHaveLength(
+      1,
+    );
+  });
+});
+
 describe('denormalization invariant (§5.6)', () => {
   it('updates last_* from the newest log entry', async () => {
     const { service } = makeService();
