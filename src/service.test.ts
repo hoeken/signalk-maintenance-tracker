@@ -19,7 +19,7 @@ function makeService(runtimeValues: Record<string, number> = {}) {
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(1);
+    expect(schemaVersion(db)).toBe(2);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -31,6 +31,7 @@ describe('migrations', () => {
       'task_tags',
       'log_entries',
       'runtime_cache',
+      'task_consumables',
       'meta',
     ]) {
       expect(tables).toContain(t);
