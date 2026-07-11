@@ -1,6 +1,6 @@
 # Sketch: interaction with signalk-stowage-mgmt
 
-Status: **draft / brainstorm**, not implemented. Goal is to connect
+Status: **draft / brainstorm**, not implemented. Open questions resolved. Goal is to connect
 maintenance tasks (this plugin) with the physical inventory of parts/consumables
 (`signalk-stowage-mgmt`), so each system does what it's good at instead of
 duplicating data.
@@ -95,24 +95,40 @@ optionally query to annotate items with "needed for: Oil change (due in 12
 days)" — but this is speculative and only worth doing if the first three
 pieces prove useful in practice.
 
-## Open questions
+## Resolved decisions
 
-- Cross-plugin item reference is inherently soft (no FK across two SQLite
-  files) — need to decide how to handle a linked item being deleted in
-  stowage-mgmt (best effort: catch 404 on lookup, show "linked item no
-  longer exists" instead of erroring the whole task view).
-- Discovery: does maintenance-tracker probe for stowage-mgmt at startup
-  (`GET /plugins/signalk-stowage-mgmt/api/health` equivalent, if one
-  exists) and disable consumables UI if absent, or just fail gracefully
-  per-call? Leaning towards the latter — simpler, no cross-plugin startup
-  ordering dependency.
-- Where does the "parts used" picker live in the UI — task editor, or a
-  separate lightweight settings screen? Probably task editor, as a new
-  optional section, to keep it discoverable without cluttering the common
-  case (a task with no consumables).
-- Multiple items per task (e.g. oil change = filter + N liters of oil) needs
-  the join table from the start, not a single `item_id` column — sketch
-  above already assumes this.
+- **Stale/deleted linked items:** cross-plugin item reference is inherently
+  soft (no FK across two SQLite files). Cache the item's `name` at link
+  time alongside the id. If a lookup 404s, show the cached name greyed out
+  with a "no longer in inventory" tag rather than erroring the task view.
+  Self-heals once someone re-links or removes the consumable.
+
+- **Discovery / failure handling:** no startup health-check probe — just
+  wrap each stowage-mgmt API call in try/catch. Two distinct failure modes,
+  handled differently:
+  - **Normal case (no consumables linked, or plugin genuinely not
+    installed):** the consumables UI section simply doesn't render. No
+    error, no noise.
+  - **Signal of a real problem** — i.e. the task *has* linked consumables
+    (or other local evidence of prior successful interaction with
+    stowage-mgmt), but a call now fails (network error, 5xx, or a linked
+    item id that used to resolve): surface a small toast/notification in
+    the bottom-right corner (matching the webapp's existing
+    notification/toast pattern) rather than silently hiding it. This is the
+    "something that used to work stopped working" case, distinct from
+    "nothing to show."
+  - Rationale: collapsing both into silent non-rendering would hide
+    problems like a typo'd item id or stowage-mgmt being down behind the
+    same UI as "not installed" — the toast keeps that visible without
+    blocking the rest of the task view.
+
+- **Picker location:** task editor, as a collapsed/optional "Parts used"
+  section below the existing interval fields — same treatment as `tags`
+  today (optional, low-friction to skip, no separate settings screen).
+
+- **Multiple items per task:** join table (`task_consumables`) from the
+  start, not a single `item_id` column — e.g. oil change = filter + N
+  liters of oil.
 
 ## Non-goals (for now)
 
