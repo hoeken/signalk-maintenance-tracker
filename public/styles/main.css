@@ -17,7 +17,7 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.45;
 }
 
@@ -70,7 +70,7 @@ pre {
 }
 
 .shell-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -122,7 +122,7 @@ pre {
 
 .shell-footer-links {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 15px;
   white-space: nowrap;
 }
 .shell-footer-links .dot-spacer {
@@ -147,7 +147,7 @@ pre {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   margin: 0;
 }
@@ -187,7 +187,7 @@ pre {
   border-radius: 6px;
   background: var(--bg-raised);
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
@@ -237,14 +237,14 @@ pre {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 25px;
   cursor: pointer;
 }
 .btn-icon:hover {
@@ -297,7 +297,7 @@ pre {
   border-radius: 6px;
   background: var(--bg-raised);
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
   font-family: inherit;
 }
 .textarea {
@@ -323,17 +323,17 @@ pre {
 }
 .field-label {
   display: block;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   margin-bottom: 4px;
 }
 .field-hint {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-muted);
   margin-top: 3px;
 }
 .field-error {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--danger);
   margin-top: 3px;
 }
@@ -349,7 +349,7 @@ pre {
   border-radius: 6px;
   padding: 8px 12px;
   margin-bottom: 12px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .search-box {
@@ -404,7 +404,7 @@ pre {
   border-radius: 999px;
   background: var(--bg-raised);
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: 14.5px;
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
@@ -432,7 +432,7 @@ pre {
   border-radius: 999px;
   background: var(--bg-inset);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -448,7 +448,7 @@ pre {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 16px;
 }
 .table th,
 .table td {
@@ -464,7 +464,7 @@ pre {
   background: var(--bg-inset);
 }
 .table th {
-  font-size: 12.5px;
+  font-size: 14.5px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--text-muted);
@@ -537,7 +537,7 @@ pre {
   display: inline-block;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -596,7 +596,7 @@ pre {
   align-items: center;
   justify-content: flex-end;
   margin-top: 12px;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-muted);
 }
 .pagination > * {
@@ -640,7 +640,7 @@ pre {
   border-bottom: 1px solid var(--border);
 }
 .modal-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   margin: 0;
 }
@@ -676,7 +676,7 @@ pre {
   border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 10px 14px;
-  font-size: 14px;
+  font-size: 16px;
 }
 .toast.error {
   border-left-color: var(--danger);
@@ -706,7 +706,7 @@ pre {
 }
 .card h3 {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: 15px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--text-muted);
@@ -718,7 +718,7 @@ pre {
 .stat-row .stat-label {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-muted);
   margin-bottom: 4px;
 }
@@ -751,7 +751,7 @@ pre {
 
 .slug-preview {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 /* autocomplete dropdown (runtime path picker, tag input) */
@@ -778,7 +778,7 @@ pre {
   padding: 5px 8px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 15px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .combo-list li:hover,

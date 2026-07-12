@@ -7,11 +7,7 @@ import { useState, useEffect } from '../../vendor/preact-hooks.js';
 import { useTasks, useTags, deleteTask } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import { useListParams } from '../lib/useListParams.js';
-import {
-  formatDate,
-  formatRemainingHours,
-  formatRemainingTime,
-} from '../lib/format.js';
+import { formatRemainingHours, formatRemainingTime } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
@@ -127,12 +123,6 @@ export function TaskListPage() {
         html`<span class=${'remaining ' + (t.time_status || '')}
           >${formatRemainingTime(t.remaining_time_ms)}</span
         >`,
-    },
-    {
-      key: 'due_date',
-      label: 'Next due',
-      className: 'num hide-sm',
-      render: (/** @type {TaskDTO} */ t) => formatDate(t.due_date),
     },
     {
       key: 'actions',
