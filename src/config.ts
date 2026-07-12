@@ -1,6 +1,21 @@
+/** SignalK alarm states, most to least severe (plus "none" = no notification). */
+export type AlarmState =
+  'none' | 'normal' | 'alert' | 'warn' | 'alarm' | 'emergency';
+
+const ALARM_STATES: AlarmState[] = [
+  'none',
+  'normal',
+  'alert',
+  'warn',
+  'alarm',
+  'emergency',
+];
+
 export interface PluginOptions {
   enableNotifications: boolean;
-  notificationMethods: string[];
+  alarmStateOk: AlarmState;
+  alarmStateDueSoon: AlarmState;
+  alarmStateOverdue: AlarmState;
   runtimeNotifyLeadHours: number;
   timeNotifyLeadDays: number;
   recomputeIntervalMs: number;
@@ -8,7 +23,9 @@ export interface PluginOptions {
 
 export const DEFAULT_OPTIONS: PluginOptions = {
   enableNotifications: true,
-  notificationMethods: ['visual'],
+  alarmStateOk: 'none',
+  alarmStateDueSoon: 'warn',
+  alarmStateOverdue: 'alarm',
   runtimeNotifyLeadHours: 10,
   timeNotifyLeadDays: 7,
   recomputeIntervalMs: 60000,
@@ -17,6 +34,13 @@ export const DEFAULT_OPTIONS: PluginOptions = {
 export function withDefaults(options?: Partial<PluginOptions>): PluginOptions {
   return { ...DEFAULT_OPTIONS, ...(options ?? {}) };
 }
+
+const alarmStateProperty = (title: string, defaultValue: AlarmState) => ({
+  type: 'string',
+  title,
+  enum: ALARM_STATES,
+  default: defaultValue,
+});
 
 export const schema = {
   type: 'object',
@@ -28,12 +52,18 @@ export const schema = {
         'Publish overdue/upcoming status to notifications.maintenance.*',
       default: DEFAULT_OPTIONS.enableNotifications,
     },
-    notificationMethods: {
-      type: 'array',
-      title: 'Notification methods',
-      items: { type: 'string', enum: ['visual', 'sound'] },
-      default: DEFAULT_OPTIONS.notificationMethods,
-    },
+    alarmStateOk: alarmStateProperty(
+      'Alarm state for up-to-date tasks',
+      DEFAULT_OPTIONS.alarmStateOk,
+    ),
+    alarmStateDueSoon: alarmStateProperty(
+      'Alarm state for due-soon tasks',
+      DEFAULT_OPTIONS.alarmStateDueSoon,
+    ),
+    alarmStateOverdue: alarmStateProperty(
+      'Alarm state for overdue tasks',
+      DEFAULT_OPTIONS.alarmStateOverdue,
+    ),
     runtimeNotifyLeadHours: {
       type: 'number',
       title: 'Runtime lead window (hours)',

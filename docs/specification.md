@@ -845,8 +845,8 @@ app.handleMessage(plugin.id, {
         {
           path: `notifications.maintenance.${slug}`,
           value: {
-            state: 'alarm' | 'warn' | 'normal', // overdue | due_soon | ok
-            method: options.notificationMethods, // e.g. ['visual']
+            state, // configured alarm state for the task's status
+            method: ['visual'],
             message: 'Engine oil change is overdue by 20 runtime hours',
             timestamp: nowIso,
           },
@@ -857,9 +857,12 @@ app.handleMessage(plugin.id, {
 });
 ```
 
-Mapping: `overdue → alarm`, `due_soon → warn`, `ok → normal` (which clears the
-alarm). `unknown` publishes nothing (or clears). Notifications are only published
-when `enableNotifications` is true and when a task's state changes (to avoid delta
+The alarm state for each task status is configurable (`alarmState*` options),
+choosing from SignalK's states `none | normal | alert | warn | alarm | emergency`.
+Defaults: `overdue → alarm`, `due_soon → warn`, `ok → none`. A `none` state
+publishes a `null` value, which clears the notification. `unknown` publishes
+nothing (or clears a prior notification). Notifications are only published when
+`enableNotifications` is true and when a task's state changes (to avoid delta
 spam); a task with both dimensions publishes one notification reflecting the more
 urgent dimension, with the message naming which dimension triggered it.
 
@@ -872,13 +875,15 @@ urgent dimension, with the message naming which dimension triggered it.
 
 Exposed in the SignalK admin UI (`plugin.schema`):
 
-| option                   | type     | default      | purpose                                   |
-| ------------------------ | -------- | ------------ | ----------------------------------------- |
-| `enableNotifications`    | boolean  | true         | master switch for notification publishing |
-| `notificationMethods`    | string[] | `["visual"]` | SignalK notification `method`             |
-| `runtimeNotifyLeadHours` | number   | 10           | runtime lead window for `due_soon`/warn   |
-| `timeNotifyLeadDays`     | number   | 7            | time lead window for `due_soon`/warn      |
-| `recomputeIntervalMs`    | number   | 60000        | backend status-recompute tick             |
+| option                   | type    | default | purpose                                   |
+| ------------------------ | ------- | ------- | ----------------------------------------- |
+| `enableNotifications`    | boolean | true    | master switch for notification publishing |
+| `alarmStateOk`           | string  | `none`  | alarm state for up-to-date tasks          |
+| `alarmStateDueSoon`      | string  | `warn`  | alarm state for due-soon tasks            |
+| `alarmStateOverdue`      | string  | `alarm` | alarm state for overdue tasks             |
+| `runtimeNotifyLeadHours` | number  | 10      | runtime lead window for `due_soon`/warn   |
+| `timeNotifyLeadDays`     | number  | 7       | time lead window for `due_soon`/warn      |
+| `recomputeIntervalMs`    | number  | 60000   | backend status-recompute tick             |
 
 (Per-task runtime paths are stored with the tasks, not in plugin config, so the
 subscription set is derived from the DB.)

@@ -1,41 +1,49 @@
-import { PluginOptions } from '../config';
+import { AlarmState, PluginOptions } from '../config';
 import { Status, TaskDTO } from '../types';
-
-type NotificationState = 'alarm' | 'warn' | 'normal';
-
-const STATE_FOR_STATUS: Partial<Record<Status, NotificationState>> = {
-  overdue: 'alarm',
-  due_soon: 'warn',
-  ok: 'normal',
-};
 
 /**
  * Publishes notifications.maintenance.{slug} deltas (§10.3). Only publishes
- * when a task's state actually changes, to avoid delta spam.
+ * when a task's state actually changes, to avoid delta spam. The alarm state
+ * for each task status is configurable; `none` publishes a null value, which
+ * clears the notification.
  */
 export class NotificationManager {
-  private lastState = new Map<string, NotificationState>();
+  private lastState = new Map<string, AlarmState>();
 
   constructor(
     private app: any,
     private pluginId: string,
     private opts: Pick<
       PluginOptions,
-      'enableNotifications' | 'notificationMethods'
+      | 'enableNotifications'
+      | 'alarmStateOk'
+      | 'alarmStateDueSoon'
+      | 'alarmStateOverdue'
     >,
   ) {}
+
+  private stateForStatus(status: Status): AlarmState | undefined {
+    switch (status) {
+      case 'ok':
+        return this.opts.alarmStateOk;
+      case 'due_soon':
+        return this.opts.alarmStateDueSoon;
+      case 'overdue':
+        return this.opts.alarmStateOverdue;
+      default:
+        return undefined; // unknown
+    }
+  }
 
   publishAll(tasks: TaskDTO[]): void {
     if (!this.opts.enableNotifications) return;
     for (const task of tasks) {
-      const state = STATE_FOR_STATUS[task.status];
+      const state = this.stateForStatus(task.status);
       if (!state) {
-        // unknown: publish nothing, but clear a previously-raised alarm/warn
-        if (
-          this.lastState.get(task.slug) &&
-          this.lastState.get(task.slug) !== 'normal'
-        ) {
-          this.send(task.slug, 'normal', `${task.name}: status unknown`);
+        // unknown: publish nothing, but clear a previously-raised notification
+        const last = this.lastState.get(task.slug);
+        if (last && last !== 'none') {
+          this.send(task.slug, 'none', `${task.name}: status unknown`);
         }
         continue;
       }
@@ -47,27 +55,29 @@ export class NotificationManager {
   /** Clear a slug's notification (task deleted or slug renamed, §6.4). */
   clear(slug: string): void {
     if (!this.opts.enableNotifications) return;
-    if (this.lastState.get(slug) === undefined) {
-      // nothing ever published under this slug in this process — clear anyway
-      // in case a previous run left one behind
-    }
-    this.send(slug, 'normal', 'Maintenance notification cleared');
+    this.send(slug, 'none', 'Maintenance notification cleared');
     this.lastState.delete(slug);
   }
 
-  private send(slug: string, state: NotificationState, message: string): void {
+  private send(slug: string, state: AlarmState, message: string): void {
+    // `none` clears the notification: SignalK removes a notification whose
+    // delta value is null.
+    const value =
+      state === 'none'
+        ? null
+        : {
+            state,
+            method: ['visual'],
+            message,
+            timestamp: new Date().toISOString(),
+          };
     this.app.handleMessage(this.pluginId, {
       updates: [
         {
           values: [
             {
               path: `notifications.maintenance.${slug}`,
-              value: {
-                state,
-                method: this.opts.notificationMethods,
-                message,
-                timestamp: new Date().toISOString(),
-              },
+              value,
             },
           ],
         },

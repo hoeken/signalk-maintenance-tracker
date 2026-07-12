@@ -38,7 +38,9 @@ function makeManager(enabled = true) {
   const app = { handleMessage: vi.fn() };
   const manager = new NotificationManager(app, 'signalk-maintenance-tracker', {
     enableNotifications: enabled,
-    notificationMethods: ['visual'],
+    alarmStateOk: 'none',
+    alarmStateDueSoon: 'warn',
+    alarmStateOverdue: 'alarm',
   });
   return { app, manager };
 }
@@ -66,10 +68,12 @@ describe('NotificationManager (§10.3)', () => {
       makeTask({ slug: 'c', status: 'ok' }),
     ]);
     const values = sentValues(app);
-    expect(values.map((v) => [v.path, v.value.state])).toEqual([
+    expect(
+      values.map((v) => [v.path, v.value === null ? null : v.value.state]),
+    ).toEqual([
       ['notifications.maintenance.a', 'alarm'],
       ['notifications.maintenance.b', 'warn'],
-      ['notifications.maintenance.c', 'normal'],
+      ['notifications.maintenance.c', null], // ok → none → null value
     ]);
     expect(values[0].value.method).toEqual(['visual']);
     expect(values[0].value.message).toContain('overdue by 20 runtime hours');
@@ -101,15 +105,15 @@ describe('NotificationManager (§10.3)', () => {
     ]);
     manager.publishAll([makeTask({ status: 'unknown' })]);
     const values = sentValues(app);
-    expect(values.at(-1)?.value.state).toBe('normal');
+    expect(values.at(-1)?.value).toBeNull();
   });
 
-  it('clear() publishes normal for a slug (delete / rename migration §6.4)', () => {
+  it('clear() nulls out a slug (delete / rename migration §6.4)', () => {
     const { app, manager } = makeManager();
     manager.clear('old-slug');
     const values = sentValues(app);
     expect(values[0].path).toBe('notifications.maintenance.old-slug');
-    expect(values[0].value.state).toBe('normal');
+    expect(values[0].value).toBeNull();
   });
 
   it('is silent when notifications are disabled', () => {

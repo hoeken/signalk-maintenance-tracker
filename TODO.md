@@ -1,7 +1,5 @@
 # 1.1.0
 
-- tabbing off of tag input with text in the field should add the first tag selected or create a new one if none found.
-
 - publish tasks to signalk paths
   - add boolean publishPaths config option to the schema
   - default true
@@ -10,12 +8,16 @@
   - publish status at maintenance.{slug}.status
 
 - notifications
-  - remove the alert notification type.
+  - remove the alert notification type config -> visual only
   - add boolean config option publishNotifications to enable/disable notification publication
   - default true
   - add configuration dropdowns to select the default alarm state for our various task states:
-    - sk alarm states: "normal" | "alert" | "warn" | "alarm" | "emergency"
-    - default them to what we're currently using
+    - sk alarm states: "none" | "normal" | "alert" | "warn" | "alarm" | "emergency"
+    - change default states:
+      - ok -> 'none'
+      - due_soon -> 'warn'
+      - overdue -> 'alarm'
+    - for 'none', send null for notification path value.
 
 # 1.2.0
 

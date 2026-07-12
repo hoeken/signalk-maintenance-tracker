@@ -15,8 +15,8 @@ else that comes due by engine hours, by calendar time, or both.
 - **Maintenance log** — per-task history plus a master log across all tasks,
   with markdown notes and who logged the work.
 - **SignalK notifications** — overdue/due-soon status is published to
-  `notifications.maintenance.{slug}` (`alarm`/`warn`/`normal`), so it shows up
-  in any SignalK notification consumer.
+  `notifications.maintenance.{slug}` with a configurable alarm state per task
+  status, so it shows up in any SignalK notification consumer.
 - **Modern webapp** — buildless Preact SPA served from the SignalK webapps
   menu: searchable/filterable task table, tag chips, progress bars, light/dark
   theme, live polling. Runs on browsers as old as Chromium 69 (Navico/B&G
@@ -44,13 +44,15 @@ Tracker**; data is stored in the plugin's data directory as `maintenance.db`.
 
 ### Plugin options
 
-| option                   | default      | purpose                                      |
-| ------------------------ | ------------ | -------------------------------------------- |
-| `enableNotifications`    | `true`       | master switch for notification publishing    |
-| `notificationMethods`    | `["visual"]` | SignalK notification `method`                |
-| `runtimeNotifyLeadHours` | `10`         | runtime hours before due to raise "due soon" |
-| `timeNotifyLeadDays`     | `7`          | days before due to raise "due soon"          |
-| `recomputeIntervalMs`    | `60000`      | status recompute tick in ms                  |
+| option                   | default | purpose                                      |
+| ------------------------ | ------- | -------------------------------------------- |
+| `enableNotifications`    | `true`  | master switch for notification publishing    |
+| `alarmStateOk`           | `none`  | alarm state for up-to-date tasks             |
+| `alarmStateDueSoon`      | `warn`  | alarm state for due-soon tasks               |
+| `alarmStateOverdue`      | `alarm` | alarm state for overdue tasks                |
+| `runtimeNotifyLeadHours` | `10`    | runtime hours before due to raise "due soon" |
+| `timeNotifyLeadDays`     | `7`     | days before due to raise "due soon"          |
+| `recomputeIntervalMs`    | `60000` | status recompute tick in ms                  |
 
 ## REST API
 
