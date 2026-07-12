@@ -40,7 +40,7 @@ export function withDefaults(options?: Partial<PluginOptions>): PluginOptions {
 const alarmStateProperty = (title: string, defaultValue: AlarmState) => ({
   type: 'string',
   title,
-  enum: ALARM_STATES,
+  enum: [...ALARM_STATES],
   default: defaultValue,
 });
 
