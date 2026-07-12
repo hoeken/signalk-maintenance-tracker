@@ -12,6 +12,7 @@ const ALARM_STATES: AlarmState[] = [
 ];
 
 export interface PluginOptions {
+  enablePublishPaths: boolean;
   enableNotifications: boolean;
   alarmStateOk: AlarmState;
   alarmStateDueSoon: AlarmState;
@@ -22,6 +23,7 @@ export interface PluginOptions {
 }
 
 export const DEFAULT_OPTIONS: PluginOptions = {
+  enablePublishPaths: true,
   enableNotifications: true,
   alarmStateOk: 'none',
   alarmStateDueSoon: 'warn',
@@ -45,6 +47,13 @@ const alarmStateProperty = (title: string, defaultValue: AlarmState) => ({
 export const schema = {
   type: 'object',
   properties: {
+    enablePublishPaths: {
+      type: 'boolean',
+      title: 'Publish task data to SignalK paths',
+      description:
+        'Publish each task to maintenance.{slug}.data and its status to maintenance.{slug}.status',
+      default: DEFAULT_OPTIONS.enablePublishPaths,
+    },
     enableNotifications: {
       type: 'boolean',
       title: 'Enable notifications',

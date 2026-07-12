@@ -5,6 +5,7 @@ import { PluginOptions, schema, withDefaults } from './config';
 import { openDatabase } from './db/database';
 import { MaintenanceService } from './service';
 import { NotificationManager } from './signalk/notifications';
+import { PathPublisher } from './signalk/paths';
 import { RuntimeManager } from './signalk/runtime';
 import { mountApi, Services } from './api/router';
 
@@ -17,14 +18,17 @@ export = function (app: any) {
   let db: DatabaseSync | null = null;
   let runtime: RuntimeManager | null = null;
   let notifier: NotificationManager | null = null;
+  let publisher: PathPublisher | null = null;
   let service: MaintenanceService | null = null;
   let timer: NodeJS.Timeout | null = null;
   let services: Services | null = null;
 
   function recomputeNotifications(): void {
-    if (!service || !notifier) return;
+    if (!service) return;
     try {
-      notifier.publishAll(service.listAllComputed());
+      const computed = service.listAllComputed();
+      notifier?.publishAll(computed);
+      publisher?.publishAll(computed);
     } catch (err) {
       app.error?.(`${PLUGIN_ID}: notification recompute failed: ${err}`);
     }
@@ -50,6 +54,7 @@ export = function (app: any) {
         db = openDatabase(dbPath);
         runtime = new RuntimeManager(app, db);
         notifier = new NotificationManager(app, PLUGIN_ID, opts);
+        publisher = new PathPublisher(app, PLUGIN_ID, opts);
         service = new MaintenanceService(db, {
           getRuntime: (p) => runtime!.getHours(p),
           config: {
@@ -57,7 +62,10 @@ export = function (app: any) {
             timeNotifyLeadDays: opts.timeNotifyLeadDays,
           },
           onMutation: (event) => {
-            if (event.clearedSlug) notifier?.clear(event.clearedSlug);
+            if (event.clearedSlug) {
+              notifier?.clear(event.clearedSlug);
+              publisher?.clear(event.clearedSlug);
+            }
             refresh();
           },
         });
@@ -86,6 +94,7 @@ export = function (app: any) {
       services = null;
       service = null;
       notifier = null;
+      publisher = null;
       runtime = null;
       try {
         db?.close();
