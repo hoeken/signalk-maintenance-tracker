@@ -86,9 +86,11 @@ export function TaskListPage() {
       key: 'status',
       label: 'Status',
       sortable: true,
+      className: 'col-status',
       render: (/** @type {TaskDTO} */ t) =>
-        html`<${StatusBadge} status=${t.status} />
-          <${StockBadge} consumables=${t.consumables} />`,
+        html`<span class="status-badges"
+          ><${StatusBadge} status=${t.status} /><${StockBadge} consumables=${t.consumables}
+        /></span>`,
     },
     {
       key: 'name',
@@ -98,17 +100,8 @@ export function TaskListPage() {
         html`<a href=${'#/tasks/' + encodeURIComponent(t.slug)}>${t.name}</a>`,
     },
     {
-      key: 'tags',
-      label: 'Tags',
-      className: 'hide-sm',
-      render: (/** @type {TaskDTO} */ t) =>
-        html`<span class="chips"
-          >${t.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}</span
-        >`,
-    },
-    {
       key: 'remaining_runtime',
-      label: 'Runtime left',
+      label: 'Runtime Left',
       sortable: true,
       className: 'num hide-sm',
       render: (/** @type {TaskDTO} */ t) =>

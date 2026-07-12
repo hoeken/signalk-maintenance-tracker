@@ -511,6 +511,18 @@ pre {
   font-variant-numeric: tabular-nums;
 }
 
+/* status column: room for status + stock badges side by side */
+.table th.col-status,
+.table td.col-status {
+  width: 220px;
+}
+.status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
 /* full-width detail row (log notes) rendered under its entry row */
 .table tr.has-detail td {
   border-bottom: none;
