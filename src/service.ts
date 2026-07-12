@@ -1,10 +1,12 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { publicUser } from './auth';
+import { ConsumableRow, ConsumablesRepo } from './db/consumables.repo';
 import { LogsRepo, MasterLogQuery } from './db/logs.repo';
 import { TagsRepo, TagCount } from './db/tags.repo';
 import { TasksRepo, NewTask } from './db/tasks.repo';
 import { slugify, uniqueSlug } from './domain/slug';
 import { computeTask, StatusConfig } from './domain/status';
+import { StowageClient, StowageUnavailableError } from './stowage/client';
 import {
   LogDTO,
   LogInput,
@@ -49,6 +51,18 @@ export interface ServiceDeps {
    * subscriptions and refresh notifications */
   onMutation?: (event: MutationEvent) => void;
   now?: () => Date;
+  /** Undefined when the stowage-mgmt integration isn't configured
+   * (stowageMgmtUrl left blank) — addLog then skips stock consumption
+   * entirely, same as if the task had no linked consumables. */
+  stowageClient?: StowageClient;
+}
+
+/** addLog's result: the log entry, plus any non-fatal problems hit while
+ * decrementing linked stowage-mgmt stock. A completion always succeeds even
+ * if stock consumption partially or fully fails — warnings are informational
+ * (docs/inventory-interaction.md: "toast, don't block the task view"). */
+export interface LogResult extends LogRow {
+  consumable_warnings?: string[];
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -58,6 +72,7 @@ export class MaintenanceService {
   readonly tasks: TasksRepo;
   readonly logs: LogsRepo;
   readonly tags: TagsRepo;
+  readonly consumables: ConsumablesRepo;
 
   constructor(
     private db: DatabaseSync,
@@ -66,6 +81,7 @@ export class MaintenanceService {
     this.tasks = new TasksRepo(db);
     this.logs = new LogsRepo(db);
     this.tags = new TagsRepo(db);
+    this.consumables = new ConsumablesRepo(db);
   }
 
   private now(): Date {
@@ -78,7 +94,11 @@ export class MaintenanceService {
 
   // ---- DTO assembly ----
 
-  private toDTO(row: TaskRow, tags: string[]): TaskDTO {
+  private toDTO(
+    row: TaskRow,
+    tags: string[],
+    consumables: ConsumableRow[],
+  ): TaskDTO {
     const current = row.runtime_path
       ? this.deps.getRuntime(row.runtime_path)
       : null;
@@ -97,6 +117,11 @@ export class MaintenanceService {
       last_runtime: row.last_runtime,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      consumables: consumables.map((c) => ({
+        item_id: c.item_id,
+        item_name: c.item_name,
+        qty_per_service: c.qty_per_service,
+      })),
       ...computed,
     };
   }
@@ -111,9 +136,16 @@ export class MaintenanceService {
     );
 
     const tagsByTask = this.tags.tagsByTask();
+    const consumablesByTask = this.consumables.byTask();
     let items = this.tasks
       .listAll()
-      .map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
+      .map((row) =>
+        this.toDTO(
+          row,
+          tagsByTask.get(row.id) ?? [],
+          consumablesByTask.get(row.id) ?? [],
+        ),
+      );
 
     if (q.search) {
       const needle = q.search.toLowerCase();
@@ -187,14 +219,25 @@ export class MaintenanceService {
 
   listAllComputed(): TaskDTO[] {
     const tagsByTask = this.tags.tagsByTask();
+    const consumablesByTask = this.consumables.byTask();
     return this.tasks
       .listAll()
-      .map((row) => this.toDTO(row, tagsByTask.get(row.id) ?? []));
+      .map((row) =>
+        this.toDTO(
+          row,
+          tagsByTask.get(row.id) ?? [],
+          consumablesByTask.get(row.id) ?? [],
+        ),
+      );
   }
 
   getTask(slug: string): TaskDTO {
     const row = this.requireTask(slug);
-    return this.toDTO(row, this.tags.tagsForTask(row.id));
+    return this.toDTO(
+      row,
+      this.tags.tagsForTask(row.id),
+      this.consumables.forTask(row.id),
+    );
   }
 
   createTask(body: TaskInput): TaskDTO {
@@ -235,10 +278,17 @@ export class MaintenanceService {
     };
     const row = this.tasks.create(seed, nowIso);
     if (body.tags) this.tags.setTaskTags(row.id, body.tags);
+    if (body.consumables)
+      this.consumables.setForTask(
+        row.id,
+        this.validateConsumables(body.consumables),
+        nowIso,
+      );
     this.emit();
     return this.toDTO(
       this.tasks.getById(row.id)!,
       this.tags.tagsForTask(row.id),
+      this.consumables.forTask(row.id),
     );
   }
 
@@ -316,10 +366,17 @@ export class MaintenanceService {
 
     this.tasks.update(row.id, merged, this.now().toISOString());
     if (body.tags !== undefined) this.tags.setTaskTags(row.id, body.tags ?? []);
+    if (body.consumables !== undefined)
+      this.consumables.setForTask(
+        row.id,
+        this.validateConsumables(body.consumables ?? []),
+        this.now().toISOString(),
+      );
     this.emit({ clearedSlug });
     return this.toDTO(
       this.tasks.getById(row.id)!,
       this.tags.tagsForTask(row.id),
+      this.consumables.forTask(row.id),
     );
   }
 
@@ -352,7 +409,12 @@ export class MaintenanceService {
     return { data: data.map((r) => this.redactLog(r)), total, page, pageSize };
   }
 
-  addLog(slug: string, body: LogInput, loggedBy: string | null): LogRow {
+  async addLog(
+    slug: string,
+    body: LogInput,
+    loggedBy: string | null,
+    forwardHeaders: Record<string, string> = {},
+  ): Promise<LogResult> {
     const task = this.requireTask(slug);
     const date = this.validateDate(body.maintenance_date, 'maintenance_date');
     const nowIso = this.now().toISOString();
@@ -378,7 +440,82 @@ export class MaintenanceService {
       throw err;
     }
     this.emit();
-    return this.redactLog(entry);
+
+    // Stock consumption is a best-effort side effect, deliberately outside
+    // the transaction above: the log entry is the source of truth for "was
+    // this task completed", and must never be rolled back because
+    // stowage-mgmt was unreachable or an item was misconfigured
+    // (docs/inventory-interaction.md).
+    const warnings = await this.consumeStock(
+      task.id,
+      task.name,
+      date,
+      body,
+      forwardHeaders,
+    );
+
+    return {
+      ...this.redactLog(entry),
+      ...(warnings.length ? { consumable_warnings: warnings } : {}),
+    };
+  }
+
+  /**
+   * Decrements stowage-mgmt stock for every consumable linked to a task, on
+   * an opt-in-by-default basis (consume_stock: false skips it entirely).
+   * Returns human-readable warnings for failures worth surfacing — a missing
+   * stowage-mgmt integration or no linked consumables both produce an empty
+   * list, not a warning, per the resolved discovery/failure-handling
+   * decision (docs/inventory-interaction.md).
+   *
+   * For an item split across locations, the caller (the person completing
+   * the task, via the frontend) must supply a `consumable_allocations` entry
+   * saying which placement(s) it came from — this method never guesses. An
+   * item without a matching allocation is treated as non-split; if it turns
+   * out to actually be split, that surfaces as a normal warning rather than
+   * silently picking a location.
+   */
+  private async consumeStock(
+    taskId: number,
+    taskName: string,
+    isoDate: string,
+    body: LogInput,
+    forwardHeaders: Record<string, string>,
+  ): Promise<string[]> {
+    if (body.consume_stock === false) return [];
+    if (!this.deps.stowageClient) return [];
+    const items = this.consumables.forTask(taskId);
+    if (!items.length) return [];
+
+    const allocationsByItem = new Map(
+      (body.consumable_allocations ?? []).map((a) => [a.item_id, a.placements]),
+    );
+    const note = `Used for maintenance task: ${taskName} (${isoDate.slice(0, 10)})`;
+    const warnings: string[] = [];
+    for (const item of items) {
+      try {
+        const allocation = allocationsByItem.get(item.item_id);
+        if (allocation && allocation.length) {
+          await this.deps.stowageClient.consumeFromPlacements(
+            item.item_id,
+            allocation,
+            note,
+            forwardHeaders,
+          );
+        } else {
+          await this.deps.stowageClient.consumeForTask(
+            item.item_id,
+            item.qty_per_service,
+            note,
+            forwardHeaders,
+          );
+        }
+      } catch (err) {
+        if (err instanceof StowageUnavailableError) continue; // not a real problem — see class doc
+        warnings.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+    return warnings;
   }
 
   updateLog(id: number, body: LogInput): LogRow {
@@ -479,6 +616,29 @@ export class MaintenanceService {
     const row = this.tasks.getBySlug(slug);
     if (!row) throw new ApiError(404, 'not_found', `Task "${slug}" not found`);
     return row;
+  }
+
+  private validateConsumables(
+    items: TaskDTO['consumables'],
+  ): { item_id: string; item_name: string; qty_per_service: number }[] {
+    return items.map((item) => {
+      const item_id = (item.item_id ?? '').trim();
+      const item_name = (item.item_name ?? '').trim();
+      if (!item_id || !item_name)
+        throw new ApiError(
+          400,
+          'invalid_consumable',
+          'Each consumable requires item_id and item_name',
+        );
+      const qty = item.qty_per_service;
+      if (typeof qty !== 'number' || !(qty > 0))
+        throw new ApiError(
+          400,
+          'invalid_consumable',
+          'qty_per_service must be a positive number',
+        );
+      return { item_id, item_name, qty_per_service: qty };
+    });
   }
 
   private validateIntervals(

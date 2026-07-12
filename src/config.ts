@@ -20,6 +20,11 @@ export interface PluginOptions {
   runtimeNotifyLeadHours: number;
   timeNotifyLeadDays: number;
   recomputeIntervalMs: number;
+  /** Base URL for signalk-stowage-mgmt's API, e.g.
+   * http://localhost:3000/plugins/signalk-stowage-mgmt/api. Empty string
+   * disables the inventory integration entirely (default) — this is an
+   * explicit opt-in, not autodetected (docs/inventory-interaction.md). */
+  stowageMgmtUrl: string;
 }
 
 export const DEFAULT_OPTIONS: PluginOptions = {
@@ -31,6 +36,7 @@ export const DEFAULT_OPTIONS: PluginOptions = {
   runtimeNotifyLeadHours: 10,
   timeNotifyLeadDays: 7,
   recomputeIntervalMs: 60000,
+  stowageMgmtUrl: '',
 };
 
 export function withDefaults(options?: Partial<PluginOptions>): PluginOptions {
@@ -91,6 +97,13 @@ export const schema = {
       description:
         'How often to re-evaluate task status and refresh notifications',
       default: DEFAULT_OPTIONS.recomputeIntervalMs,
+    },
+    stowageMgmtUrl: {
+      type: 'string',
+      title: 'signalk-stowage-mgmt API URL',
+      description:
+        "Base URL for signalk-stowage-mgmt's API (e.g. http://localhost:3000/plugins/signalk-stowage-mgmt/api). Leave blank to disable linking tasks to inventory items.",
+      default: DEFAULT_OPTIONS.stowageMgmtUrl,
     },
   },
 };

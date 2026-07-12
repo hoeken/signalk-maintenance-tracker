@@ -9,6 +9,7 @@ import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
 import { MarkdownView } from './MarkdownView.js';
 import { TagInput } from './TagInput.js';
+import { ConsumablesPicker } from './ConsumablesPicker.js';
 import { PathPicker } from './PathPicker.js';
 import { createTask, updateTask, useTags } from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
@@ -35,6 +36,9 @@ export function TaskFormModal(props) {
   );
   const [preview, setPreview] = useState(false);
   const [tags, setTags] = useState(task ? task.tags.slice() : []);
+  const [consumables, setConsumables] = useState(
+    task && task.consumables ? task.consumables.slice() : [],
+  );
   const [runtimeInterval, setRuntimeInterval] = useState(
     task && task.runtime_interval !== null ? String(task.runtime_interval) : '',
   );
@@ -74,11 +78,18 @@ export function TaskFormModal(props) {
       name: name.trim(),
       description: description.trim() ? description : null,
       tags: tags,
+      consumables: consumables,
       runtime_path: runtimePath.trim() ? runtimePath.trim() : null,
       runtime_interval: null,
       time_interval: null,
       time_interval_unit: null,
     };
+    if (
+      consumables.some((c) => !c.qty_per_service || !(c.qty_per_service > 0))
+    ) {
+      setError('Each linked part needs a quantity greater than 0.');
+      return;
+    }
     if (runtimeInterval.trim() !== '') {
       const hours = Number(runtimeInterval);
       if (!isFinite(hours) || hours <= 0) {
@@ -220,6 +231,15 @@ export function TaskFormModal(props) {
             onChange=${setTags}
             suggestions=${suggestions}
           />
+        </div>
+
+        <div class="field">
+          <label class="field-label">Parts used (signalk-stowage-mgmt)</label>
+          <${ConsumablesPicker} value=${consumables} onChange=${setConsumables} />
+          <div class="field-hint">
+            Decrements stock in signalk-stowage-mgmt when this task is marked
+            complete.
+          </div>
         </div>
 
         <div class="field-row">

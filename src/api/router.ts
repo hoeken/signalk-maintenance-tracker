@@ -12,6 +12,18 @@ export interface Services {
 
 type Handler = (req: Request, res: Response) => void;
 
+/** Cookie/authorization headers from the incoming request, forwarded
+ * verbatim when we call out to signalk-stowage-mgmt on the caller's behalf
+ * (docs/inventory-interaction.md — no separate service credentials). */
+function forwardableHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const cookie = req.headers.cookie;
+  const auth = req.headers.authorization;
+  if (typeof cookie === 'string') headers.cookie = cookie;
+  if (typeof auth === 'string') headers.authorization = auth;
+  return headers;
+}
+
 /**
  * Mounts the plugin REST API (§8) on the router SignalK provides via
  * registerWithRouter. The router is mounted at /plugins/{pluginId}, so routes
@@ -27,7 +39,9 @@ export function mountApi(
   router.use(jsonBody);
 
   const withServices =
-    (fn: (s: Services, req: Request, res: Response) => void): Handler =>
+    (
+      fn: (s: Services, req: Request, res: Response) => void | Promise<void>,
+    ): Handler =>
     (req, res) => {
       const services = getServices();
       if (!services) {
@@ -36,9 +50,7 @@ export function mountApi(
         });
         return;
       }
-      try {
-        fn(services, req, res);
-      } catch (err) {
+      const handleError = (err: unknown) => {
         if (err instanceof ApiError) {
           res
             .status(err.status)
@@ -51,6 +63,14 @@ export function mountApi(
             },
           });
         }
+      };
+      try {
+        const result = fn(services, req, res);
+        if (result && typeof result.then === 'function') {
+          result.catch(handleError);
+        }
+      } catch (err) {
+        handleError(err);
       }
     };
 
@@ -103,12 +123,13 @@ export function mountApi(
 
   router.post(
     '/api/tasks/:slug/logs',
-    withServices((s, req, res) => {
+    withServices(async (s, req, res) => {
       // logged_by comes from the SignalK principal, never the body (§9.1)
-      const entry = s.service.addLog(
+      const entry = await s.service.addLog(
         req.params.slug,
         req.body ?? {},
         getRequestUser(req),
+        forwardableHeaders(req),
       );
       res.status(201).json(entry);
     }),

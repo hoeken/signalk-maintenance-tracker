@@ -57,4 +57,29 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 2,
+    up(db) {
+      db.exec(`
+        -- Links a task to stowage-mgmt items it consumes on completion.
+        -- item_id is a *soft* foreign key into another plugin's database
+        -- (signalk-stowage-mgmt) — there is no cross-database FK constraint,
+        -- so item_name is cached at link time to keep the UI meaningful even
+        -- if stowage-mgmt is unreachable or the item has since been deleted
+        -- there (docs/inventory-interaction.md). item_id is TEXT to match
+        -- stowage-mgmt's own item ids (it primary-keys items as TEXT, not
+        -- an autoincrement integer).
+        CREATE TABLE task_consumables (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          item_id TEXT NOT NULL,
+          item_name TEXT NOT NULL,
+          qty_per_service REAL NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          UNIQUE (task_id, item_id)
+        );
+        CREATE INDEX idx_task_consumables_task ON task_consumables (task_id);
+      `);
+    },
+  },
 ];

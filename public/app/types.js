@@ -8,6 +8,13 @@
 /** @typedef {'overdue'|'due_soon'|'ok'|'unknown'} Status */
 
 /**
+ * @typedef {Object} TaskConsumableDTO
+ * @property {string} item_id
+ * @property {string} item_name
+ * @property {number} qty_per_service
+ */
+
+/**
  * @typedef {Object} TaskDTO
  * @property {number} id
  * @property {string} slug
@@ -35,6 +42,7 @@
  * @property {number} urgency
  * @property {string} created_at
  * @property {string} updated_at
+ * @property {TaskConsumableDTO[]} consumables
  */
 
 /**
@@ -48,6 +56,7 @@
  * @property {string} created_at
  * @property {string} task_slug
  * @property {string} task_name
+ * @property {string[]} [consumable_warnings]
  */
 
 /**
@@ -78,6 +87,7 @@
  * @property {string[]} [tags]
  * @property {string|null} [last_maintenance]
  * @property {number|null} [last_runtime]
+ * @property {TaskConsumableDTO[]} [consumables]
  */
 
 /**
@@ -85,6 +95,8 @@
  * @property {string} [maintenance_date]
  * @property {number|null} [runtime_hours]
  * @property {string|null} [notes]
+ * @property {boolean} [consume_stock]
+ * @property {{ item_id: string, placements: { placement_id: string, quantity: number }[] }[]} [consumable_allocations]
  */
 
 export {};

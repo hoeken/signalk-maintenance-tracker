@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { openDatabase, schemaVersion } from './db/database';
 import { ApiError, MaintenanceService } from './service';
+import { StowageClient, StowageUnavailableError } from './stowage/client';
 
 const NOW = new Date('2026-07-09T12:00:00Z');
 
-function makeService(runtimeValues: Record<string, number> = {}) {
+function makeService(
+  runtimeValues: Record<string, number> = {},
+  stowageClient?: StowageClient,
+) {
   const db = openDatabase(':memory:');
   const events: unknown[] = [];
   const service = new MaintenanceService(db, {
@@ -12,6 +16,7 @@ function makeService(runtimeValues: Record<string, number> = {}) {
     config: { runtimeNotifyLeadHours: 10, timeNotifyLeadDays: 7 },
     onMutation: (e) => events.push(e),
     now: () => NOW,
+    stowageClient,
   });
   return { db, service, events };
 }
@@ -19,7 +24,7 @@ function makeService(runtimeValues: Record<string, number> = {}) {
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(1);
+    expect(schemaVersion(db)).toBe(2);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -31,6 +36,7 @@ describe('migrations', () => {
       'task_tags',
       'log_entries',
       'runtime_cache',
+      'task_consumables',
       'meta',
     ]) {
       expect(tables).toContain(t);
@@ -141,10 +147,10 @@ describe('task CRUD', () => {
     );
   });
 
-  it('deletes a task, cascading logs and reporting slug for notification clear', () => {
+  it('deletes a task, cascading logs and reporting slug for notification clear', async () => {
     const { service, events } = makeService();
     service.createTask({ name: 'Doomed' });
-    service.addLog(
+    await service.addLog(
       'doomed',
       { maintenance_date: '2026-07-01T00:00:00Z' },
       'admin',
@@ -180,15 +186,111 @@ describe('tags', () => {
   });
 });
 
+describe('task consumables (docs/inventory-interaction.md)', () => {
+  it('createTask links consumables and returns them in the DTO', () => {
+    const { service } = makeService();
+    const task = service.createTask({
+      name: 'Oil change',
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+    expect(task.consumables).toEqual([
+      { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+    ]);
+    expect(service.getTask('oil-change').consumables).toEqual(task.consumables);
+  });
+
+  it('defaults to no consumables when omitted on create', () => {
+    const { service } = makeService();
+    const task = service.createTask({ name: 'Bilge check' });
+    expect(task.consumables).toEqual([]);
+  });
+
+  it('updateTask replaces consumables wholesale, and omitting the field leaves them untouched', () => {
+    const { service } = makeService();
+    service.createTask({
+      name: 'Oil change',
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+
+    // omitted -> untouched
+    service.updateTask('oil-change', { description: 'note' });
+    expect(service.getTask('oil-change').consumables).toHaveLength(1);
+
+    // replaced wholesale
+    const updated = service.updateTask('oil-change', {
+      consumables: [
+        { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+      ],
+    });
+    expect(updated.consumables).toEqual([
+      { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+    ]);
+
+    // explicit [] clears them
+    const cleared = service.updateTask('oil-change', { consumables: [] });
+    expect(cleared.consumables).toEqual([]);
+  });
+
+  it('rejects a consumable missing item_id or item_name', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({
+        name: 'Oil',
+        consumables: [
+          { item_id: '', item_name: 'Oil filter', qty_per_service: 1 },
+        ],
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'invalid_consumable' }));
+  });
+
+  it('rejects a non-positive qty_per_service', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({
+        name: 'Oil',
+        consumables: [
+          { item_id: 'item-1', item_name: 'Oil filter', qty_per_service: 0 },
+        ],
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'invalid_consumable' }));
+  });
+
+  it('listTasks and listAllComputed include consumables via the batched query', () => {
+    const { service } = makeService();
+    service.createTask({
+      name: 'Oil change',
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+    service.createTask({ name: 'Bilge check' });
+
+    const list = service.listTasks({}).data;
+    expect(list.find((t) => t.slug === 'oil-change')?.consumables).toHaveLength(
+      1,
+    );
+    expect(list.find((t) => t.slug === 'bilge-check')?.consumables).toEqual([]);
+
+    const all = service.listAllComputed();
+    expect(all.find((t) => t.slug === 'oil-change')?.consumables).toHaveLength(
+      1,
+    );
+  });
+});
+
 describe('denormalization invariant (§5.6)', () => {
-  it('updates last_* from the newest log entry', () => {
+  it('updates last_* from the newest log entry', async () => {
     const { service } = makeService();
     service.createTask({
       name: 'Oil',
       last_maintenance: '2026-01-01T00:00:00Z',
       last_runtime: 100,
     });
-    service.addLog(
+    await service.addLog(
       'oil',
       { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 150 },
       null,
@@ -198,7 +300,7 @@ describe('denormalization invariant (§5.6)', () => {
     expect(t.last_runtime).toBe(150);
 
     // an older entry must NOT displace the newer one
-    service.addLog(
+    await service.addLog(
       'oil',
       { maintenance_date: '2026-02-01T00:00:00Z', runtime_hours: 120 },
       null,
@@ -207,14 +309,14 @@ describe('denormalization invariant (§5.6)', () => {
     expect(t.last_maintenance).toBe('2026-03-01T00:00:00.000Z');
   });
 
-  it('recomputes on log edit and delete, falling back to seed values', () => {
+  it('recomputes on log edit and delete, falling back to seed values', async () => {
     const { service } = makeService();
     service.createTask({
       name: 'Oil',
       last_maintenance: '2026-01-01T00:00:00Z',
       last_runtime: 100,
     });
-    const entry = service.addLog(
+    const entry = await service.addLog(
       'oil',
       { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 150 },
       null,
@@ -231,7 +333,7 @@ describe('denormalization invariant (§5.6)', () => {
     expect(t.last_runtime).toBe(100);
   });
 
-  it('seed last_* is only editable while the task has no logs (§8.1)', () => {
+  it('seed last_* is only editable while the task has no logs (§8.1)', async () => {
     const { service } = makeService();
     service.createTask({ name: 'Oil' });
     service.updateTask('oil', {
@@ -240,7 +342,7 @@ describe('denormalization invariant (§5.6)', () => {
     });
     expect(service.getTask('oil').last_runtime).toBe(42);
 
-    service.addLog(
+    await service.addLog(
       'oil',
       { maintenance_date: '2026-03-01T00:00:00Z', runtime_hours: 99 },
       null,
@@ -249,10 +351,10 @@ describe('denormalization invariant (§5.6)', () => {
     expect(service.getTask('oil').last_runtime).toBe(99);
   });
 
-  it('informational tasks (no intervals) can be completed and still track last_*', () => {
+  it('informational tasks (no intervals) can be completed and still track last_*', async () => {
     const { service } = makeService({ 'propulsion.port.runTime': 1500 });
     service.createTask({ name: 'Check bilge pump' }); // no intervals at all
-    const entry = service.addLog(
+    const entry = await service.addLog(
       'check-bilge-pump',
       { maintenance_date: '2026-07-01T00:00:00Z', runtime_hours: 1234.5 },
       'zach',
@@ -266,28 +368,28 @@ describe('denormalization invariant (§5.6)', () => {
     expect(t.due_date).toBeNull();
   });
 
-  it('stamps logged_by from the caller, and validates maintenance_date', () => {
+  it('stamps logged_by from the caller, and validates maintenance_date', async () => {
     const { service } = makeService();
     service.createTask({ name: 'Oil' });
-    const entry = service.addLog(
+    const entry = await service.addLog(
       'oil',
       { maintenance_date: '2026-03-01T00:00:00Z' },
       'zach',
     );
     expect(entry.logged_by).toBe('zach');
-    expect(() =>
+    await expect(
       service.addLog('oil', { maintenance_date: 'not-a-date' }, null),
-    ).toThrowError(
+    ).rejects.toThrowError(
       expect.objectContaining({ status: 400, code: 'invalid_date' }),
     );
-    expect(() => service.addLog('oil', {}, null)).toThrow(ApiError);
+    await expect(service.addLog('oil', {}, null)).rejects.toThrow(ApiError);
   });
 
-  it('shortens device-token principals so the full UUID never leaves the API', () => {
+  it('shortens device-token principals so the full UUID never leaves the API', async () => {
     const { service } = makeService();
     service.createTask({ name: 'Oil' });
     const token = '158dccd5-f82c-42a3-9909-42ac7d3c8e88';
-    const entry = service.addLog(
+    const entry = await service.addLog(
       'oil',
       { maintenance_date: '2026-03-01T00:00:00Z' },
       token,
@@ -354,10 +456,10 @@ describe('task list query (§8.1)', () => {
     ).toEqual(['Ok watermaker']);
   });
 
-  it('searches log notes too (§6.3)', () => {
+  it('searches log notes too (§6.3)', async () => {
     const { service } = makeService();
     seed(service);
-    service.addLog(
+    await service.addLog(
       'unknown-paperwork',
       {
         maintenance_date: '2026-07-01T00:00:00Z',
@@ -414,21 +516,21 @@ describe('task list query (§8.1)', () => {
 });
 
 describe('master log (§8.2)', () => {
-  it('lists, searches, sorts, and paginates across tasks', () => {
+  it('lists, searches, sorts, and paginates across tasks', async () => {
     const { service } = makeService();
     service.createTask({ name: 'Alpha' });
     service.createTask({ name: 'Bravo' });
-    service.addLog(
+    await service.addLog(
       'alpha',
       { maintenance_date: '2026-01-01T00:00:00Z', notes: 'first' },
       'u1',
     );
-    service.addLog(
+    await service.addLog(
       'bravo',
       { maintenance_date: '2026-02-01T00:00:00Z', notes: 'second' },
       'u2',
     );
-    service.addLog(
+    await service.addLog(
       'alpha',
       { maintenance_date: '2026-03-01T00:00:00Z', notes: 'third' },
       'u1',
@@ -452,5 +554,294 @@ describe('master log (§8.2)', () => {
 
     const paged = service.listMasterLog({ page: 2, pageSize: 2 });
     expect(paged.data).toHaveLength(1);
+  });
+});
+
+describe('stock consumption on completion (docs/inventory-interaction.md)', () => {
+  function stubClient(
+    consumeForTask: StowageClient['consumeForTask'],
+    consumeFromPlacements?: StowageClient['consumeFromPlacements'],
+  ): StowageClient {
+    return {
+      consumeForTask,
+      consumeFromPlacements: consumeFromPlacements ?? vi.fn(),
+    } as unknown as StowageClient;
+  }
+
+  it('does nothing when no stowageClient is configured', async () => {
+    const { service } = makeService(); // no stowageClient
+    service.createTask({ name: 'Oil' });
+    service.consumables.setForTask(
+      service.getTask('oil').id,
+      [{ item_id: 'item-1', item_name: 'Filter', qty_per_service: 1 }],
+      NOW.toISOString(),
+    );
+    const entry = await service.addLog(
+      'oil',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      null,
+    );
+    expect(entry.consumable_warnings).toBeUndefined();
+  });
+
+  it('does nothing when the task has no linked consumables', async () => {
+    const consumeForTask = vi.fn();
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil' });
+    const entry = await service.addLog(
+      'oil',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      null,
+    );
+    expect(consumeForTask).not.toHaveBeenCalled();
+    expect(entry.consumable_warnings).toBeUndefined();
+  });
+
+  it('calls consumeForTask for each linked item with a descriptive note', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil change' });
+    const taskId = service.getTask('oil-change').id;
+    service.consumables.setForTask(
+      taskId,
+      [
+        { item_id: 'item-filter', item_name: 'Filter', qty_per_service: 1 },
+        { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+      ],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'oil-change',
+      { maintenance_date: '2026-07-11T00:00:00Z' },
+      null,
+    );
+
+    expect(consumeForTask).toHaveBeenCalledTimes(2);
+    expect(consumeForTask).toHaveBeenCalledWith(
+      'item-filter',
+      1,
+      'Used for maintenance task: Oil change (2026-07-11)',
+      {},
+    );
+    expect(consumeForTask).toHaveBeenCalledWith(
+      'item-oil',
+      5,
+      'Used for maintenance task: Oil change (2026-07-11)',
+      {},
+    );
+  });
+
+  it('forwards the caller-supplied auth headers', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil' });
+    service.consumables.setForTask(
+      service.getTask('oil').id,
+      [{ item_id: 'item-1', item_name: 'Filter', qty_per_service: 1 }],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'oil',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      null,
+      { cookie: 'JSESSIONID=abc' },
+    );
+
+    expect(consumeForTask).toHaveBeenCalledWith(
+      'item-1',
+      1,
+      expect.any(String),
+      { cookie: 'JSESSIONID=abc' },
+    );
+  });
+
+  it('skips consumption when consume_stock is explicitly false', async () => {
+    const consumeForTask = vi.fn();
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil' });
+    service.consumables.setForTask(
+      service.getTask('oil').id,
+      [{ item_id: 'item-1', item_name: 'Filter', qty_per_service: 1 }],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'oil',
+      { maintenance_date: '2026-07-01T00:00:00Z', consume_stock: false },
+      null,
+    );
+
+    expect(consumeForTask).not.toHaveBeenCalled();
+  });
+
+  it('the log entry still succeeds when stowage-mgmt is unreachable, with no warning', async () => {
+    const consumeForTask = vi
+      .fn()
+      .mockRejectedValue(new StowageUnavailableError('connection refused'));
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil' });
+    service.consumables.setForTask(
+      service.getTask('oil').id,
+      [{ item_id: 'item-1', item_name: 'Filter', qty_per_service: 1 }],
+      NOW.toISOString(),
+    );
+
+    const entry = await service.addLog(
+      'oil',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      null,
+    );
+
+    expect(entry.id).toBeDefined(); // the log itself was not rolled back
+    expect(entry.consumable_warnings).toBeUndefined();
+  });
+
+  it('the log entry still succeeds when a real stowage-mgmt error occurs, with a warning', async () => {
+    const consumeForTask = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('item is split across locations'))
+      .mockResolvedValueOnce({});
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil' });
+    service.consumables.setForTask(
+      service.getTask('oil').id,
+      [
+        { item_id: 'item-split', item_name: 'Zincs', qty_per_service: 1 },
+        { item_id: 'item-fine', item_name: 'Filter', qty_per_service: 1 },
+      ],
+      NOW.toISOString(),
+    );
+
+    const entry = await service.addLog(
+      'oil',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      null,
+    );
+
+    expect(entry.id).toBeDefined();
+    expect(entry.consumable_warnings).toEqual([
+      'item is split across locations',
+    ]);
+    expect(consumeForTask).toHaveBeenCalledTimes(2); // one failure doesn't stop the rest
+  });
+
+  it('routes an item with a matching consumable_allocations entry through consumeFromPlacements', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const consumeFromPlacements = vi.fn().mockResolvedValue({});
+    const { service } = makeService(
+      {},
+      stubClient(consumeForTask, consumeFromPlacements),
+    );
+    service.createTask({ name: 'Zinc replacement' });
+    service.consumables.setForTask(
+      service.getTask('zinc-replacement').id,
+      [{ item_id: 'item-split', item_name: 'Zincs', qty_per_service: 3 }],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'zinc-replacement',
+      {
+        maintenance_date: '2026-07-11T00:00:00Z',
+        consumable_allocations: [
+          {
+            item_id: 'item-split',
+            placements: [
+              { placement_id: 'placement-1', quantity: 2 },
+              { placement_id: 'placement-2', quantity: 1 },
+            ],
+          },
+        ],
+      },
+      null,
+    );
+
+    expect(consumeFromPlacements).toHaveBeenCalledWith(
+      'item-split',
+      [
+        { placement_id: 'placement-1', quantity: 2 },
+        { placement_id: 'placement-2', quantity: 1 },
+      ],
+      expect.stringContaining('Zinc replacement'),
+      {},
+    );
+    expect(consumeForTask).not.toHaveBeenCalled();
+  });
+
+  it('falls back to consumeForTask for a linked item with no matching allocation entry', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const consumeFromPlacements = vi.fn().mockResolvedValue({});
+    const { service } = makeService(
+      {},
+      stubClient(consumeForTask, consumeFromPlacements),
+    );
+    service.createTask({ name: 'Oil change' });
+    service.consumables.setForTask(
+      service.getTask('oil-change').id,
+      [{ item_id: 'item-filter', item_name: 'Filter', qty_per_service: 1 }],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'oil-change',
+      {
+        maintenance_date: '2026-07-11T00:00:00Z',
+        consumable_allocations: [
+          {
+            item_id: 'item-other', // doesn't match the linked item
+            placements: [{ placement_id: 'placement-1', quantity: 1 }],
+          },
+        ],
+      },
+      null,
+    );
+
+    expect(consumeForTask).toHaveBeenCalledWith(
+      'item-filter',
+      1,
+      expect.any(String),
+      {},
+    );
+    expect(consumeFromPlacements).not.toHaveBeenCalled();
+  });
+
+  it('a per-placement allocation failure produces a warning without blocking the log', async () => {
+    const consumeForTask = vi.fn();
+    const consumeFromPlacements = vi
+      .fn()
+      .mockRejectedValue(
+        new Error('Not enough "Zincs" at Engine room (have 2, need 3)'),
+      );
+    const { service } = makeService(
+      {},
+      stubClient(consumeForTask, consumeFromPlacements),
+    );
+    service.createTask({ name: 'Zinc replacement' });
+    service.consumables.setForTask(
+      service.getTask('zinc-replacement').id,
+      [{ item_id: 'item-split', item_name: 'Zincs', qty_per_service: 3 }],
+      NOW.toISOString(),
+    );
+
+    const entry = await service.addLog(
+      'zinc-replacement',
+      {
+        maintenance_date: '2026-07-11T00:00:00Z',
+        consumable_allocations: [
+          {
+            item_id: 'item-split',
+            placements: [{ placement_id: 'placement-1', quantity: 3 }],
+          },
+        ],
+      },
+      null,
+    );
+
+    expect(entry.id).toBeDefined();
+    expect(entry.consumable_warnings).toEqual([
+      'Not enough "Zincs" at Engine room (have 2, need 3)',
+    ]);
   });
 });

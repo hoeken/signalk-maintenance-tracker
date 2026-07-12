@@ -7,7 +7,9 @@
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
+import { PlacementAllocator } from './PlacementAllocator.js';
 import { addLog, updateLog } from '../api/hooks.js';
+import { useStowageItems } from '../api/stowage.js';
 import { toDateInput } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 
@@ -40,8 +42,32 @@ export function LogEntryModal(props) {
   const [notes, setNotes] = useState(
     isEdit && entry && entry.notes ? entry.notes : '',
   );
+  const hasConsumables =
+    !isEdit && !!task && !!task.consumables && task.consumables.length > 0;
+  const [consumeStock, setConsumeStock] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Split items (across stowage-mgmt locations) need the person to say which
+  // location(s) stock came from — stowage-mgmt won't pick one automatically
+  // (BoatHacks/signalk-stowage-mgmt#17). Figure out which of this task's
+  // linked consumables are currently split, using the same live item data
+  // the picker/badges use.
+  const itemsRes = useStowageItems();
+  const stowageItems = itemsRes.data || [];
+  /** @type {import('../types.js').TaskConsumableDTO[]} */
+  const consumables = hasConsumables && task ? task.consumables : [];
+  const splitConsumables = consumables
+    .map((c) => ({
+      consumable: c,
+      item: stowageItems.find((i) => i.id === c.item_id),
+    }))
+    .filter((x) => x.item && x.item.placements.length > 0);
+
+  /** @type {[Record<string, { allocations: {placement_id: string, quantity: number}[], complete: boolean }>, any]} */
+  const [allocationState, setAllocationState] = useState(
+    /** @type {Record<string, { allocations: {placement_id: string, quantity: number}[], complete: boolean }>} */ ({}),
+  );
 
   /** @param {Event} e */
   const onSubmit = async (e) => {
@@ -50,6 +76,19 @@ export function LogEntryModal(props) {
     if (!date) {
       setError('Maintenance date is required.');
       return;
+    }
+    if (hasConsumables && consumeStock) {
+      const incomplete = splitConsumables.find(
+        (x) => !allocationState[x.consumable.item_id]?.complete,
+      );
+      if (incomplete) {
+        setError(
+          'Pick a location for all of the ' +
+            incomplete.consumable.item_name +
+            ' used before marking this complete.',
+        );
+        return;
+      }
     }
     /** @type {import('../types.js').LogInput} */
     const input = {
@@ -71,8 +110,24 @@ export function LogEntryModal(props) {
         await updateLog(entry.id, input);
         toast('Log entry updated.', 'success');
       } else if (task) {
-        await addLog(task.slug, input);
+        if (hasConsumables) {
+          input.consume_stock = consumeStock;
+          if (consumeStock && splitConsumables.length) {
+            input.consumable_allocations = splitConsumables.map((x) => ({
+              item_id: x.consumable.item_id,
+              placements: allocationState[x.consumable.item_id].allocations,
+            }));
+          }
+        }
+        const created = await addLog(task.slug, input);
         toast('Marked "' + task.name + '" complete.', 'success');
+        if (created.consumable_warnings && created.consumable_warnings.length) {
+          toast(
+            'Stock not fully updated: ' +
+              created.consumable_warnings.join('; '),
+            'error',
+          );
+        }
       }
       props.onClose();
     } catch (err) {
@@ -144,6 +199,48 @@ export function LogEntryModal(props) {
             onInput=${(/** @type {any} */ e) => setNotes(e.currentTarget.value)}
           />
         </div>
+
+        ${
+          hasConsumables
+            ? html`<div class="field">
+                <label class="field-label" for="log-consume-stock">
+                  <input
+                    id="log-consume-stock"
+                    type="checkbox"
+                    checked=${consumeStock}
+                    onInput=${(/** @type {any} */ e) =>
+                      setConsumeStock(e.currentTarget.checked)}
+                  />
+                  ${' '}Update signalk-stowage-mgmt stock for this task's
+                  linked parts
+                </label>
+              </div>`
+            : null
+        }
+        ${
+          hasConsumables && consumeStock && splitConsumables.length
+            ? splitConsumables.map(
+                (x) => html`<${PlacementAllocator}
+                  key=${x.consumable.item_id}
+                  itemName=${x.consumable.item_name}
+                  required=${x.consumable.qty_per_service}
+                  placements=${/** @type {any} */ (x.item).placements}
+                  onChange=${(
+                    /** @type {{placement_id: string, quantity: number}[]} */ allocations,
+                    /** @type {boolean} */ complete,
+                  ) =>
+                    setAllocationState(
+                      (
+                        /** @type {Record<string, { allocations: {placement_id: string, quantity: number}[], complete: boolean }>} */ prev,
+                      ) => ({
+                        ...prev,
+                        [x.consumable.item_id]: { allocations, complete },
+                      }),
+                    )}
+                />`,
+              )
+            : null
+        }
       </form>
     <//>
   `;

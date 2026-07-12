@@ -61,6 +61,12 @@ export interface ComputedFields {
   urgency: number;
 }
 
+export interface TaskConsumableDTO {
+  item_id: string;
+  item_name: string;
+  qty_per_service: number;
+}
+
 export interface TaskDTO extends ComputedFields {
   id: number;
   slug: string;
@@ -75,6 +81,10 @@ export interface TaskDTO extends ComputedFields {
   last_runtime: number | null;
   created_at: string;
   updated_at: string;
+  /** Items in signalk-stowage-mgmt this task consumes on completion — see
+   * docs/inventory-interaction.md. Empty when the integration isn't
+   * configured (stowageMgmtUrl unset) or none are linked. */
+  consumables: TaskConsumableDTO[];
 }
 
 export interface Page<T> {
@@ -95,10 +105,25 @@ export interface TaskInput {
   tags?: string[];
   last_maintenance?: string | null;
   last_runtime?: number | null;
+  /** Wholesale-replaces the task's linked consumables when present, same
+   * semantics as `tags` (docs/inventory-interaction.md). */
+  consumables?: TaskConsumableDTO[];
 }
 
 export interface LogInput {
   maintenance_date?: string;
   runtime_hours?: number | null;
   notes?: string | null;
+  /** Opt-in per completion, defaults to true when the task has linked
+   * consumables — set false to log the work without touching stowage-mgmt
+   * stock (docs/inventory-interaction.md). */
+  consume_stock?: boolean;
+  /** Person-chosen location allocation for any linked consumable that's
+   * split across locations in stowage-mgmt — omitted/missing for an item
+   * means it's treated as non-split (a plain quantity decrement), which
+   * will itself fail with a warning if the item turns out to be split. */
+  consumable_allocations?: {
+    item_id: string;
+    placements: { placement_id: string; quantity: number }[];
+  }[];
 }

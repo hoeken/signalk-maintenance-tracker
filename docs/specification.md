@@ -634,7 +634,7 @@ assume authorization has already passed and never re-check it (§9).
 | GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/unknown), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
 | POST   | `/tasks`       | Create. Body below. Server generates slug.                                                                                                                                                                                                                                                      |
 | GET    | `/tasks/:slug` | Task detail incl. computed fields, tags, and recent log entries (or a link + `GET /tasks/:slug/logs`).                                                                                                                                                                                          |
-| PUT    | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, seed last_* on tasks with no logs). May also change `slug` (normalized + uniqueness-checked; triggers notification-path migration, §6.4).                                                                             |
+| PUT    | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, consumables, seed last_* on tasks with no logs). May also change `slug` (normalized + uniqueness-checked; triggers notification-path migration, §6.4).                                                                |
 | DELETE | `/tasks/:slug` | Delete task + its log entries (cascade). Clears its notification.                                                                                                                                                                                                                               |
 
 Task request body (create/update). `slug` is optional: omit it on create to
@@ -652,9 +652,19 @@ explicitly. `runtime_interval` / `time_interval` are both optional (§5.1).
   "runtime_path": "propulsion.port.runTime",
   "tags": ["Engines", "Port Engine"],
   "last_maintenance": "2026-01-15T10:00:00Z",
-  "last_runtime": 1240.5
+  "last_runtime": 1240.5,
+  "consumables": [
+    { "item_id": "abc123", "item_name": "Oil filter", "qty_per_service": 1 }
+  ]
 }
 ```
+
+`consumables` links this task to signalk-stowage-mgmt items it consumes on
+completion (see `docs/inventory-interaction.md`) — omit the field to leave
+existing links untouched, or send `[]` to clear them. `item_id`/`item_name`
+are stowage-mgmt's own id and a cached display name (stowage-mgmt has no
+shared database with this plugin); `qty_per_service` must be a positive
+number.
 
 Task response object (list item / detail):
 
@@ -665,6 +675,9 @@ Task response object (list item / detail):
   "name": "Engine oil change",
   "description": "…",
   "tags": ["Engines", "Port Engine"],
+  "consumables": [
+    { "item_id": "abc123", "item_name": "Oil filter", "qty_per_service": 1 }
+  ],
   "runtime_interval": 200,
   "time_interval": 12,
   "time_interval_unit": "months",
@@ -688,13 +701,13 @@ Task response object (list item / detail):
 
 ### 8.2 Log entries
 
-| Method | Path                | Description                                                                                                                                                                                                |
-| ------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/logs`             | Master log, paginated. Query: `search`, `sort` (maintenance_date\|task\|runtime_hours), `order`, `page`, `pageSize`. Each item includes `task_slug` + `task_name`.                                         |
-| GET    | `/tasks/:slug/logs` | Log entries for one task.                                                                                                                                                                                  |
-| POST   | `/tasks/:slug/logs` | **Mark complete** — create a log entry. Recomputes task denormalized fields (§5.6) and refreshes the task's notification. `logged_by` is filled server-side from the request principal (§9), not the body. |
-| PUT    | `/logs/:id`         | Edit a log entry. Recomputes task fields if it was/becomes the latest.                                                                                                                                     |
-| DELETE | `/logs/:id`         | Delete a log entry. Recomputes task fields.                                                                                                                                                                |
+| Method | Path                | Description                                                                                                                                                                                                                                                                                                                                                                                |
+| ------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/logs`             | Master log, paginated. Query: `search`, `sort` (maintenance_date\|task\|runtime_hours), `order`, `page`, `pageSize`. Each item includes `task_slug` + `task_name`.                                                                                                                                                                                                                         |
+| GET    | `/tasks/:slug/logs` | Log entries for one task.                                                                                                                                                                                                                                                                                                                                                                  |
+| POST   | `/tasks/:slug/logs` | **Mark complete** — create a log entry. Recomputes task denormalized fields (§5.6) and refreshes the task's notification. `logged_by` is filled server-side from the request principal (§9), not the body. If the task has linked consumables (§8.1) and stowage-mgmt integration is configured, also decrements their stock — best-effort; see below and `docs/inventory-interaction.md`. |
+| PUT    | `/logs/:id`         | Edit a log entry. Recomputes task fields if it was/becomes the latest.                                                                                                                                                                                                                                                                                                                     |
+| DELETE | `/logs/:id`         | Delete a log entry. Recomputes task fields.                                                                                                                                                                                                                                                                                                                                                |
 
 Log create body (mark complete):
 
@@ -702,9 +715,19 @@ Log create body (mark complete):
 {
   "maintenance_date": "2026-07-08T14:30:00Z",
   "runtime_hours": 1360.0,
-  "notes": "Replaced filter, topped up coolant."
+  "notes": "Replaced filter, topped up coolant.",
+  "consume_stock": true
 }
 ```
+
+`consume_stock` defaults to `true` when the task has linked consumables; set
+`false` to log the work without touching stowage-mgmt stock. The log entry
+is created regardless of whether stock consumption succeeds — it is never
+rolled back for a stowage-mgmt failure. If any linked item's stock update
+fails for a reason worth surfacing (as opposed to stowage-mgmt simply being
+unreachable/not installed, which is treated as normal), the response
+includes a `consumable_warnings: string[]` field alongside the usual log
+fields.
 
 ### 8.3 Tags
 

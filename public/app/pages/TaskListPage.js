@@ -12,6 +12,7 @@ import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { StatusBadge } from '../components/StatusBadge.js';
+import { StockBadge } from '../components/StockBadge.js';
 import { TaskFormModal } from '../components/TaskFormModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
@@ -86,7 +87,8 @@ export function TaskListPage() {
       label: 'Status',
       sortable: true,
       render: (/** @type {TaskDTO} */ t) =>
-        html`<${StatusBadge} status=${t.status} />`,
+        html`<${StatusBadge} status=${t.status} />
+          <${StockBadge} consumables=${t.consumables} />`,
     },
     {
       key: 'name',

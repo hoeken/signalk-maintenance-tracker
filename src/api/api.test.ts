@@ -1,8 +1,9 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { openDatabase } from '../db/database';
 import { MaintenanceService } from '../service';
+import { StowageClient } from '../stowage/client';
 import { mountApi, Services } from './router';
 
 /**
@@ -38,6 +39,40 @@ function makeApp(runtimeValues: Record<string, number> = {}) {
   return service;
 }
 
+/** Separate app instance with a stowageClient configured, for the
+ * stock-consumption integration test (docs/inventory-interaction.md). */
+function makeAppWithStowage(stowageClient: StowageClient) {
+  const db = openDatabase(':memory:');
+  const service = new MaintenanceService(db, {
+    getRuntime: () => null,
+    config: { runtimeNotifyLeadHours: 10, timeNotifyLeadDays: 7 },
+    stowageClient,
+  });
+  const runtimeStub = {
+    subscribedPaths: [],
+    lastUpdateAt: null,
+  } as unknown as Services['runtime'];
+  const services: Services = {
+    service,
+    runtime: runtimeStub,
+    version: '0.1.0-test',
+  };
+
+  const stowageAppInstance = express();
+  const router = express.Router();
+  router.use((req, _res, next) => {
+    (req as any).skPrincipal = { identifier: 'admin' };
+    next();
+  });
+  mountApi(router, () => services);
+  stowageAppInstance.use('/plugins/signalk-maintenance-tracker', router);
+  return {
+    app: stowageAppInstance,
+    base: '/plugins/signalk-maintenance-tracker/api',
+    service,
+  };
+}
+
 const base = '/plugins/signalk-maintenance-tracker/api';
 
 beforeEach(() => {
@@ -63,6 +98,51 @@ describe('tasks endpoints', () => {
     expect(list.status).toBe(200);
     expect(list.body).toMatchObject({ total: 1, page: 1 });
     expect(list.body.data[0].tags).toEqual(['Engines']);
+  });
+
+  it('round-trips linked consumables through POST/GET/PUT /tasks', async () => {
+    const create = await request(app)
+      .post(`${base}/tasks`)
+      .send({
+        name: 'Oil change',
+        consumables: [
+          {
+            item_id: 'item-filter',
+            item_name: 'Oil filter',
+            qty_per_service: 1,
+          },
+        ],
+      });
+    expect(create.status).toBe(201);
+    expect(create.body.consumables).toEqual([
+      { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+    ]);
+
+    const detail = await request(app).get(`${base}/tasks/oil-change`);
+    expect(detail.body.consumables).toEqual(create.body.consumables);
+
+    const updated = await request(app)
+      .put(`${base}/tasks/oil-change`)
+      .send({
+        consumables: [
+          { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+        ],
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.consumables).toEqual([
+      { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 5 },
+    ]);
+  });
+
+  it('rejects an invalid consumable with a 400', async () => {
+    const res = await request(app)
+      .post(`${base}/tasks`)
+      .send({
+        name: 'Oil change',
+        consumables: [{ item_id: '', item_name: '', qty_per_service: 1 }],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('invalid_consumable');
   });
 
   it('GET /tasks supports search/status/sort/pagination params', async () => {
@@ -148,6 +228,38 @@ describe('log endpoints', () => {
     const task = await request(app).get(`${base}/tasks/oil`);
     expect(task.body.last_maintenance).toBe('2026-07-08T14:30:00.000Z');
     expect(task.body.last_runtime).toBe(1360);
+  });
+
+  it('forwards the request cookie to stowage-mgmt when consuming linked stock', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const stowageApp = makeAppWithStowage({
+      consumeForTask,
+    } as unknown as StowageClient);
+
+    await request(stowageApp.app)
+      .post(`${stowageApp.base}/tasks`)
+      .send({ name: 'Winch service' });
+    const task = await request(stowageApp.app).get(
+      `${stowageApp.base}/tasks/winch-service`,
+    );
+    stowageApp.service.consumables.setForTask(
+      task.body.id,
+      [{ item_id: 'item-grease', item_name: 'Grease', qty_per_service: 2 }],
+      new Date().toISOString(),
+    );
+
+    const res = await request(stowageApp.app)
+      .post(`${stowageApp.base}/tasks/winch-service/logs`)
+      .set('Cookie', 'JSESSIONID=abc123')
+      .send({ maintenance_date: '2026-07-11T00:00:00Z' });
+
+    expect(res.status).toBe(201);
+    expect(consumeForTask).toHaveBeenCalledWith(
+      'item-grease',
+      2,
+      expect.stringContaining('Winch service'),
+      expect.objectContaining({ cookie: 'JSESSIONID=abc123' }),
+    );
   });
 
   it('GET /logs master log with task fields; PUT/DELETE /logs/:id', async () => {

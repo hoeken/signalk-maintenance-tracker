@@ -17,6 +17,7 @@ import { navigate } from '../lib/router.js';
 import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { StatusBadge } from '../components/StatusBadge.js';
+import { StockBadge } from '../components/StockBadge.js';
 import { ProgressBar } from '../components/ProgressBar.js';
 import { MarkdownView } from '../components/MarkdownView.js';
 import { TaskFormModal } from '../components/TaskFormModal.js';
@@ -112,6 +113,7 @@ export function TaskDetailPage(props) {
       <div class="page-header">
         <h1 class="page-title">
           ${task.name} <${StatusBadge} status=${task.status} />
+          <${StockBadge} consumables=${task.consumables} />
         </h1>
         ${
           auth.isLoggedIn
@@ -156,6 +158,27 @@ export function TaskDetailPage(props) {
             task.tags.length
               ? html`<div class="chips" style="margin-top:12px">
                   ${task.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}
+                </div>`
+              : null
+          }
+          ${
+            (task.consumables || []).length
+              ? html`<div style="margin-top:12px">
+                  <div class="field-label" style="margin-bottom:4px">
+                    Parts used
+                  </div>
+                  <ul class="consumables-list">
+                    ${task.consumables.map(
+                      (c) => html`<li key=${c.item_id} class="consumables-row">
+                        <span class="consumables-name"
+                          >${c.item_name}
+                          <span class="muted"
+                            >× ${c.qty_per_service}</span
+                          ></span
+                        >
+                      </li>`,
+                    )}
+                  </ul>
                 </div>`
               : null
           }
