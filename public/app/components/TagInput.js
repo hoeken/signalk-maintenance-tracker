@@ -41,6 +41,9 @@ export function TagInput(props) {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       add(text);
+    } else if (e.key === 'Tab' && text.trim()) {
+      // Commit on tab-out: first matching suggestion, or a new tag if none.
+      add(matches.length ? matches[0] : text);
     } else if (e.key === 'Backspace' && !text && selected.length) {
       remove(selected[selected.length - 1]);
     }
