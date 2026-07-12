@@ -426,6 +426,28 @@ pre {
   margin-left: 6px;
 }
 
+/* ---- consumables picker (parts used, docs/inventory-interaction.md) ---- */
+
+.consumables-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.consumables-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.consumables-name {
+  flex: 1;
+  font-size: 13.5px;
+}
+.consumables-qty {
+  width: 80px;
+  flex: none;
+}
+
 .tag {
   display: inline-block;
   padding: 1px 8px;
@@ -556,6 +578,16 @@ pre {
 .badge.unknown {
   background: var(--unknown-bg);
   color: var(--unknown);
+}
+
+/* stock status badge (parts linked via signalk-stowage-mgmt) */
+.badge.out {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.badge.low {
+  background: var(--warn-bg);
+  color: var(--warn);
 }
 
 /* remaining time/runtime cells, colored by per-interval status */

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/preact';
 import { html } from '../../public/app/lib/html.js';
 import { LogEntryModal } from '../../public/app/components/LogEntryModal.js';
+import { toasts } from '../../public/app/lib/toasts.js';
 import { mockFetch, makeTask } from './helpers.js';
 
 describe('LogEntryModal — mark complete (§7.5)', () => {
@@ -89,5 +90,91 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'PUT');
     expect(JSON.parse(call[1].body).notes).toBe('corrected');
+  });
+
+  it('does not show the stock checkbox for a task with no linked consumables', () => {
+    mockFetch([]);
+    render(html`<${LogEntryModal} task=${makeTask()} onClose=${() => {}} />`);
+    expect(screen.queryByText(/Update signalk-stowage-mgmt stock/)).toBeNull();
+  });
+
+  it('shows the stock checkbox (checked by default) for a task with linked consumables, and sends consume_stock', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change' },
+      },
+    ]);
+    const task = makeTask({
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${task} onClose=${onClose} />`);
+    const checkbox = /** @type {HTMLInputElement} */ (
+      screen.getByLabelText(/Update signalk-stowage-mgmt stock/)
+    );
+    expect(checkbox.checked).toBe(true);
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    expect(JSON.parse(call[1].body).consume_stock).toBe(true);
+  });
+
+  it('unchecking the box sends consume_stock: false', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change' },
+      },
+    ]);
+    const task = makeTask({
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${task} onClose=${onClose} />`);
+    fireEvent.click(screen.getByLabelText(/Update signalk-stowage-mgmt stock/));
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    expect(JSON.parse(call[1].body).consume_stock).toBe(false);
+  });
+
+  it('toasts consumable_warnings from the response without blocking completion', async () => {
+    mockFetch([
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: {
+          id: 9,
+          task_slug: 'engine-oil-change',
+          consumable_warnings: [
+            'stowage-mgmt item "Zincs" is split across locations',
+          ],
+        },
+      },
+    ]);
+    const task = makeTask({
+      consumables: [
+        { item_id: 'item-zinc', item_name: 'Zincs', qty_per_service: 1 },
+      ],
+    });
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${task} onClose=${onClose} />`);
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(
+      toasts.value.some(
+        (t) => t.kind === 'error' && t.message.indexOf('Zincs') !== -1,
+      ),
+    ).toBe(true);
   });
 });

@@ -40,6 +40,9 @@ export function LogEntryModal(props) {
   const [notes, setNotes] = useState(
     isEdit && entry && entry.notes ? entry.notes : '',
   );
+  const hasConsumables =
+    !isEdit && !!task && !!task.consumables && task.consumables.length > 0;
+  const [consumeStock, setConsumeStock] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -71,8 +74,16 @@ export function LogEntryModal(props) {
         await updateLog(entry.id, input);
         toast('Log entry updated.', 'success');
       } else if (task) {
-        await addLog(task.slug, input);
+        if (hasConsumables) input.consume_stock = consumeStock;
+        const created = await addLog(task.slug, input);
         toast('Marked "' + task.name + '" complete.', 'success');
+        if (created.consumable_warnings && created.consumable_warnings.length) {
+          toast(
+            'Stock not fully updated: ' +
+              created.consumable_warnings.join('; '),
+            'error',
+          );
+        }
       }
       props.onClose();
     } catch (err) {
@@ -144,6 +155,24 @@ export function LogEntryModal(props) {
             onInput=${(/** @type {any} */ e) => setNotes(e.currentTarget.value)}
           />
         </div>
+
+        ${
+          hasConsumables
+            ? html`<div class="field">
+                <label class="field-label" for="log-consume-stock">
+                  <input
+                    id="log-consume-stock"
+                    type="checkbox"
+                    checked=${consumeStock}
+                    onInput=${(/** @type {any} */ e) =>
+                      setConsumeStock(e.currentTarget.checked)}
+                  />
+                  ${' '}Update signalk-stowage-mgmt stock for this task's
+                  linked parts
+                </label>
+              </div>`
+            : null
+        }
       </form>
     <//>
   `;

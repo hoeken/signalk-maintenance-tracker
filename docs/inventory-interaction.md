@@ -9,10 +9,10 @@ duplicating data.
 
 Right now the two plugins don't know about each other:
 
-- **maintenance-tracker** tracks *when* something is due (oil change, filter
+- **maintenance-tracker** tracks _when_ something is due (oil change, filter
   swap, impeller, zincs...) but has no idea whether you actually have the
   part on board.
-- **stowage-mgmt** tracks *what* you have and *where* it is, but has no
+- **stowage-mgmt** tracks _what_ you have and _where_ it is, but has no
   concept of "this item is consumed by task X" or "you're about to need 3 of
   these."
 
@@ -32,7 +32,7 @@ reminder on a boat.
   view) and an item log (`GET /item-log`) recording quantity changes.
 - maintenance-tracker tasks have `runtime_interval` / `time_interval` +
   `last_maintenance` / `last_runtime`, and on completion a `POST
-  /tasks/:slug/logs` call marks the task done — a completion is a very
+/tasks/:slug/logs` call marks the task done — a completion is a very
   natural moment to also decrement stock.
 - Both plugins are separate SignalK plugins/webapps with their own SQLite
   DBs — no shared database, so the integration has to be at the **API
@@ -42,7 +42,7 @@ reminder on a boat.
 
 Two SignalK plugins on the same server can already reach each other's REST
 APIs (both mounted under `/plugins/<id>/api`, both behind the server's own
-auth). That argues for maintenance-tracker being the one that *calls*
+auth). That argues for maintenance-tracker being the one that _calls_
 stowage-mgmt's API when needed, rather than merging data models. Neither
 plugin becomes a hard dependency of the other — if stowage-mgmt isn't
 installed, maintenance-tracker just skips the inventory features.
@@ -73,7 +73,7 @@ signal at a glance — e.g. "Oil change: due soon · out of stock."
 Could also feed into `notifications.maintenance.{slug}` — e.g. escalate a
 "due soon" to a stronger notification method if the required part is out of
 stock, since that's the case where the boat owner actually needs to act
-*now* (order the part) rather than just noting it.
+_now_ (order the part) rather than just noting it.
 
 ### 3. Decrement stock on task completion
 
@@ -90,7 +90,7 @@ preference for explicit actions over automation surprises.
 
 stowage-mgmt already has an Understocked view. A stretch goal: expose a
 small read-only endpoint from maintenance-tracker
-(`GET /api/consumables-summary` or similar) that stowage-mgmt *could*
+(`GET /api/consumables-summary` or similar) that stowage-mgmt _could_
 optionally query to annotate items with "needed for: Oil change (due in 12
 days)" — but this is speculative and only worth doing if the first three
 pieces prove useful in practice.
@@ -109,7 +109,7 @@ pieces prove useful in practice.
   - **Normal case (no consumables linked, or plugin genuinely not
     installed):** the consumables UI section simply doesn't render. No
     error, no noise.
-  - **Signal of a real problem** — i.e. the task *has* linked consumables
+  - **Signal of a real problem** — i.e. the task _has_ linked consumables
     (or other local evidence of prior successful interaction with
     stowage-mgmt), but a call now fails (network error, 5xx, or a linked
     item id that used to resolve): surface a small toast/notification in
@@ -133,7 +133,7 @@ pieces prove useful in practice.
 ## Non-goals (for now)
 
 - No shared database / schema migration between the two plugins.
-- No attempt to have stowage-mgmt understand maintenance *schedules* —
+- No attempt to have stowage-mgmt understand maintenance _schedules_ —
   keeping the dependency direction one-way (maintenance-tracker depends on
   stowage-mgmt's API, not vice versa) keeps this simple to reason about and
   easy to back out of if it doesn't prove useful.
