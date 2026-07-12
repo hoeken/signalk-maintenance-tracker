@@ -1,5 +1,7 @@
 # 1.1.0
 
+- tabbing off of tag input with text in the field should add the first tag selected or create a new one if none found.
+
 - publish tasks to signalk paths
   - add boolean publishPaths config option to the schema
   - default true
