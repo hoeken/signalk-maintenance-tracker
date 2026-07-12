@@ -22,7 +22,7 @@ describe('StockBadge (docs/inventory-interaction.md)', () => {
     mockFetch([
       {
         match: (m, u) =>
-          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
         body: [
           {
             id: 'item-filter',
@@ -42,7 +42,7 @@ describe('StockBadge (docs/inventory-interaction.md)', () => {
     mockFetch([
       {
         match: (m, u) =>
-          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
         body: [
           {
             id: 'item-filter',
@@ -73,7 +73,7 @@ describe('StockBadge (docs/inventory-interaction.md)', () => {
     mockFetch([
       {
         match: (m, u) =>
-          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
         status: 500,
         body: { error: { code: 'internal', message: 'boom' } },
       },

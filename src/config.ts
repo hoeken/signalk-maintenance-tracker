@@ -21,7 +21,7 @@ export interface PluginOptions {
   timeNotifyLeadDays: number;
   recomputeIntervalMs: number;
   /** Base URL for signalk-stowage-mgmt's API, e.g.
-   * http://localhost:3000/plugins/signalk-stowage-mgmt/api. Empty string
+   * http://localhost:3000/plugins/signalk-stowage-mgmt. Empty string
    * disables the inventory integration entirely (default) — this is an
    * explicit opt-in, not autodetected (docs/inventory-interaction.md). */
   stowageMgmtUrl: string;
@@ -102,7 +102,7 @@ export const schema = {
       type: 'string',
       title: 'signalk-stowage-mgmt API URL',
       description:
-        "Base URL for signalk-stowage-mgmt's API (e.g. http://localhost:3000/plugins/signalk-stowage-mgmt/api). Leave blank to disable linking tasks to inventory items.",
+        "Base URL for signalk-stowage-mgmt's API (e.g. http://localhost:3000/plugins/signalk-stowage-mgmt). Leave blank to disable linking tasks to inventory items.",
       default: DEFAULT_OPTIONS.stowageMgmtUrl,
     },
   },

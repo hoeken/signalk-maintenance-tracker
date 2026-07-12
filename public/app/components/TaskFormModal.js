@@ -234,10 +234,10 @@ export function TaskFormModal(props) {
         </div>
 
         <div class="field">
-          <label class="field-label">Parts used (signalk-stowage-mgmt)</label>
+          <label class="field-label">Consumables (<a href="/signalk-stowage-mgmt">Stowage Management</a>)</label>
           <${ConsumablesPicker} value=${consumables} onChange=${setConsumables} />
           <div class="field-hint">
-            Decrements stock in signalk-stowage-mgmt when this task is marked
+            Decrements stock in stowage management when this task is marked
             complete.
           </div>
         </div>

@@ -6,7 +6,7 @@ import { mockFetch, makeTask } from './helpers.js';
 
 const ITEMS_ROUTE = (items) => ({
   match: (m, u) =>
-    m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+    m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
   body: items,
 });
 const TAGS_ROUTE = {

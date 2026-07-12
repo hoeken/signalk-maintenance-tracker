@@ -9,7 +9,7 @@
  */
 import { useResource } from './resource.js';
 
-export const STOWAGE_API_BASE = '/plugins/signalk-stowage-mgmt/api';
+export const STOWAGE_API_BASE = '/plugins/signalk-stowage-mgmt';
 
 /** @typedef {{ id: string, location_id: string|null, location_name: string|null, quantity: number }} StowagePlacement */
 /** @typedef {{ id: string, name: string, actual_quantity: number, target_quantity: number|null, placements: StowagePlacement[] }} StowageItem */

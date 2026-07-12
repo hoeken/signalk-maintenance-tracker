@@ -6,7 +6,7 @@ import {
   StowageUnavailableError,
 } from './client';
 
-const BASE_URL = 'http://127.0.0.1:3000/plugins/signalk-stowage-mgmt/api';
+const BASE_URL = 'http://127.0.0.1:3000/plugins/signalk-stowage-mgmt';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

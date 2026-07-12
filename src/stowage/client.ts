@@ -60,7 +60,7 @@ export interface PlacementAllocation {
 }
 
 export interface StowageClientOptions {
-  /** e.g. http://127.0.0.1:3000/plugins/signalk-stowage-mgmt/api */
+  /** e.g. http://127.0.0.1:3000/plugins/signalk-stowage-mgmt */
   baseUrl: string;
   fetchImpl?: typeof fetch;
 }

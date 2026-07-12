@@ -165,13 +165,13 @@ export function TaskDetailPage(props) {
             (task.consumables || []).length
               ? html`<div style="margin-top:12px">
                   <div class="field-label" style="margin-bottom:4px">
-                    Parts used
+                    Consumables
                   </div>
                   <ul class="consumables-list">
                     ${task.consumables.map(
                       (c) => html`<li key=${c.item_id} class="consumables-row">
                         <span class="consumables-name"
-                          >${c.item_name}
+                          >${c.item_name}${' '}
                           <span class="muted"
                             >× ${c.qty_per_service}</span
                           ></span

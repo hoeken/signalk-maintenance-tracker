@@ -182,7 +182,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     mockFetch([
       {
         match: (m, u) =>
-          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
         body: [
           {
             id: 'item-zinc',
@@ -239,7 +239,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     const fn = mockFetch([
       {
         match: (m, u) =>
-          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
         body: [
           {
             id: 'item-zinc',
@@ -314,7 +314,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     const fn = mockFetch([
       {
         match: (m, u) =>
-          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
         body: [
           {
             id: 'item-filter',
@@ -356,7 +356,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     const fn = mockFetch([
       {
         match: (m, u) =>
-          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
         body: [
           {
             id: 'item-zinc',

@@ -1,8 +1,13 @@
 # 1.1.0
 
 - integration with signalk-stowage-mgmt
-  - list of item + quantity -> choose from list pulled from stowage API
-  - on complete, mark each one as decremented by qty
+
+- fix husky/eslint setup
+
+- add per-task warning windows to runtime and date
+  - not set = fall back to plugin defaults
+
+- clean up plugin status text
 
 # Long Term
 
