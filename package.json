@@ -44,6 +44,9 @@
   "signalk": {
     "displayName": "Maintenance Tracker",
     "appIcon": "icons/icon-192.png",
+    "recommends": [
+      "signalk-stowage-mgmt"
+    ],
     "screenshots": [
       "./docs/screenshots/homepage.png",
       "./docs/screenshots/dark-mode.png",
