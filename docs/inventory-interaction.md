@@ -1,9 +1,11 @@
-# Sketch: interaction with signalk-stowage-mgmt
+# signalk-stowage-mgmt interaction
 
-Status: **draft / brainstorm**, not implemented. Open questions resolved. Goal is to connect
-maintenance tasks (this plugin) with the physical inventory of parts/consumables
-(`signalk-stowage-mgmt`), so each system does what it's good at instead of
-duplicating data.
+Status: **implemented** on branch `inventory-interaction` (not yet released
+— see CHANGELOG once merged/tagged). Started as a brainstorm; this doc now
+also records what was actually built and where it ended up differing from
+the original sketch. Goal is to connect maintenance tasks (this plugin) with
+the physical inventory of parts/consumables (`signalk-stowage-mgmt`), so
+each system does what it's good at instead of duplicating data.
 
 ## Why
 
@@ -30,6 +32,10 @@ reminder on a boat.
   needs to use the item's total quantity, not a single placement.
 - stowage-mgmt has `target_quantity` (used for the existing Understocked
   view) and an item log (`GET /item-log`) recording quantity changes.
+- stowage-mgmt item ids are `TEXT` (not autoincrement integers) — this only
+  surfaced once the DB migration was written; see "Corrections" below.
+- stowage-mgmt's `GET /items` has no search/filter query params — it returns
+  everything, and callers filter client-side.
 - maintenance-tracker tasks have `runtime_interval` / `time_interval` +
   `last_maintenance` / `last_runtime`, and on completion a `POST
 /tasks/:slug/logs` call marks the task done — a completion is a very
@@ -47,88 +53,171 @@ stowage-mgmt's API when needed, rather than merging data models. Neither
 plugin becomes a hard dependency of the other — if stowage-mgmt isn't
 installed, maintenance-tracker just skips the inventory features.
 
-### 1. Link a task to one or more stowage items ("consumables")
+The implementation ended up split further than the original sketch assumed,
+once it became clear stowage-mgmt's API sits behind the same session-cookie
+auth as ours, with no service-to-service credential of its own:
 
-Add an optional join, e.g. a new `task_consumables` table:
+- **Reads** (parts picker autocomplete, stock badges) are same-origin
+  fetches made **directly from the browser** to stowage-mgmt's API
+  (`public/app/api/stowage.js`). The browser already carries the session
+  cookie stowage-mgmt needs — no backend involvement, no proxy endpoint.
+- **The one write** (decrementing stock on task completion) goes through
+  our backend (`src/stowage/client.ts`, `StowageClient`), because it's a
+  side effect of a request that already lands on our server
+  (`POST /tasks/:slug/logs`). That handler forwards the _caller's own_ auth
+  headers (cookie/authorization) to the outgoing stowage-mgmt call, rather
+  than the plugin holding any credentials of its own.
 
+This is simpler than routing everything through a unified backend client:
+reads need no new endpoints or auth-forwarding of their own, and the only
+place auth-forwarding logic exists is the one write path that actually
+needs it.
+
+### 1. Link a task to one or more stowage items ("consumables") — done
+
+`task_consumables` table (`src/db/migrations.ts`, schema v2):
+
+```sql
+CREATE TABLE task_consumables (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL,        -- stowage-mgmt's own item id (TEXT, see above)
+  item_name TEXT NOT NULL,      -- cached at link time, see "stale links" below
+  qty_per_service REAL NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  UNIQUE (task_id, item_id)
+);
 ```
-task_id      INTEGER  -- FK to tasks
-item_id      INTEGER  -- stowage-mgmt item id (opaque foreign key, no FK constraint across DBs)
-qty_per_service  REAL -- how many/much this task uses when completed
-```
 
-Surfaced in the task editor as "Parts used" — a searchable picker that
-queries stowage-mgmt's `GET /items` for autocomplete, storing just the
-item id + a cached name/label (so the UI still shows something sensible if
-stowage-mgmt is later uninstalled or the item deleted).
+`ConsumablesRepo` (`src/db/consumables.repo.ts`) provides `forTask`/`byTask`
+(batched, for list views)/`setForTask` (wholesale replace)/`updateCachedName`
+/`removeForTask`.
 
-### 2. Show stock status alongside due status
+Rather than new REST endpoints, consumables travel through the **existing**
+task create/update/list/detail JSON — the same treatment as `tags`:
+`POST`/`PUT /tasks` accept an optional `consumables: [{item_id, item_name,
+qty_per_service}]` array (omit = leave untouched, `[]` = clear); every
+`TaskDTO` includes the current list. Backend validation
+(`validateConsumables` in `src/service.ts`) rejects a blank id/name or a
+non-positive `qty_per_service` with `400 invalid_consumable`.
 
-When rendering the task list/detail, for any task with linked consumables,
-fetch current `actual_quantity` for those item ids from stowage-mgmt and
-show a simple badge: **In stock**, **Low** (below `target_quantity`), or
-**Out of stock**. This turns the existing due/overdue badge into a two-axis
-signal at a glance — e.g. "Oil change: due soon · out of stock."
+The task editor's "Parts used" section (`ConsumablesPicker.js`) is a
+search-and-add combo against stowage-mgmt's `GET /items` (client-side
+filtered, since there's no search param) plus a qty-per-service input per
+linked row — mirrors `TagInput`'s chip shape. If stowage-mgmt is
+unreachable, existing links stay viewable/editable/removable; only _adding_
+new ones is blocked, with an inline notice (not a toast — see "Discovery /
+failure handling" below).
 
-Could also feed into `notifications.maintenance.{slug}` — e.g. escalate a
-"due soon" to a stronger notification method if the required part is out of
-stock, since that's the case where the boat owner actually needs to act
-_now_ (order the part) rather than just noting it.
+### 2. Show stock status alongside due status — done (badge only)
 
-### 3. Decrement stock on task completion
+`StockBadge.js` renders **In stock** / **Low stock** / **Out of stock** next
+to a task's status badge (list and detail pages) — worst case across all of
+a task's linked items (`summarizeStock()` in `public/app/api/stowage.js`):
+any item at 0 → out; any item below `target_quantity` → low; otherwise ok.
+Renders nothing for a task with no linked consumables.
 
-When a task with linked consumables is marked complete (`POST
-/tasks/:slug/logs`), offer to also log the consumption in stowage-mgmt —
-e.g. `PATCH /items/:id` reducing `actual_quantity` by `qty_per_service`,
-with a note like "Used for maintenance task: Oil change (2026-07-11)" so it
-shows up in stowage-mgmt's own item log for traceability. This should be
-**opt-in per completion** (a checkbox in the "mark complete" dialog,
-pre-checked), not silent/automatic — consistent with your general
-preference for explicit actions over automation surprises.
+**Not done: notification escalation.** The original sketch floated
+escalating a "due soon" notification when the required part is also out of
+stock. Left out of this pass — it would need the backend's notification
+recompute loop to also poll stowage-mgmt, which is a bigger, more speculative
+piece than the UI badge. Worth revisiting if the badge alone proves useful in
+practice.
 
-### 4. (Later / optional) Reverse direction: "needed for upcoming task"
+### 3. Decrement stock on task completion — done
+
+`StowageClient.consumeForTask()` (`src/stowage/client.ts`): looks up the
+item via `GET /items` (no single-item endpoint exists), refuses items that
+are **split across locations** (`placements.length > 0` — those can only be
+adjusted via stowage-mgmt's own `/split` endpoint, which this client doesn't
+attempt), floors the result at 0, and `PATCH`es `actual_quantity` with a note
+— `Used for maintenance task: {name} ({date})`.
+
+Wired into `POST /tasks/:slug/logs` (`MaintenanceService.addLog` →
+`consumeStock`, `src/service.ts`): runs **after** the log entry's own
+transaction commits, never inside it — a stowage-mgmt failure must never
+roll back a completed task. `consume_stock` in the request body defaults to
+true when the task has linked consumables; `false` skips it for that
+completion only. Any failure worth surfacing (not "stowage-mgmt isn't
+installed" — see below) comes back as `consumable_warnings: string[]`
+alongside the log entry; the frontend (`LogEntryModal.js`) shows a checkbox
+(checked by default, only when the task has linked consumables) and toasts
+any warnings without blocking the completion itself.
+
+Requires the `stowageMgmtUrl` plugin option to be set (blank = disabled,
+explicit opt-in — no autodetection, `src/config.ts`).
+
+### 4. (Later / optional) Reverse direction: "needed for upcoming task" — not done
 
 stowage-mgmt already has an Understocked view. A stretch goal: expose a
 small read-only endpoint from maintenance-tracker
 (`GET /api/consumables-summary` or similar) that stowage-mgmt _could_
 optionally query to annotate items with "needed for: Oil change (due in 12
-days)" — but this is speculative and only worth doing if the first three
-pieces prove useful in practice.
+days)" — still speculative, only worth doing if the rest proves useful in
+practice. Not started.
 
 ## Resolved decisions
 
 - **Stale/deleted linked items:** cross-plugin item reference is inherently
-  soft (no FK across two SQLite files). Cache the item's `name` at link
-  time alongside the id. If a lookup 404s, show the cached name greyed out
-  with a "no longer in inventory" tag rather than erroring the task view.
-  Self-heals once someone re-links or removes the consumable.
+  soft (no FK across two SQLite files). The item's `name` is cached at link
+  time (`task_consumables.item_name`) alongside the id — implemented via
+  `ConsumablesRepo.updateCachedName`, refreshed whenever a task is re-saved
+  with the same item still linked. `summarizeStock()` simply ignores a link
+  whose item id stowage-mgmt no longer returns, rather than erroring.
 
-- **Discovery / failure handling:** no startup health-check probe — just
-  wrap each stowage-mgmt API call in try/catch. Two distinct failure modes,
-  handled differently:
+- **Discovery / failure handling:** no startup health-check probe — each
+  call is try/catch'd inline (both the backend `StowageClient` and the
+  frontend `stowage.js`). Two distinct failure modes, handled differently,
+  both implemented as a dedicated `StowageUnavailableError` type (one in
+  each of `src/stowage/client.ts` and `public/app/api/stowage.js`) that
+  callers check for:
   - **Normal case (no consumables linked, or plugin genuinely not
-    installed):** the consumables UI section simply doesn't render. No
-    error, no noise.
+    installed — a 404 on the `/items` route, or a network-level fetch
+    failure):** the consumables UI section simply doesn't render (or, in the
+    picker, shows an inline "could not reach stowage-mgmt" notice — see
+    below). No toast, no noise.
   - **Signal of a real problem** — i.e. the task _has_ linked consumables
     (or other local evidence of prior successful interaction with
-    stowage-mgmt), but a call now fails (network error, 5xx, or a linked
-    item id that used to resolve): surface a small toast/notification in
-    the bottom-right corner (matching the webapp's existing
-    notification/toast pattern) rather than silently hiding it. This is the
-    "something that used to work stopped working" case, distinct from
-    "nothing to show."
-  - Rationale: collapsing both into silent non-rendering would hide
-    problems like a typo'd item id or stowage-mgmt being down behind the
-    same UI as "not installed" — the toast keeps that visible without
-    blocking the rest of the task view.
+    stowage-mgmt), but a call now fails for a reason other than
+    `StowageUnavailableError` (5xx, or the item lookup itself erroring):
+    `StockBadge.js` toasts once per distinct error (bottom-right, via the
+    existing `Toaster`) rather than silently hiding it — "something that
+    used to work stopped working," distinct from "nothing to show."
+  - The **picker** is a partial exception: even with zero linked
+    consumables yet, a person actively editing a task and trying to add a
+    part deserves to know why the search box isn't working. That case uses
+    an inline notice inside `ConsumablesPicker.js`, not a toast — a toast
+    is for "something you already had is now broken," not "the thing you're
+    about to try isn't available."
+  - Rationale unchanged from the original decision: collapsing all of this
+    into silent non-rendering would hide problems like a typo'd item id or
+    stowage-mgmt being down behind the same UI as "not installed."
 
-- **Picker location:** task editor, as a collapsed/optional "Parts used"
-  section below the existing interval fields — same treatment as `tags`
-  today (optional, low-friction to skip, no separate settings screen).
+- **Picker location:** task editor, as a "Parts used" field below Tags —
+  same treatment as `tags` (optional, low-friction to skip, no separate
+  settings screen). Implemented as-is.
 
 - **Multiple items per task:** join table (`task_consumables`) from the
   start, not a single `item_id` column — e.g. oil change = filter + N
-  liters of oil.
+  liters of oil. Implemented as-is.
+
+## Corrections found during implementation
+
+- **`item_id` is `TEXT`, not `INTEGER`.** The original sketch's schema
+  sample used an integer id; stowage-mgmt actually primary-keys `items` as
+  `TEXT` (`plugin/db.js`). Caught before the migration shipped anywhere
+  (amended in place rather than adding a follow-up migration) — see
+  `src/db/migrations.ts` schema v2 and `src/db/consumables.repo.ts`.
+- **No `GET /items/:id`.** stowage-mgmt's API only has `GET /items` (the
+  full list), `PATCH`, and `DELETE` at the item level — no single-item
+  fetch. Both the backend and frontend clients fetch the full list and find
+  the item client-side; fine at the scale of a boat's inventory, but worth
+  knowing if stowage-mgmt's item count ever grows enough to matter.
+- **Read/write split wasn't in the original sketch.** The sketch described
+  "maintenance-tracker calls stowage-mgmt's API" as one thing; in practice
+  it's two different call sites with different auth stories (see
+  "Integration shape" above) — decided partway through implementation once
+  the auth question was worked through concretely.
 
 ## Non-goals (for now)
 
@@ -137,3 +226,5 @@ pieces prove useful in practice.
   keeping the dependency direction one-way (maintenance-tracker depends on
   stowage-mgmt's API, not vice versa) keeps this simple to reason about and
   easy to back out of if it doesn't prove useful.
+- Notification escalation on low/out-of-stock (see §2) and the reverse-
+  direction stretch goal (§4) — both still open, not started.
