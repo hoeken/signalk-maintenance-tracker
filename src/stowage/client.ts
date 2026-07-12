@@ -90,11 +90,11 @@ export class StowageClient {
         `Could not reach signalk-stowage-mgmt: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-    // A 404 on stowage-mgmt's own API root/route (as opposed to a 404 for a
-    // specific item we asked for by id) means the plugin isn't mounted —
-    // also "unavailable", not "a real problem". Individual not-found lookups
-    // are handled by callers, since they have the context to tell the two
-    // apart (see getItem).
+    // A 404 on GET /items (the unfiltered collection route, always exists
+    // if the plugin is mounted) unambiguously means the plugin isn't
+    // installed — unlike a 404 on a specific item id, which is ambiguous
+    // between "no such item" and "route doesn't exist at all" and so gets
+    // its own disambiguation logic in getItem instead of being handled here.
     if (res.status === 404 && path === '/items') {
       throw new StowageUnavailableError(
         'signalk-stowage-mgmt API not found — plugin likely not installed',
@@ -103,8 +103,16 @@ export class StowageClient {
     return res;
   }
 
-  /** All items — stowage-mgmt has no search/filter query params, so callers
-   * (e.g. a picker) filter client-side. */
+  /** All items. stowage-mgmt now has a `?q=` search param (added in
+   * v0.8.2, closing BoatHacks/signalk-stowage-mgmt#16), but this client
+   * doesn't use it: callers here (consumeForTask/consumeFromPlacements) only
+   * ever need one specific item by id, not a name search — see getItem.
+   * The frontend picker's use case (search-as-you-type) is deliberately
+   * unchanged too: it already caches one shared unfiltered item list for
+   * both the picker and the stock badges (docs/inventory-interaction.md),
+   * so switching the picker to per-keystroke server-side search would trade
+   * a single cheap poll for many small ones — not a win at the scale of a
+   * boat's inventory. */
   async listItems(
     forwardHeaders: Record<string, string> = {},
   ): Promise<StowageItem[]> {
@@ -117,14 +125,48 @@ export class StowageClient {
     return (await res.json()) as StowageItem[];
   }
 
-  /** No GET /items/:id in stowage-mgmt's API — fetch the list and find it.
-   * Returns null (not an error) if the item genuinely doesn't exist. */
+  /**
+   * A single item by id, via `GET /items/:id` (added in stowage-mgmt v0.8.2,
+   * closing BoatHacks/signalk-stowage-mgmt#16 — this client fetched the
+   * *entire* item list to find one before that existed). Returns null (not
+   * an error) if the item genuinely doesn't exist.
+   *
+   * A 404 here is ambiguous by status code alone: it's stowage-mgmt's own
+   * "no such item" response if the plugin is running, but SignalK's generic
+   * 404 handler answers the same way if the plugin isn't mounted at all —
+   * those two only differ in body shape (stowage-mgmt's own handler returns
+   * its documented `{ error: {...} }` JSON; SignalK's fallback doesn't), so
+   * that's what disambiguates them here rather than status code alone.
+   */
   async getItem(
     itemId: string,
     forwardHeaders: Record<string, string> = {},
   ): Promise<StowageItem | null> {
-    const items = await this.listItems(forwardHeaders);
-    return items.find((i) => i.id === itemId) ?? null;
+    const res = await this.request(
+      `/items/${encodeURIComponent(itemId)}`,
+      { method: 'GET' },
+      forwardHeaders,
+    );
+    if (res.status === 404) {
+      let body: unknown = null;
+      try {
+        body = await res.clone().json();
+      } catch {
+        // not JSON -> not stowage-mgmt's own not-found response
+      }
+      if (body && typeof body === 'object' && 'error' in body) {
+        return null; // stowage-mgmt itself says: no such item
+      }
+      throw new StowageUnavailableError(
+        'signalk-stowage-mgmt API not found — plugin likely not installed',
+      );
+    }
+    if (!res.ok) {
+      throw new StowageRequestError(
+        `Failed to fetch stowage-mgmt item ${itemId}: HTTP ${res.status}`,
+      );
+    }
+    return (await res.json()) as StowageItem;
   }
 
   /**

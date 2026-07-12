@@ -34,8 +34,11 @@ reminder on a boat.
   view) and an item log (`GET /item-log`) recording quantity changes.
 - stowage-mgmt item ids are `TEXT` (not autoincrement integers) — this only
   surfaced once the DB migration was written; see "Corrections" below.
-- stowage-mgmt's `GET /items` has no search/filter query params — it returns
-  everything, and callers filter client-side.
+- stowage-mgmt's `GET /items` originally had no search/filter query params
+  or single-item lookup; both were added in stowage-mgmt v0.8.2
+  ([BoatHacks/signalk-stowage-mgmt#16](https://github.com/BoatHacks/signalk-stowage-mgmt/issues/16)).
+  The backend now uses `GET /items/:id` (see §3); the frontend picker still
+  fetches the full list — see "Corrections" below for why.
 - maintenance-tracker tasks have `runtime_interval` / `time_interval` +
   `last_maintenance` / `last_runtime`, and on completion a `POST
 /tasks/:slug/logs` call marks the task done — a completion is a very
@@ -127,7 +130,8 @@ practice.
 ### 3. Decrement stock on task completion — done
 
 `StowageClient.consumeForTask()` (`src/stowage/client.ts`): looks up the
-item via `GET /items` (no single-item endpoint exists), floors the result at
+item via `GET /items/:id` (stowage-mgmt v0.8.2+;
+see "Corrections" below), floors the result at
 0, and `PATCH`es `actual_quantity` with a note — `Used for maintenance task:
 {name} ({date})`. Used for items that aren't split across locations.
 
@@ -145,9 +149,10 @@ quantity}]}[]` as `consumable_allocations` alongside the completion;
 `StowageClient.consumeFromPlacements()` validates the whole allocation
 against a fresh read of the item's current placements before changing
 anything (all-or-nothing), then applies each placement update via
-stowage-mgmt's `PATCH /items/:id/placements/:placementId` (already released,
-predates the single-item/search endpoints above), which keeps the item's
-overall `actual_quantity` in sync and logs each change like an ordinary
+stowage-mgmt's `PATCH /items/:id/placements/:placementId` (released well
+before v0.8.2, so no version gating was needed for it), which keeps the
+item's overall `actual_quantity` in sync and logs each change like an
+ordinary
 quantity edit.
 
 Wired into `POST /tasks/:slug/logs` (`MaintenanceService.addLog` →
@@ -238,11 +243,28 @@ practice. Not started.
   `TEXT` (`plugin/db.js`). Caught before the migration shipped anywhere
   (amended in place rather than adding a follow-up migration) — see
   `src/db/migrations.ts` schema v2 and `src/db/consumables.repo.ts`.
-- **No `GET /items/:id`.** stowage-mgmt's API only has `GET /items` (the
-  full list), `PATCH`, and `DELETE` at the item level — no single-item
-  fetch. Both the backend and frontend clients fetch the full list and find
-  the item client-side; fine at the scale of a boat's inventory, but worth
-  knowing if stowage-mgmt's item count ever grows enough to matter.
+- **`GET /items/:id` shipped in stowage-mgmt v0.8.2** — closing
+  [BoatHacks/signalk-stowage-mgmt#16](https://github.com/BoatHacks/signalk-stowage-mgmt/issues/16),
+  filed from the original gap noted above. `StowageClient.getItem()`
+  (backend) now calls it directly instead of fetching the entire item list
+  to find one — the exact case #16 was filed for. Its `?q=` search param
+  went unused: the frontend picker/badges already share one cached
+  unfiltered item list (polled) for both purposes, and switching the picker
+  to per-keystroke server-side search would trade one cheap poll for many
+  small ones — not a win at a boat's inventory scale. One wrinkle:
+  `GET /items/:id`'s 404 is ambiguous by status code alone between "no such
+  item" (stowage-mgmt itself answered) and "route doesn't exist" (the
+  plugin likely isn't mounted, so SignalK's generic 404 handler answered
+  instead) — `getItem()` disambiguates by checking whether the body is
+  stowage-mgmt's own documented `{error: {...}}` JSON shape.
+  `GET /items`'s existing 404 handling (the unfiltered list route, always
+  present if the plugin is mounted) is unambiguous and unchanged.
+- Also worth knowing: `v0.8.2`'s automated npm publish (like `v0.8.1`
+  before it) failed in CI and needed a manual publish — consistent with
+  the known Trusted Publisher 2FA setup gap noted elsewhere. Not something
+  this integration needed to work around, just a reminder that "tagged on
+  GitHub" and "installable via npm" aren't the same thing for this
+  particular repo yet.
 - **Read/write split wasn't in the original sketch.** The sketch described
   "maintenance-tracker calls stowage-mgmt's API" as one thing; in practice
   it's two different call sites with different auth stories (see
