@@ -29,8 +29,18 @@ const SPLIT_ITEM: StowageItem = {
   actual_quantity: 4,
   target_quantity: null,
   placements: [
-    { location_id: 'loc-1', quantity: 2 },
-    { location_id: 'loc-2', quantity: 2 },
+    {
+      id: 'placement-1',
+      location_id: 'loc-1',
+      location_name: 'Engine room',
+      quantity: 2,
+    },
+    {
+      id: 'placement-2',
+      location_id: 'loc-2',
+      location_name: 'V-berth',
+      quantity: 2,
+    },
   ],
 };
 
@@ -170,6 +180,141 @@ describe('StowageClient', () => {
       await expect(
         client.consumeForTask('item-oil-filter', 1, 'note'),
       ).rejects.toThrow(StowageUnavailableError);
+    });
+  });
+
+  describe('consumeFromPlacements', () => {
+    it('decrements each allocated placement and returns the final response', async () => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse([SPLIT_ITEM])) // getItem -> listItems
+        .mockResolvedValueOnce(
+          jsonResponse({
+            ...SPLIT_ITEM,
+            actual_quantity: 3,
+            placements: [
+              { ...SPLIT_ITEM.placements[0], quantity: 1 },
+              SPLIT_ITEM.placements[1],
+            ],
+          }),
+        ) // PATCH placement-1
+        .mockResolvedValueOnce(
+          jsonResponse({
+            ...SPLIT_ITEM,
+            actual_quantity: 2,
+            placements: [
+              { ...SPLIT_ITEM.placements[0], quantity: 1 },
+              { ...SPLIT_ITEM.placements[1], quantity: 1 },
+            ],
+          }),
+        ); // PATCH placement-2
+      const client = new StowageClient({ baseUrl: BASE_URL, fetchImpl });
+      const updated = await client.consumeFromPlacements(
+        'item-split',
+        [
+          { placement_id: 'placement-1', quantity: 1 },
+          { placement_id: 'placement-2', quantity: 1 },
+        ],
+        'Used for maintenance task: Zinc replacement (2026-07-11)',
+      );
+      expect(updated.actual_quantity).toBe(2);
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      expect(fetchImpl).toHaveBeenNthCalledWith(
+        2,
+        `${BASE_URL}/items/item-split/placements/placement-1`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            quantity: 1, // 2 - 1
+            note: 'Used for maintenance task: Zinc replacement (2026-07-11)',
+          }),
+        }),
+      );
+      expect(fetchImpl).toHaveBeenNthCalledWith(
+        3,
+        `${BASE_URL}/items/item-split/placements/placement-2`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({
+            quantity: 1,
+            note: 'Used for maintenance task: Zinc replacement (2026-07-11)',
+          }),
+        }),
+      );
+    });
+
+    it('validates the whole allocation before making any change (all-or-nothing)', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse([SPLIT_ITEM]));
+      const client = new StowageClient({ baseUrl: BASE_URL, fetchImpl });
+      await expect(
+        client.consumeFromPlacements(
+          'item-split',
+          [
+            { placement_id: 'placement-1', quantity: 1 }, // fine
+            { placement_id: 'placement-2', quantity: 99 }, // too much
+          ],
+          'note',
+        ),
+      ).rejects.toThrow(StowageRequestError);
+      // only the initial getItem lookup — no PATCH calls at all
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects an allocation quantity greater than what the placement holds', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse([SPLIT_ITEM]));
+      const client = new StowageClient({ baseUrl: BASE_URL, fetchImpl });
+      await expect(
+        client.consumeFromPlacements(
+          'item-split',
+          [{ placement_id: 'placement-1', quantity: 3 }], // only 2 there
+          'note',
+        ),
+      ).rejects.toThrow(StowageRequestError);
+    });
+
+    it('rejects an allocation referencing a placement the item does not have', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse([SPLIT_ITEM]));
+      const client = new StowageClient({ baseUrl: BASE_URL, fetchImpl });
+      await expect(
+        client.consumeFromPlacements(
+          'item-split',
+          [{ placement_id: 'does-not-exist', quantity: 1 }],
+          'note',
+        ),
+      ).rejects.toThrow(StowageRequestError);
+    });
+
+    it('rejects a non-positive allocation quantity', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse([SPLIT_ITEM]));
+      const client = new StowageClient({ baseUrl: BASE_URL, fetchImpl });
+      await expect(
+        client.consumeFromPlacements(
+          'item-split',
+          [{ placement_id: 'placement-1', quantity: 0 }],
+          'note',
+        ),
+      ).rejects.toThrow(StowageRequestError);
+    });
+
+    it('rejects an empty allocation list', async () => {
+      const fetchImpl = vi.fn();
+      const client = new StowageClient({ baseUrl: BASE_URL, fetchImpl });
+      await expect(
+        client.consumeFromPlacements('item-split', [], 'note'),
+      ).rejects.toThrow(StowageRequestError);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('throws StowageRequestError when the item is missing', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse([]));
+      const client = new StowageClient({ baseUrl: BASE_URL, fetchImpl });
+      await expect(
+        client.consumeFromPlacements(
+          'does-not-exist',
+          [{ placement_id: 'placement-1', quantity: 1 }],
+          'note',
+        ),
+      ).rejects.toThrow(StowageRequestError);
     });
   });
 });

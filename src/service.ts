@@ -467,6 +467,13 @@ export class MaintenanceService {
    * stowage-mgmt integration or no linked consumables both produce an empty
    * list, not a warning, per the resolved discovery/failure-handling
    * decision (docs/inventory-interaction.md).
+   *
+   * For an item split across locations, the caller (the person completing
+   * the task, via the frontend) must supply a `consumable_allocations` entry
+   * saying which placement(s) it came from — this method never guesses. An
+   * item without a matching allocation is treated as non-split; if it turns
+   * out to actually be split, that surfaces as a normal warning rather than
+   * silently picking a location.
    */
   private async consumeStock(
     taskId: number,
@@ -480,16 +487,29 @@ export class MaintenanceService {
     const items = this.consumables.forTask(taskId);
     if (!items.length) return [];
 
+    const allocationsByItem = new Map(
+      (body.consumable_allocations ?? []).map((a) => [a.item_id, a.placements]),
+    );
     const note = `Used for maintenance task: ${taskName} (${isoDate.slice(0, 10)})`;
     const warnings: string[] = [];
     for (const item of items) {
       try {
-        await this.deps.stowageClient.consumeForTask(
-          item.item_id,
-          item.qty_per_service,
-          note,
-          forwardHeaders,
-        );
+        const allocation = allocationsByItem.get(item.item_id);
+        if (allocation && allocation.length) {
+          await this.deps.stowageClient.consumeFromPlacements(
+            item.item_id,
+            allocation,
+            note,
+            forwardHeaders,
+          );
+        } else {
+          await this.deps.stowageClient.consumeForTask(
+            item.item_id,
+            item.qty_per_service,
+            note,
+            forwardHeaders,
+          );
+        }
       } catch (err) {
         if (err instanceof StowageUnavailableError) continue; // not a real problem — see class doc
         warnings.push(err instanceof Error ? err.message : String(err));

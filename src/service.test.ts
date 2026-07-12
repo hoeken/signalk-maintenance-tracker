@@ -560,8 +560,12 @@ describe('master log (§8.2)', () => {
 describe('stock consumption on completion (docs/inventory-interaction.md)', () => {
   function stubClient(
     consumeForTask: StowageClient['consumeForTask'],
+    consumeFromPlacements?: StowageClient['consumeFromPlacements'],
   ): StowageClient {
-    return { consumeForTask } as unknown as StowageClient;
+    return {
+      consumeForTask,
+      consumeFromPlacements: consumeFromPlacements ?? vi.fn(),
+    } as unknown as StowageClient;
   }
 
   it('does nothing when no stowageClient is configured', async () => {
@@ -721,5 +725,123 @@ describe('stock consumption on completion (docs/inventory-interaction.md)', () =
       'item is split across locations',
     ]);
     expect(consumeForTask).toHaveBeenCalledTimes(2); // one failure doesn't stop the rest
+  });
+
+  it('routes an item with a matching consumable_allocations entry through consumeFromPlacements', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const consumeFromPlacements = vi.fn().mockResolvedValue({});
+    const { service } = makeService(
+      {},
+      stubClient(consumeForTask, consumeFromPlacements),
+    );
+    service.createTask({ name: 'Zinc replacement' });
+    service.consumables.setForTask(
+      service.getTask('zinc-replacement').id,
+      [{ item_id: 'item-split', item_name: 'Zincs', qty_per_service: 3 }],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'zinc-replacement',
+      {
+        maintenance_date: '2026-07-11T00:00:00Z',
+        consumable_allocations: [
+          {
+            item_id: 'item-split',
+            placements: [
+              { placement_id: 'placement-1', quantity: 2 },
+              { placement_id: 'placement-2', quantity: 1 },
+            ],
+          },
+        ],
+      },
+      null,
+    );
+
+    expect(consumeFromPlacements).toHaveBeenCalledWith(
+      'item-split',
+      [
+        { placement_id: 'placement-1', quantity: 2 },
+        { placement_id: 'placement-2', quantity: 1 },
+      ],
+      expect.stringContaining('Zinc replacement'),
+      {},
+    );
+    expect(consumeForTask).not.toHaveBeenCalled();
+  });
+
+  it('falls back to consumeForTask for a linked item with no matching allocation entry', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const consumeFromPlacements = vi.fn().mockResolvedValue({});
+    const { service } = makeService(
+      {},
+      stubClient(consumeForTask, consumeFromPlacements),
+    );
+    service.createTask({ name: 'Oil change' });
+    service.consumables.setForTask(
+      service.getTask('oil-change').id,
+      [{ item_id: 'item-filter', item_name: 'Filter', qty_per_service: 1 }],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'oil-change',
+      {
+        maintenance_date: '2026-07-11T00:00:00Z',
+        consumable_allocations: [
+          {
+            item_id: 'item-other', // doesn't match the linked item
+            placements: [{ placement_id: 'placement-1', quantity: 1 }],
+          },
+        ],
+      },
+      null,
+    );
+
+    expect(consumeForTask).toHaveBeenCalledWith(
+      'item-filter',
+      1,
+      expect.any(String),
+      {},
+    );
+    expect(consumeFromPlacements).not.toHaveBeenCalled();
+  });
+
+  it('a per-placement allocation failure produces a warning without blocking the log', async () => {
+    const consumeForTask = vi.fn();
+    const consumeFromPlacements = vi
+      .fn()
+      .mockRejectedValue(
+        new Error('Not enough "Zincs" at Engine room (have 2, need 3)'),
+      );
+    const { service } = makeService(
+      {},
+      stubClient(consumeForTask, consumeFromPlacements),
+    );
+    service.createTask({ name: 'Zinc replacement' });
+    service.consumables.setForTask(
+      service.getTask('zinc-replacement').id,
+      [{ item_id: 'item-split', item_name: 'Zincs', qty_per_service: 3 }],
+      NOW.toISOString(),
+    );
+
+    const entry = await service.addLog(
+      'zinc-replacement',
+      {
+        maintenance_date: '2026-07-11T00:00:00Z',
+        consumable_allocations: [
+          {
+            item_id: 'item-split',
+            placements: [{ placement_id: 'placement-1', quantity: 3 }],
+          },
+        ],
+      },
+      null,
+    );
+
+    expect(entry.id).toBeDefined();
+    expect(entry.consumable_warnings).toEqual([
+      'Not enough "Zincs" at Engine room (have 2, need 3)',
+    ]);
   });
 });

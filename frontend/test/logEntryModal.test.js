@@ -177,4 +177,223 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
       ),
     ).toBe(true);
   });
+
+  it('shows a location picker for a split linked item and blocks submit until fully allocated', async () => {
+    mockFetch([
+      {
+        match: (m, u) =>
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+        body: [
+          {
+            id: 'item-zinc',
+            name: 'Zincs',
+            actual_quantity: 4,
+            target_quantity: null,
+            placements: [
+              {
+                id: 'placement-1',
+                location_id: 'loc-1',
+                location_name: 'Engine room',
+                quantity: 2,
+              },
+              {
+                id: 'placement-2',
+                location_id: 'loc-2',
+                location_name: 'V-berth',
+                quantity: 2,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change' },
+      },
+    ]);
+    const task = makeTask({
+      consumables: [
+        { item_id: 'item-zinc', item_name: 'Zincs', qty_per_service: 3 },
+      ],
+    });
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${task} onClose=${onClose} />`);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Where did the 3 × Zincs/)).toBeTruthy(),
+    );
+
+    // submitting without picking a location shows a blocking error
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Pick a location for all of the Zincs/),
+      ).toBeTruthy(),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('sends consumable_allocations once a split item is fully allocated', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) =>
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+        body: [
+          {
+            id: 'item-zinc',
+            name: 'Zincs',
+            actual_quantity: 4,
+            target_quantity: null,
+            placements: [
+              {
+                id: 'placement-1',
+                location_id: 'loc-1',
+                location_name: 'Engine room',
+                quantity: 2,
+              },
+              {
+                id: 'placement-2',
+                location_id: 'loc-2',
+                location_name: 'V-berth',
+                quantity: 2,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change' },
+      },
+    ]);
+    const task = makeTask({
+      consumables: [
+        { item_id: 'item-zinc', item_name: 'Zincs', qty_per_service: 3 },
+      ],
+    });
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${task} onClose=${onClose} />`);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Location 1 for Zincs')).toBeTruthy(),
+    );
+    fireEvent.input(screen.getByLabelText('Location 1 for Zincs'), {
+      target: { value: 'placement-1' },
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText('Location 2 for Zincs')).toBeTruthy(),
+    );
+    fireEvent.input(screen.getByLabelText('Location 2 for Zincs'), {
+      target: { value: 'placement-2' },
+    });
+    await waitFor(() =>
+      expect(screen.getByText('Fully allocated.')).toBeTruthy(),
+    );
+
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    const body = JSON.parse(call[1].body);
+    expect(body.consumable_allocations).toEqual([
+      {
+        item_id: 'item-zinc',
+        placements: [
+          { placement_id: 'placement-1', quantity: 2 },
+          { placement_id: 'placement-2', quantity: 1 },
+        ],
+      },
+    ]);
+  });
+
+  it('does not show a location picker or send allocations for a non-split linked item', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) =>
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+        body: [
+          {
+            id: 'item-filter',
+            name: 'Oil filter',
+            actual_quantity: 3,
+            target_quantity: 2,
+            placements: [],
+          },
+        ],
+      },
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change' },
+      },
+    ]);
+    const task = makeTask({
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+      ],
+    });
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${task} onClose=${onClose} />`);
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(/Update signalk-stowage-mgmt stock/),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByText(/Where did the/)).toBeNull();
+
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    expect(JSON.parse(call[1].body).consumable_allocations).toBeUndefined();
+  });
+
+  it('skips the allocation requirement when the stock checkbox is unchecked', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) =>
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/api/items') !== -1,
+        body: [
+          {
+            id: 'item-zinc',
+            name: 'Zincs',
+            actual_quantity: 4,
+            target_quantity: null,
+            placements: [
+              {
+                id: 'placement-1',
+                location_id: 'loc-1',
+                location_name: 'Engine room',
+                quantity: 2,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change' },
+      },
+    ]);
+    const task = makeTask({
+      consumables: [
+        { item_id: 'item-zinc', item_name: 'Zincs', qty_per_service: 1 },
+      ],
+    });
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${task} onClose=${onClose} />`);
+    fireEvent.click(screen.getByLabelText(/Update signalk-stowage-mgmt stock/));
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    const body = JSON.parse(call[1].body);
+    expect(body.consume_stock).toBe(false);
+    expect(body.consumable_allocations).toBeUndefined();
+  });
 });

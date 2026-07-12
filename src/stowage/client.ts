@@ -33,7 +33,9 @@ export class StowageRequestError extends Error {
 }
 
 export interface StowageItemPlacement {
+  id: string;
   location_id: string | null;
+  location_name: string | null;
   quantity: number;
 }
 
@@ -42,10 +44,19 @@ export interface StowageItem {
   name: string;
   actual_quantity: number;
   target_quantity: number | null;
-  /** Non-empty means the item's stock is split across locations — see
-   * signalk-stowage-mgmt's own docs; actual_quantity can only be changed via
-   * its /split endpoint in that case, which this client does not support. */
+  /** Non-empty means the item's stock is split across locations. Consuming
+   * from a split item requires the caller to say which placement(s) it came
+   * from — see consumeFromPlacements — since only a person can know that
+   * (docs/inventory-interaction.md: stowage-mgmt's own maintainer rejected
+   * an auto-pick-a-placement endpoint for exactly this reason). */
   placements: StowageItemPlacement[];
+}
+
+/** One location's contribution to consuming a split item — quantity taken
+ * FROM that placement, not the placement's resulting total. */
+export interface PlacementAllocation {
+  placement_id: string;
+  quantity: number;
 }
 
 export interface StowageClientOptions {
@@ -117,13 +128,14 @@ export class StowageClient {
   }
 
   /**
-   * Decrements an item's stock by `qty` (floored at 0) to record consumption
-   * for a completed maintenance task, and returns the updated item.
+   * Decrements a non-split item's stock by `qty` (floored at 0) to record
+   * consumption for a completed maintenance task, and returns the updated
+   * item.
    *
-   * Throws StowageRequestError if the item can't be found or is split across
-   * locations (stock changes for split items must go through stowage-mgmt's
-   * own /split endpoint, which this client intentionally doesn't attempt —
-   * see docs/inventory-interaction.md).
+   * Throws StowageRequestError if the item can't be found or is split
+   * across locations — for a split item, use consumeFromPlacements with a
+   * caller-supplied (i.e. person-chosen) allocation instead; this method
+   * deliberately never guesses which placement to draw down.
    */
   async consumeForTask(
     itemId: string,
@@ -139,7 +151,7 @@ export class StowageClient {
     }
     if (item.placements.length > 0) {
       throw new StowageRequestError(
-        `stowage-mgmt item "${item.name}" is split across locations — cannot auto-decrement`,
+        `stowage-mgmt item "${item.name}" is split across locations — needs a location allocation, not a plain quantity`,
       );
     }
     const nextQuantity = Math.max(0, item.actual_quantity - qty);
@@ -157,5 +169,79 @@ export class StowageClient {
       );
     }
     return (await res.json()) as StowageItem;
+  }
+
+  /**
+   * Decrements a split item's stock across one or more placements, per a
+   * caller-supplied allocation (docs/inventory-interaction.md — the person
+   * completing the task picks which location(s) it came from; this method
+   * does not choose for them). Validates the whole allocation against a
+   * fresh read of the item's current placements *before* changing anything
+   * (all-or-nothing), then applies each placement update in turn via
+   * stowage-mgmt's `PATCH /items/:id/placements/:placementId`, which keeps
+   * the item's overall actual_quantity in sync and logs each change like an
+   * ordinary quantity edit.
+   *
+   * Throws StowageRequestError if the item can't be found, an allocation
+   * references a placement the item doesn't have (e.g. it moved since the
+   * allocation was chosen), an allocation quantity isn't positive, or an
+   * allocation asks for more than that placement currently holds.
+   */
+  async consumeFromPlacements(
+    itemId: string,
+    allocations: PlacementAllocation[],
+    note: string,
+    forwardHeaders: Record<string, string> = {},
+  ): Promise<StowageItem> {
+    if (!allocations.length) {
+      throw new StowageRequestError(
+        `No location allocation given for stowage-mgmt item ${itemId}`,
+      );
+    }
+    const item = await this.getItem(itemId, forwardHeaders);
+    if (!item) {
+      throw new StowageRequestError(
+        `stowage-mgmt item ${itemId} not found (may have been deleted)`,
+      );
+    }
+    const placementsById = new Map(item.placements.map((p) => [p.id, p]));
+    for (const alloc of allocations) {
+      const placement = placementsById.get(alloc.placement_id);
+      if (!placement) {
+        throw new StowageRequestError(
+          `stowage-mgmt item "${item.name}" has no placement ${alloc.placement_id} (it may have moved)`,
+        );
+      }
+      if (!(alloc.quantity > 0)) {
+        throw new StowageRequestError(
+          `Invalid allocation quantity for "${item.name}"`,
+        );
+      }
+      if (alloc.quantity > placement.quantity) {
+        throw new StowageRequestError(
+          `Not enough "${item.name}" at ${placement.location_name ?? 'that location'} (have ${placement.quantity}, need ${alloc.quantity})`,
+        );
+      }
+    }
+    let updated = item;
+    for (const alloc of allocations) {
+      const placement = placementsById.get(alloc.placement_id)!;
+      const nextQuantity = placement.quantity - alloc.quantity;
+      const res = await this.request(
+        `/items/${encodeURIComponent(itemId)}/placements/${encodeURIComponent(alloc.placement_id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ quantity: nextQuantity, note }),
+        },
+        forwardHeaders,
+      );
+      if (!res.ok) {
+        throw new StowageRequestError(
+          `Failed to update a placement of "${item.name}": HTTP ${res.status}`,
+        );
+      }
+      updated = (await res.json()) as StowageItem;
+    }
+    return updated;
   }
 }

@@ -127,22 +127,41 @@ practice.
 ### 3. Decrement stock on task completion — done
 
 `StowageClient.consumeForTask()` (`src/stowage/client.ts`): looks up the
-item via `GET /items` (no single-item endpoint exists), refuses items that
-are **split across locations** (`placements.length > 0` — those can only be
-adjusted via stowage-mgmt's own `/split` endpoint, which this client doesn't
-attempt), floors the result at 0, and `PATCH`es `actual_quantity` with a note
-— `Used for maintenance task: {name} ({date})`.
+item via `GET /items` (no single-item endpoint exists), floors the result at
+0, and `PATCH`es `actual_quantity` with a note — `Used for maintenance task:
+{name} ({date})`. Used for items that aren't split across locations.
+
+For a **split item**, the person completing the task picks which
+location(s) it came from — stowage-mgmt's maintainer deliberately rejected
+an endpoint that would auto-pick a placement
+([BoatHacks/signalk-stowage-mgmt#17](https://github.com/BoatHacks/signalk-stowage-mgmt/issues/17)),
+so the "mark complete" dialog (`LogEntryModal.js` +
+`PlacementAllocator.js`) surfaces a location field per split consumable:
+one field appears, the person picks a location, the needed quantity is
+drawn from it (capped to what's there); if that doesn't cover the full
+amount, another field appears automatically for the remainder, and so on.
+The frontend sends the resulting `{item_id, placements: [{placement_id,
+quantity}]}[]` as `consumable_allocations` alongside the completion;
+`StowageClient.consumeFromPlacements()` validates the whole allocation
+against a fresh read of the item's current placements before changing
+anything (all-or-nothing), then applies each placement update via
+stowage-mgmt's `PATCH /items/:id/placements/:placementId` (already released,
+predates the single-item/search endpoints above), which keeps the item's
+overall `actual_quantity` in sync and logs each change like an ordinary
+quantity edit.
 
 Wired into `POST /tasks/:slug/logs` (`MaintenanceService.addLog` →
 `consumeStock`, `src/service.ts`): runs **after** the log entry's own
 transaction commits, never inside it — a stowage-mgmt failure must never
 roll back a completed task. `consume_stock` in the request body defaults to
-true when the task has linked consumables; `false` skips it for that
-completion only. Any failure worth surfacing (not "stowage-mgmt isn't
-installed" — see below) comes back as `consumable_warnings: string[]`
-alongside the log entry; the frontend (`LogEntryModal.js`) shows a checkbox
-(checked by default, only when the task has linked consumables) and toasts
-any warnings without blocking the completion itself.
+true when the task has linked consumables; `false` skips it (and the
+allocation requirement) for that completion only. An item with no matching
+`consumable_allocations` entry is treated as non-split; if it turns out to
+actually be split, `consumeForTask` refuses it and that surfaces as an
+ordinary warning rather than the service guessing a location. Any failure
+worth surfacing comes back as `consumable_warnings: string[]` alongside the
+log entry; the frontend toasts these without blocking the completion
+itself.
 
 Requires the `stowageMgmtUrl` plugin option to be set (blank = disabled,
 explicit opt-in — no autodetection, `src/config.ts`).
@@ -203,6 +222,17 @@ practice. Not started.
 
 ## Corrections found during implementation
 
+- **Split items are handled after all — just not automatically.** The first
+  pass of this integration refused to touch split items entirely (see the
+  original §3 text, still visible in git history), on the theory that
+  picking a placement automatically wasn't this plugin's call to make.
+  Filed as [BoatHacks/signalk-stowage-mgmt#17](https://github.com/BoatHacks/signalk-stowage-mgmt/issues/17)
+  asking stowage-mgmt for an auto-pick endpoint; the answer was "no, on
+  purpose" — a person should say which location something came from. That
+  reframed the problem: instead of stowage-mgmt picking a placement, _our_
+  UI needed to let the person pick one (or several) interactively during
+  task completion. `PlacementAllocator.js` + `consumeFromPlacements()` are
+  the result — not in the original sketch at all.
 - **`item_id` is `TEXT`, not `INTEGER`.** The original sketch's schema
   sample used an integer id; stowage-mgmt actually primary-keys `items` as
   `TEXT` (`plugin/db.js`). Caught before the migration shipped anywhere

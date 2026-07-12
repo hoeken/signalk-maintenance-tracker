@@ -96,6 +96,7 @@
  * @property {number|null} [runtime_hours]
  * @property {string|null} [notes]
  * @property {boolean} [consume_stock]
+ * @property {{ item_id: string, placements: { placement_id: string, quantity: number }[] }[]} [consumable_allocations]
  */
 
 export {};

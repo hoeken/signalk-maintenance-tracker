@@ -118,4 +118,12 @@ export interface LogInput {
    * consumables — set false to log the work without touching stowage-mgmt
    * stock (docs/inventory-interaction.md). */
   consume_stock?: boolean;
+  /** Person-chosen location allocation for any linked consumable that's
+   * split across locations in stowage-mgmt — omitted/missing for an item
+   * means it's treated as non-split (a plain quantity decrement), which
+   * will itself fail with a warning if the item turns out to be split. */
+  consumable_allocations?: {
+    item_id: string;
+    placements: { placement_id: string; quantity: number }[];
+  }[];
 }
