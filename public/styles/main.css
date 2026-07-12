@@ -369,19 +369,20 @@ pre {
 
 /* ---- toolbar (list controls) ---- */
 
-/* children/chips carry wrap margins, so the toolbar itself adds almost none */
+/* search bar and action button share one row as separate columns */
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-bottom: 2px;
-}
-.toolbar > * {
-  margin-right: 10px;
-  margin-bottom: 6px;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  margin-bottom: 8px;
 }
 .toolbar .search-box {
   width: 260px;
+}
+/* page action button gets its own column at the far end */
+.toolbar-action {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 /* ---- tag chips ---- */
@@ -390,6 +391,7 @@ pre {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  margin-bottom: 8px;
 }
 .chips > * {
   margin-right: 6px;

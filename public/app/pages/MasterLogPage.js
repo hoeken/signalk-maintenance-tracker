@@ -218,11 +218,20 @@ export function MasterLogPage() {
 
   return html`
     <div>
-      <div class="page-header">
-        <h1 class="page-title">Maintenance Log</h1>
+      <div class="toolbar">
+        <div class="search-box">
+          <i class="bi bi-search" />
+          <input
+            class="input"
+            placeholder="Search log…"
+            aria-label="Search log"
+            value=${searchText}
+            onInput=${(/** @type {any} */ e) => setSearchText(e.currentTarget.value)}
+          />
+        </div>
         <button
           type="button"
-          class="btn btn-primary"
+          class="btn btn-primary toolbar-action"
           disabled=${downloading}
           onClick=${downloadCsv}
         >
@@ -239,19 +248,6 @@ export function MasterLogPage() {
             </div>`
           : null
       }
-
-      <div class="toolbar">
-        <div class="search-box">
-          <i class="bi bi-search" />
-          <input
-            class="input"
-            placeholder="Search log…"
-            aria-label="Search log"
-            value=${searchText}
-            onInput=${(/** @type {any} */ e) => setSearchText(e.currentTarget.value)}
-          />
-        </div>
-      </div>
 
       ${
         logsRes.error && !pageData

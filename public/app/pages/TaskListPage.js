@@ -165,23 +165,6 @@ export function TaskListPage() {
 
   return html`
     <div>
-      <div class="page-header">
-        <h1 class="page-title">Maintenance Tasks</h1>
-        ${
-          auth.isLoggedIn
-            ? html`
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  onClick=${() => setEditorTask(null)}
-                >
-                  <i class="bi bi-plus-lg" />New task
-                </button>
-              `
-            : null
-        }
-      </div>
-
       <div class="toolbar">
         <div class="search-box">
           <i class="bi bi-search" />
@@ -193,20 +176,34 @@ export function TaskListPage() {
             onInput=${(/** @type {any} */ e) => setSearchText(e.currentTarget.value)}
           />
         </div>
-        <div class="chips">
-          ${(tagsRes.data ? tagsRes.data.data : []).map(
-            (tag) => html`
-              <button
-                type="button"
-                key=${tag.name}
-                class=${'chip' + (selectedTags.indexOf(tag.name) !== -1 ? ' selected' : '')}
-                onClick=${() => toggleTag(tag.name)}
-              >
-                ${tag.name}<span class="chip-count">${tag.count}</span>
-              </button>
-            `,
-          )}
-        </div>
+        ${
+          auth.isLoggedIn
+            ? html`
+                <button
+                  type="button"
+                  class="btn btn-primary toolbar-action"
+                  onClick=${() => setEditorTask(null)}
+                >
+                  <i class="bi bi-plus-lg" />New task
+                </button>
+              `
+            : null
+        }
+      </div>
+
+      <div class="chips">
+        ${(tagsRes.data ? tagsRes.data.data : []).map(
+          (tag) => html`
+            <button
+              type="button"
+              key=${tag.name}
+              class=${'chip' + (selectedTags.indexOf(tag.name) !== -1 ? ' selected' : '')}
+              onClick=${() => toggleTag(tag.name)}
+            >
+              ${tag.name}<span class="chip-count">${tag.count}</span>
+            </button>
+          `,
+        )}
       </div>
 
       ${
