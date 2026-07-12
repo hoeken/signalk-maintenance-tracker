@@ -1,13 +1,13 @@
 # 1.1.0
 
-- integration with signalk-stowage-mgmt
-
-- fix husky/eslint setup
-
 - add per-task warning windows to runtime and date
   - not set = fall back to plugin defaults
 
+- add "Due Date" field - one time deadline for things that must be done in the future like registrations, renewals. we can calculate days remaining from this. for calculations / display merge this and the existing days remaining field down into one field. use whichever value is lower.
+
 - clean up plugin status text
+
+- update readme.
 
 # Long Term
 

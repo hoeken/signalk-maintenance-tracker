@@ -1,1 +1,6 @@
-npx lint-staged
+npx lint-staged || {
+  echo
+  echo "✖ Commit rejected: staged files have lint errors or aren't formatted."
+  echo "  Run 'npm run format' to fix, then re-stage and commit."
+  exit 1
+}

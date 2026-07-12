@@ -36,10 +36,10 @@
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs}": [
-      "eslint --fix",
-      "prettier --write"
+      "eslint",
+      "prettier --check"
     ],
-    "*.{json,css,html,md,yml,yaml}": "prettier --write"
+    "*.{json,css,html,yml,yaml}": "prettier --check"
   },
   "signalk": {
     "displayName": "Maintenance Tracker",
