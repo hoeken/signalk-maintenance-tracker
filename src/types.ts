@@ -20,6 +20,7 @@ export interface TaskRow {
   time_interval: number | null;
   time_interval_unit: TimeUnit | null;
   runtime_path: string | null;
+  due_date: string | null;
   last_maintenance: string | null;
   last_runtime: number | null;
   seed_last_maintenance: string | null;
@@ -49,12 +50,27 @@ export interface ComputedFields {
   remaining_runtime: number | null;
   due_runtime_at: number | null;
   runtime_fraction: number | null;
-  due_date: string | null;
+  runtime_status: Status | null;
+
+  // Recurring time-interval dimension (last_maintenance + interval).
+  scheduled_due_date: string | null;
+  scheduled_remaining_ms: number | null;
+  scheduled_fraction: number | null;
+  scheduled_status: Status | null;
+
+  // One-time due-date dimension (the stored due_date deadline).
+  due_date_remaining_ms: number | null;
+  due_date_fraction: number | null;
+  due_date_status: Status | null;
+
+  // Merged "time" dimension: the more urgent (lower remaining) of the
+  // recurring interval and the one-time due date. These are what the task
+  // list, sort, and notifications consume; the detail page breaks the two
+  // sub-dimensions back out.
   remaining_time_ms: number | null;
   time_fraction: number | null;
-  /** sub-status per dimension; null = dimension not configured */
-  runtime_status: Status | null;
   time_status: Status | null;
+
   status: Status;
   status_rank: number;
   /** secondary sort key: highest known fraction (more elapsed = more urgent) */
@@ -77,6 +93,7 @@ export interface TaskDTO extends ComputedFields {
   time_interval: number | null;
   time_interval_unit: TimeUnit | null;
   runtime_path: string | null;
+  due_date: string | null;
   last_maintenance: string | null;
   last_runtime: number | null;
   created_at: string;
@@ -102,6 +119,7 @@ export interface TaskInput {
   time_interval?: number | null;
   time_interval_unit?: TimeUnit | null;
   runtime_path?: string | null;
+  due_date?: string | null;
   tags?: string[];
   last_maintenance?: string | null;
   last_runtime?: number | null;

@@ -25,6 +25,7 @@
  * @property {number|null} time_interval
  * @property {TimeUnit|null} time_interval_unit
  * @property {string|null} runtime_path
+ * @property {string|null} due_date
  * @property {string|null} last_maintenance
  * @property {number|null} last_runtime
  * @property {number|null} current_runtime
@@ -32,10 +33,16 @@
  * @property {number|null} remaining_runtime
  * @property {number|null} due_runtime_at
  * @property {number|null} runtime_fraction
- * @property {string|null} due_date
+ * @property {Status|null} runtime_status
+ * @property {string|null} scheduled_due_date
+ * @property {number|null} scheduled_remaining_ms
+ * @property {number|null} scheduled_fraction
+ * @property {Status|null} scheduled_status
+ * @property {number|null} due_date_remaining_ms
+ * @property {number|null} due_date_fraction
+ * @property {Status|null} due_date_status
  * @property {number|null} remaining_time_ms
  * @property {number|null} time_fraction
- * @property {Status|null} runtime_status
  * @property {Status|null} time_status
  * @property {Status} status
  * @property {number} status_rank
@@ -84,6 +91,7 @@
  * @property {number|null} [time_interval]
  * @property {TimeUnit|null} [time_interval_unit]
  * @property {string|null} [runtime_path]
+ * @property {string|null} [due_date]
  * @property {string[]} [tags]
  * @property {string|null} [last_maintenance]
  * @property {number|null} [last_runtime]

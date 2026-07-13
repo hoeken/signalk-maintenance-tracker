@@ -9,6 +9,7 @@ export interface NewTask {
   time_interval: number | null;
   time_interval_unit: TimeUnit | null;
   runtime_path: string | null;
+  due_date: string | null;
   last_maintenance: string | null;
   last_runtime: number | null;
   seed_last_maintenance: string | null;
@@ -16,7 +17,7 @@ export interface NewTask {
 }
 
 const COLUMNS = `id, slug, name, description, runtime_interval, time_interval,
-  time_interval_unit, runtime_path, last_maintenance, last_runtime,
+  time_interval_unit, runtime_path, due_date, last_maintenance, last_runtime,
   seed_last_maintenance, seed_last_runtime, created_at, updated_at`;
 
 export class TasksRepo {
@@ -26,9 +27,9 @@ export class TasksRepo {
     const result = this.db
       .prepare(
         `INSERT INTO tasks (slug, name, description, runtime_interval, time_interval,
-           time_interval_unit, runtime_path, last_maintenance, last_runtime,
+           time_interval_unit, runtime_path, due_date, last_maintenance, last_runtime,
            seed_last_maintenance, seed_last_runtime, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         t.slug,
@@ -38,6 +39,7 @@ export class TasksRepo {
         t.time_interval,
         t.time_interval_unit,
         t.runtime_path,
+        t.due_date,
         t.last_maintenance,
         t.last_runtime,
         t.seed_last_maintenance,
@@ -85,7 +87,7 @@ export class TasksRepo {
       .prepare(
         `UPDATE tasks SET slug = ?, name = ?, description = ?, runtime_interval = ?,
            time_interval = ?, time_interval_unit = ?, runtime_path = ?,
-           last_maintenance = ?, last_runtime = ?,
+           due_date = ?, last_maintenance = ?, last_runtime = ?,
            seed_last_maintenance = ?, seed_last_runtime = ?, updated_at = ?
          WHERE id = ?`,
       )
@@ -97,6 +99,7 @@ export class TasksRepo {
         t.time_interval,
         t.time_interval_unit,
         t.runtime_path,
+        t.due_date,
         t.last_maintenance,
         t.last_runtime,
         t.seed_last_maintenance,
@@ -116,6 +119,11 @@ export class TasksRepo {
         `UPDATE tasks SET last_maintenance = ?, last_runtime = ? WHERE id = ?`,
       )
       .run(lastMaintenance, lastRuntime, id);
+  }
+
+  /** Clear a task's one-time due date (a completed deadline no longer applies). */
+  clearDueDate(id: number): void {
+    this.db.prepare(`UPDATE tasks SET due_date = NULL WHERE id = ?`).run(id);
   }
 
   delete(id: number): void {

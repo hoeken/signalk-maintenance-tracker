@@ -113,6 +113,7 @@ export class MaintenanceService {
       time_interval: row.time_interval,
       time_interval_unit: row.time_interval_unit,
       runtime_path: row.runtime_path,
+      due_date: row.due_date,
       last_maintenance: row.last_maintenance,
       last_runtime: row.last_runtime,
       created_at: row.created_at,
@@ -271,6 +272,7 @@ export class MaintenanceService {
       time_interval: body.time_interval ?? null,
       time_interval_unit: body.time_interval_unit ?? null,
       runtime_path: body.runtime_path?.trim() || null,
+      due_date: this.normalizeDueDate(body.due_date),
       last_maintenance: body.last_maintenance ?? null,
       last_runtime: body.last_runtime ?? null,
       seed_last_maintenance: body.last_maintenance ?? null,
@@ -316,6 +318,10 @@ export class MaintenanceService {
         body.runtime_path !== undefined
           ? body.runtime_path?.trim() || null
           : row.runtime_path,
+      due_date:
+        body.due_date !== undefined
+          ? this.normalizeDueDate(body.due_date)
+          : row.due_date,
       last_maintenance: row.last_maintenance,
       last_runtime: row.last_runtime,
       seed_last_maintenance: row.seed_last_maintenance,
@@ -434,6 +440,10 @@ export class MaintenanceService {
         nowIso,
       );
       this.recomputeDenorm(task.id);
+      // A one-time due date is a deadline for a single completion — once the
+      // task is done, the deadline no longer applies. (A recurring renewal's
+      // next due date is set again by editing the task.)
+      if (task.due_date != null) this.tasks.clearDueDate(task.id);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -675,6 +685,16 @@ export class MaintenanceService {
         'invalid_interval',
         `time_interval_unit must be one of ${TIME_UNITS.join(', ')}`,
       );
+  }
+
+  /**
+   * A one-time due date is optional: null/empty clears it, otherwise it must be
+   * a valid date and is normalized to a UTC ISO timestamp (like maintenance
+   * dates). Unlike last_maintenance it's a plain config field editable anytime.
+   */
+  private normalizeDueDate(value: string | null | undefined): string | null {
+    if (value == null || value.trim() === '') return null;
+    return this.validateDate(value, 'due_date');
   }
 
   private validateDate(value: string | undefined, field: string): string {

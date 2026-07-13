@@ -62,8 +62,10 @@ export function computeTask(
     | 'time_interval'
     | 'time_interval_unit'
     | 'runtime_path'
+    | 'due_date'
     | 'last_maintenance'
     | 'last_runtime'
+    | 'created_at'
   >,
   currentRuntime: number | null,
   now: Date,
@@ -75,10 +77,16 @@ export function computeTask(
     remaining_runtime: null,
     due_runtime_at: null,
     runtime_fraction: null,
-    due_date: null,
+    runtime_status: null,
+    scheduled_due_date: null,
+    scheduled_remaining_ms: null,
+    scheduled_fraction: null,
+    scheduled_status: null,
+    due_date_remaining_ms: null,
+    due_date_fraction: null,
+    due_date_status: null,
     remaining_time_ms: null,
     time_fraction: null,
-    runtime_status: null,
     time_status: null,
     status: 'unknown',
     status_rank: STATUS_RANK.unknown,
@@ -105,31 +113,57 @@ export function computeTask(
     }
   }
 
-  // Time dimension: configured when interval magnitude + unit are set.
+  // Recurring time-interval dimension: configured when magnitude + unit are set.
   if (task.time_interval != null && task.time_interval_unit != null) {
     if (task.last_maintenance != null) {
-      const last = new Date(task.last_maintenance);
+      const last = new Date(task.last_maintenance).getTime();
       const due = addInterval(
         task.last_maintenance,
         task.time_interval,
         task.time_interval_unit,
-      );
-      const remainingMs = due.getTime() - now.getTime();
-      out.due_date = due.toISOString();
-      out.remaining_time_ms = remainingMs;
-      const span = due.getTime() - last.getTime();
-      out.time_fraction =
-        span > 0 ? (now.getTime() - last.getTime()) / span : 1;
-      out.time_status =
-        remainingMs <= 0
-          ? 'overdue'
-          : remainingMs <= cfg.timeNotifyLeadDays * MS_PER_DAY
-            ? 'due_soon'
-            : 'ok';
+      ).getTime();
+      out.scheduled_due_date = new Date(due).toISOString();
+      out.scheduled_remaining_ms = due - now.getTime();
+      const span = due - last;
+      out.scheduled_fraction = span > 0 ? (now.getTime() - last) / span : 1;
+      out.scheduled_status = dateStatus(out.scheduled_remaining_ms, cfg);
     } else {
-      out.time_status = 'unknown';
+      out.scheduled_status = 'unknown';
     }
   }
+
+  // One-time due-date dimension: the stored deadline. Fraction runs from task
+  // creation to the deadline, so a freshly-set far-off deadline reads ~empty.
+  if (task.due_date != null) {
+    const due = new Date(task.due_date).getTime();
+    out.due_date_remaining_ms = due - now.getTime();
+    const start = new Date(task.created_at).getTime();
+    const span = due - start;
+    out.due_date_fraction = span > 0 ? (now.getTime() - start) / span : 1;
+    out.due_date_status = dateStatus(out.due_date_remaining_ms, cfg);
+  }
+
+  // Merged "time" dimension = the more urgent of the two: whichever has the
+  // lower remaining drives remaining_time_ms + time_fraction; time_status is
+  // the most-urgent of the sub-statuses (so a configured-but-unknown recurring
+  // dimension still surfaces as unknown).
+  const timeSubs = [
+    { remaining: out.scheduled_remaining_ms, fraction: out.scheduled_fraction },
+    { remaining: out.due_date_remaining_ms, fraction: out.due_date_fraction },
+  ].filter((d): d is { remaining: number; fraction: number | null } =>
+    Number.isFinite(d.remaining as number),
+  );
+  if (timeSubs.length) {
+    const driving = timeSubs.reduce((a, b) =>
+      a.remaining <= b.remaining ? a : b,
+    );
+    out.remaining_time_ms = driving.remaining;
+    out.time_fraction = driving.fraction;
+  }
+  out.time_status = mostUrgentOrNull([
+    out.scheduled_status,
+    out.due_date_status,
+  ]);
 
   const dims = [out.runtime_status, out.time_status].filter(
     (s): s is Status => s != null,
@@ -141,4 +175,17 @@ export function computeTask(
   );
   out.urgency = fractions.length ? Math.max(...fractions) : -Infinity;
   return out;
+}
+
+/** Date-based sub-status from remaining milliseconds (§6.3). */
+function dateStatus(remainingMs: number, cfg: StatusConfig): Status {
+  if (remainingMs <= 0) return 'overdue';
+  if (remainingMs <= cfg.timeNotifyLeadDays * MS_PER_DAY) return 'due_soon';
+  return 'ok';
+}
+
+/** mostUrgent over a nullable list, preserving null when no dimension is set. */
+function mostUrgentOrNull(statuses: (Status | null)[]): Status | null {
+  const present = statuses.filter((s): s is Status => s != null);
+  return present.length ? mostUrgent(present) : null;
 }

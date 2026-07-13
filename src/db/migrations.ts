@@ -82,4 +82,13 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    up(db) {
+      // One-time calendar deadline (registrations, renewals, inspections),
+      // independent of the recurring time_interval. Stored as UTC-midnight ISO
+      // like maintenance dates; NULL = no deadline.
+      db.exec(`ALTER TABLE tasks ADD COLUMN due_date TEXT;`);
+    },
+  },
 ];

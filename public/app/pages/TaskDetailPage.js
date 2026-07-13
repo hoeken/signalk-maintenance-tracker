@@ -110,6 +110,7 @@ export function TaskDetailPage(props) {
 
   const runtimeConfigured = task.runtime_interval !== null;
   const timeConfigured = task.time_interval !== null;
+  const dueDateConfigured = task.due_date !== null;
 
   return html`
     <div>
@@ -190,7 +191,7 @@ export function TaskDetailPage(props) {
         <div class="card">
           <h3>Schedule</h3>
           ${
-            !runtimeConfigured && !timeConfigured
+            !runtimeConfigured && !timeConfigured && !dueDateConfigured
               ? html`<p class="muted" style="margin:0">
                   Informational task — no intervals configured.
                 </p>`
@@ -226,16 +227,37 @@ export function TaskDetailPage(props) {
                     <div class="stat-label">
                       <span>Time — every ${task.time_interval} ${task.time_interval_unit}</span>
                       <span class="stat-value"
-                        >${formatRemainingTime(task.remaining_time_ms)}${task.remaining_time_ms !== null && task.remaining_time_ms >= 0 ? ' left' : ''}</span
+                        >${formatRemainingTime(task.scheduled_remaining_ms)}${task.scheduled_remaining_ms !== null && task.scheduled_remaining_ms >= 0 ? ' left' : ''}</span
                       >
                     </div>
                     <${ProgressBar}
-                      fraction=${task.time_fraction}
-                      status=${task.time_status}
+                      fraction=${task.scheduled_fraction}
+                      status=${task.scheduled_status}
                     />
                     <div class="field-hint">
                       Last done ${formatDate(task.last_maintenance)} · next
-                      due ${formatDate(task.due_date)}
+                      due ${formatDate(task.scheduled_due_date)}
+                    </div>
+                  </div>
+                `
+              : null
+          }
+          ${
+            dueDateConfigured
+              ? html`
+                  <div class="stat-row">
+                    <div class="stat-label">
+                      <span>Due date — ${formatDate(task.due_date)}</span>
+                      <span class="stat-value"
+                        >${formatRemainingTime(task.due_date_remaining_ms)}${task.due_date_remaining_ms !== null && task.due_date_remaining_ms >= 0 ? ' left' : ''}</span
+                      >
+                    </div>
+                    <${ProgressBar}
+                      fraction=${task.due_date_fraction}
+                      status=${task.due_date_status}
+                    />
+                    <div class="field-hint">
+                      One-time deadline.
                     </div>
                   </div>
                 `

@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(2);
+    expect(schemaVersion(db)).toBe(3);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -63,8 +63,50 @@ describe('task CRUD', () => {
     expect(task.current_runtime).toBe(1360);
     expect(task.elapsed_runtime).toBeCloseTo(119.5);
     expect(task.remaining_runtime).toBeCloseTo(80.5);
-    expect(task.due_date).toBe('2027-01-15T10:00:00.000Z');
+    expect(task.scheduled_due_date).toBe('2027-01-15T10:00:00.000Z');
     expect(task.status).toBe('ok');
+  });
+
+  it('stores a one-time due_date and folds it into the merged time dimension', () => {
+    const { service } = makeService();
+    const task = service.createTask({
+      name: 'Registration renewal',
+      due_date: '2026-07-14', // 5 days out, inside the 7-day lead window
+    });
+    expect(task.due_date).toBe('2026-07-14T00:00:00.000Z');
+    expect(task.due_date_status).toBe('due_soon');
+    expect(task.remaining_time_ms).toBe(task.due_date_remaining_ms);
+    expect(task.status).toBe('due_soon');
+
+    const cleared = service.updateTask(task.slug, { due_date: null });
+    expect(cleared.due_date).toBeNull();
+    expect(cleared.due_date_status).toBeNull();
+    expect(cleared.status).toBe('unknown');
+  });
+
+  it('rejects an invalid due_date', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({ name: 'Bad', due_date: 'not-a-date' }),
+    ).toThrow(ApiError);
+  });
+
+  it('clears the one-time due_date when the task is completed', async () => {
+    const { service } = makeService();
+    const task = service.createTask({
+      name: 'Registration renewal',
+      due_date: '2026-07-14',
+    });
+    expect(task.due_date).not.toBeNull();
+
+    await service.addLog(
+      task.slug,
+      { maintenance_date: '2026-07-10T00:00:00Z' },
+      null,
+    );
+    const done = service.getTask(task.slug);
+    expect(done.due_date).toBeNull();
+    expect(done.due_date_status).toBeNull();
   });
 
   it('auto-suffixes duplicate auto-generated slugs', () => {
@@ -365,7 +407,7 @@ describe('denormalization invariant (§5.6)', () => {
     expect(t.last_maintenance).toBe('2026-07-01T00:00:00.000Z');
     expect(t.last_runtime).toBe(1234.5);
     expect(t.status).toBe('unknown'); // still no due-date/status without an interval
-    expect(t.due_date).toBeNull();
+    expect(t.scheduled_due_date).toBeNull();
   });
 
   it('stamps logged_by from the caller, and validates maintenance_date', async () => {

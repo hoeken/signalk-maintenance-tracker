@@ -51,6 +51,9 @@ export function TaskFormModal(props) {
   const [timeUnit, setTimeUnit] = useState(
     task && task.time_interval_unit ? task.time_interval_unit : 'months',
   );
+  const [dueDate, setDueDate] = useState(
+    task && task.due_date ? String(task.due_date).slice(0, 10) : '',
+  );
   const [seedMaintenance, setSeedMaintenance] = useState('');
   const [seedRuntime, setSeedRuntime] = useState('');
   const [error, setError] = useState('');
@@ -80,6 +83,7 @@ export function TaskFormModal(props) {
       tags: tags,
       consumables: consumables,
       runtime_path: runtimePath.trim() ? runtimePath.trim() : null,
+      due_date: dueDate.trim() ? dueDate.trim() : null,
       runtime_interval: null,
       time_interval: null,
       time_interval_unit: null,
@@ -282,6 +286,21 @@ export function TaskFormModal(props) {
               </select>
             </div>
             <div class="field-hint">Empty = no calendar tracking.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="task-due-date">Due date</label>
+          <input
+            id="task-due-date"
+            class="input"
+            type="date"
+            value=${dueDate}
+            onInput=${(/** @type {any} */ e) => setDueDate(e.currentTarget.value)}
+          />
+          <div class="field-hint">
+            One-time deadline (e.g. registration, renewal). Cleared when the
+            task is completed. Empty = none.
           </div>
         </div>
 

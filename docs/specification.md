@@ -323,13 +323,30 @@ Runtime dimension (only if `runtime_interval` and `runtime_path` and both
 - `due_runtime_at = last_runtime + runtime_interval` (in runtime hours)
 - `runtime_fraction = elapsed_runtime / runtime_interval` (for progress bars)
 
-Time dimension (only if `time_interval` and `last_maintenance` are known):
+Recurring time-interval dimension (only if `time_interval` and
+`last_maintenance` are known):
 
-- `due_date = last_maintenance + (time_interval, time_interval_unit)` — computed
-  with calendar-aware date math (day.js `.add`), so "6 months" respects month
-  lengths.
-- `remaining_time_ms = due_date - now`
-- `time_fraction = (now - last_maintenance) / (due_date - last_maintenance)`
+- `scheduled_due_date = last_maintenance + (time_interval, time_interval_unit)` —
+  computed with calendar-aware date math (day.js `.add`), so "6 months" respects
+  month lengths.
+- `scheduled_remaining_ms = scheduled_due_date - now`
+- `scheduled_fraction = (now - last_maintenance) / (scheduled_due_date - last_maintenance)`
+
+One-time due-date dimension (only if the stored `due_date` deadline is set):
+
+- `due_date_remaining_ms = due_date - now`
+- `due_date_fraction = (now - created_at) / (due_date - created_at)` — the
+  deadline has no recurrence anchor, so progress runs from task creation.
+- `due_date_status` uses the same thresholds as the recurring dimension
+  (`timeNotifyLeadDays`).
+
+Merged time dimension — collapses the two above into the single figure the task
+list, sort, and notifications consume; the detail page shows the breakdown:
+
+- `remaining_time_ms` = the lower (more urgent) of `scheduled_remaining_ms` and
+  `due_date_remaining_ms`.
+- `time_fraction` = the fraction of whichever sub-dimension is driving.
+- `time_status` = most urgent of `scheduled_status` and `due_date_status`.
 
 ### 6.3 Status
 
@@ -682,6 +699,7 @@ Task response object (list item / detail):
   "time_interval": 12,
   "time_interval_unit": "months",
   "runtime_path": "propulsion.port.runTime",
+  "due_date": "2026-09-30T00:00:00Z",
   "last_maintenance": "2026-01-15T10:00:00Z",
   "last_runtime": 1240.5,
   "current_runtime": 1360.0,
@@ -689,9 +707,17 @@ Task response object (list item / detail):
   "remaining_runtime": 80.5,
   "due_runtime_at": 1440.5,
   "runtime_fraction": 0.5975,
-  "due_date": "2027-01-15T10:00:00Z",
-  "remaining_time_ms": 16675200000,
-  "time_fraction": 0.48,
+  "runtime_status": "ok",
+  "scheduled_due_date": "2027-01-15T10:00:00Z",
+  "scheduled_remaining_ms": 16675200000,
+  "scheduled_fraction": 0.48,
+  "scheduled_status": "ok",
+  "due_date_remaining_ms": 6739200000,
+  "due_date_fraction": 0.55,
+  "due_date_status": "ok",
+  "remaining_time_ms": 6739200000,
+  "time_fraction": 0.55,
+  "time_status": "ok",
   "status": "ok",
   "status_rank": 2,
   "created_at": "…",
@@ -705,7 +731,7 @@ Task response object (list item / detail):
 | ------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | GET    | `/logs`             | Master log, paginated. Query: `search`, `sort` (maintenance_date\|task\|runtime_hours), `order`, `page`, `pageSize`. Each item includes `task_slug` + `task_name`.                                                                                                                                                                                                                         |
 | GET    | `/tasks/:slug/logs` | Log entries for one task.                                                                                                                                                                                                                                                                                                                                                                  |
-| POST   | `/tasks/:slug/logs` | **Mark complete** — create a log entry. Recomputes task denormalized fields (§5.6) and refreshes the task's notification. `logged_by` is filled server-side from the request principal (§9), not the body. If the task has linked consumables (§8.1) and stowage-mgmt integration is configured, also decrements their stock — best-effort; see below and `docs/inventory-interaction.md`. |
+| POST   | `/tasks/:slug/logs` | **Mark complete** — create a log entry. Recomputes task denormalized fields (§5.6), clears any one-time `due_date` (the deadline was for this completion), and refreshes the task's notification. `logged_by` is filled server-side from the request principal (§9), not the body. If the task has linked consumables (§8.1) and stowage-mgmt integration is configured, also decrements their stock — best-effort; see below and `docs/inventory-interaction.md`. |
 | PUT    | `/logs/:id`         | Edit a log entry. Recomputes task fields if it was/becomes the latest.                                                                                                                                                                                                                                                                                                                     |
 | DELETE | `/logs/:id`         | Delete a log entry. Recomputes task fields.                                                                                                                                                                                                                                                                                                                                                |
 
