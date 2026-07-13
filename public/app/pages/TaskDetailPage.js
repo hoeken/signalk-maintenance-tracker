@@ -23,6 +23,8 @@ import { MarkdownView } from '../components/MarkdownView.js';
 import { TaskFormModal } from '../components/TaskFormModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
+import { DownloadLogModal } from '../components/DownloadLogModal.js';
+import { apiFetch } from '../api/client.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
@@ -42,6 +44,7 @@ export function TaskDetailPage(props) {
   const [deletingEntry, setDeletingEntry] = useState(
     /** @type {LogDTO|null} */ (null),
   );
+  const [downloadingLog, setDownloadingLog] = useState(false);
 
   const task = taskRes.data;
 
@@ -250,6 +253,19 @@ export function TaskDetailPage(props) {
 
       <div class="page-header" style="margin-top:24px">
         <h2 class="page-title" style="font-size:17px">Maintenance log</h2>
+        ${
+          logsRes.data && logsRes.data.data.length
+            ? html`<span class="page-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  onClick=${() => setDownloadingLog(true)}
+                >
+                  <i class="bi bi-download" />Download log
+                </button>
+              </span>`
+            : null
+        }
       </div>
       <${Table}
         columns=${logColumns}
@@ -276,6 +292,21 @@ export function TaskDetailPage(props) {
                 if (saved.slug !== props.slug)
                   navigate('/tasks/' + encodeURIComponent(saved.slug));
               }}
+            />`
+          : null
+      }
+      ${
+        downloadingLog
+          ? html`<${DownloadLogModal}
+              title=${'Download log — ' + task.name}
+              filenameBase=${'signalk-maintenance-log-' + task.slug}
+              fetchEntries=${async () => {
+                const res = await apiFetch(
+                  '/tasks/' + encodeURIComponent(task.slug) + '/logs',
+                );
+                return res.data;
+              }}
+              onClose=${() => setDownloadingLog(false)}
             />`
           : null
       }

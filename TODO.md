@@ -3,11 +3,7 @@
 - add per-task warning windows to runtime and date
   - not set = fall back to plugin defaults
 
-- add "Due Date" field - one time deadline for things that must be done in the future like registrations, renewals. we can calculate days remaining from this. for calculations / display merge this and the existing days remaining field down into one field. use whichever value is lower.
-
-- download log button should open a modal with output type: csv, markdown, or json.
-
-- add button to download the maintenance log for a specific task as well, same UI pattern.
+- add "Due Date" field - one time deadline for things that must be done in the future like registrations, renewals. we can calculate days remaining from this. for calculations / display merge this and the existing days remaining field down into one field. use whichever value is lower.  task detail page can break it down into how many remaining days for due date vs scheduled
 
 - clean up plugin status text
 

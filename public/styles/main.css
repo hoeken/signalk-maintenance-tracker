@@ -343,6 +343,19 @@ pre {
   grid-gap: 12px;
 }
 
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
 .form-error {
   background: var(--danger-bg);
   color: var(--danger);

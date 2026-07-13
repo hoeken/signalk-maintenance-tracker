@@ -16,6 +16,7 @@ import {
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { MarkdownView } from '../components/MarkdownView.js';
+import { DownloadLogModal } from '../components/DownloadLogModal.js';
 
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 
@@ -23,27 +24,6 @@ const PAGE_SIZE = 25;
 const NOTE_PREVIEW_CHARS = 120;
 /** Server-side pageSize cap (see MAX_PAGE_SIZE in src/service.ts). */
 const EXPORT_PAGE_SIZE = 200;
-
-/** @param {string|number|null|undefined} value */
-function csvField(value) {
-  const s = value === null || value === undefined ? '' : String(value);
-  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-
-/** @param {LogDTO[]} entries */
-function buildCsv(entries) {
-  const rows = [['Task', 'Date', 'Runtime Hours', 'Logged By', 'Notes']];
-  for (const e of entries) {
-    rows.push([
-      csvField(e.task_name),
-      csvField(e.maintenance_date),
-      csvField(e.runtime_hours),
-      csvField(e.logged_by),
-      csvField(e.notes),
-    ]);
-  }
-  return rows.map((r) => r.join(',')).join('\r\n') + '\r\n';
-}
 
 /** Fetch every log entry, paging past the server's pageSize cap. */
 async function fetchAllLogs() {
@@ -89,40 +69,7 @@ export function MasterLogPage() {
     pageSize: PAGE_SIZE,
   });
 
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState(
-    /** @type {string|null} */ (null),
-  );
-  const downloadCsv = async () => {
-    if (downloading) return;
-    setDownloading(true);
-    setDownloadError(null);
-    try {
-      const entries = await fetchAllLogs();
-      const now = new Date();
-      /** @param {number} n */
-      const pad = (n) => String(n).padStart(2, '0');
-      const stamp =
-        now.getFullYear() +
-        '-' +
-        pad(now.getMonth() + 1) +
-        '-' +
-        pad(now.getDate());
-      const blob = new Blob([buildCsv(entries)], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'signalk-maintenance-log-' + stamp + '.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Download failed');
-    } finally {
-      setDownloading(false);
-    }
-  };
+  const [showDownload, setShowDownload] = useState(false);
 
   const [expanded, setExpanded] = useState(
     /** @type {Record<string, boolean>} */ ({}),
@@ -232,20 +179,20 @@ export function MasterLogPage() {
         <button
           type="button"
           class="btn btn-primary toolbar-action"
-          disabled=${downloading}
-          onClick=${downloadCsv}
+          onClick=${() => setShowDownload(true)}
         >
-          <i
-            class="bi bi-download"
-          />${downloading ? 'Preparing…' : 'Download Log'}
+          <i class="bi bi-download" />Download Log
         </button>
       </div>
 
       ${
-        downloadError
-          ? html`<div class="error-box">
-              Failed to download log: ${downloadError}
-            </div>`
+        showDownload
+          ? html`<${DownloadLogModal}
+              title="Download maintenance log"
+              filenameBase="signalk-maintenance-log"
+              fetchEntries=${fetchAllLogs}
+              onClose=${() => setShowDownload(false)}
+            />`
           : null
       }
 
