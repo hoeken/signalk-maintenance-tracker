@@ -79,8 +79,9 @@ export = function (app: any) {
         refresh();
         timer = setInterval(recomputeNotifications, opts.recomputeIntervalMs);
 
+        const taskCount = service.health().tasks;
         app.setPluginStatus?.(
-          `Started — ${service.health().tasks} tasks, DB at ${dbPath}`,
+          `Tracking ${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`,
         );
         app.debug?.(`${PLUGIN_ID} started`);
       } catch (err) {

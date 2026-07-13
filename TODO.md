@@ -1,7 +1,5 @@
 # 1.1.0
 
-- clean up plugin status text
-
 - update readme.
 
 # Long Term
