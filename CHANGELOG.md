@@ -1,3 +1,44 @@
+# v1.1.0
+
+This release teaches Maintenance Tracker to talk to your spares locker, adds
+finer control over when tasks come due and warn, and makes the log easy to take
+with you.
+
+## Highlights
+
+- **Inventory integration with signalk-stowage-mgmt.** Link the parts a task
+  consumes straight to your stowage-mgmt items, see live stock badges
+  (`In stock` / `Low stock` / `Out of stock`) beside each task's due-date badge,
+  and have the used quantities auto-decremented from inventory when you mark a
+  task complete — choosing which location(s) the stock came from when a part
+  lives in more than one place. Entirely opt-in: leave the stowage-mgmt API URL
+  blank and none of it activates.
+- **Per-task warning windows.** Any task can override the plugin-wide "due soon"
+  lead windows with its own runtime-hours and calendar-days thresholds, so a
+  critical task can warn earlier without changing everything else.
+- **One-time due-date deadlines.** Give a task a specific calendar due date for a
+  one-off job, independent of any recurring interval.
+- **Download the log.** Export the maintenance log as CSV, Markdown, or JSON from
+  a format-picker in the webapp.
+- **Publish task data to SignalK paths.** Beyond notifications, each task can now
+  publish to `maintenance.{slug}.data` and `maintenance.{slug}.status`
+  (toggleable), so dashboards can read task details directly from the SignalK
+  data model.
+- **Configurable alarm state per status.** Choose the SignalK alarm state
+  (`none`/`normal`/`alert`/`warn`/`alarm`/`emergency`) raised for up-to-date,
+  due-soon, and overdue tasks independently. The old notification "method" option
+  is gone.
+
+## Smaller changes and fixes
+
+- Task list and detail UI cleanup: action buttons moved into a toolbar, page
+  headers dropped, Tags and Next Due columns removed, Status column widened for
+  badges, and larger icons and fonts for readability on chartplotters.
+- Tags are now added when you Tab out of the tag input, not only on Enter.
+- Device-token principals are redacted and long SignalK token usernames are
+  shortened in the log's "By" column.
+- The pre-commit hook now checks formatting instead of silently auto-fixing.
+
 # v1.0.0
 
 The first release of Maintenance Tracker! 🎉
