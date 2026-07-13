@@ -13,6 +13,8 @@ function makeTask(overrides: Partial<TaskDTO>): TaskDTO {
     time_interval: null,
     time_interval_unit: null,
     runtime_path: null,
+    runtime_warning_hours: null,
+    time_warning_days: null,
     last_maintenance: null,
     last_runtime: null,
     created_at: '',

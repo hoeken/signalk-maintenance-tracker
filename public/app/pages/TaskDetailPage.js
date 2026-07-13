@@ -112,6 +112,20 @@ export function TaskDetailPage(props) {
   const timeConfigured = task.time_interval !== null;
   const dueDateConfigured = task.due_date !== null;
 
+  // Per-task "due soon" lead windows, shown only when overriding the plugin
+  // default (null = default, 0 = no warning).
+  const warnNote = (
+    /** @type {number|null} */ value,
+    /** @type {string} */ unit,
+  ) =>
+    value === null
+      ? ''
+      : value === 0
+        ? ' · no due-soon warning'
+        : ` · warns ${value}${unit} early`;
+  const runtimeWarnNote = warnNote(task.runtime_warning_hours, 'h');
+  const timeWarnNote = warnNote(task.time_warning_days, 'd');
+
   return html`
     <div>
       <div class="page-header">
@@ -214,7 +228,7 @@ export function TaskDetailPage(props) {
                     <div class="field-hint">
                       Current ${formatHours(task.current_runtime)} · last done
                       at ${formatHours(task.last_runtime)} · due
-                      at ${formatHours(task.due_runtime_at)}
+                      at ${formatHours(task.due_runtime_at)}${runtimeWarnNote}
                     </div>
                   </div>
                 `
@@ -236,7 +250,7 @@ export function TaskDetailPage(props) {
                     />
                     <div class="field-hint">
                       Last done ${formatDate(task.last_maintenance)} · next
-                      due ${formatDate(task.scheduled_due_date)}
+                      due ${formatDate(task.scheduled_due_date)}${timeWarnNote}
                     </div>
                   </div>
                 `
@@ -257,7 +271,7 @@ export function TaskDetailPage(props) {
                       status=${task.due_date_status}
                     />
                     <div class="field-hint">
-                      One-time deadline.
+                      One-time deadline.${timeWarnNote}
                     </div>
                   </div>
                 `

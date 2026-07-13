@@ -10,6 +10,8 @@ export interface NewTask {
   time_interval_unit: TimeUnit | null;
   runtime_path: string | null;
   due_date: string | null;
+  runtime_warning_hours: number | null;
+  time_warning_days: number | null;
   last_maintenance: string | null;
   last_runtime: number | null;
   seed_last_maintenance: string | null;
@@ -17,7 +19,8 @@ export interface NewTask {
 }
 
 const COLUMNS = `id, slug, name, description, runtime_interval, time_interval,
-  time_interval_unit, runtime_path, due_date, last_maintenance, last_runtime,
+  time_interval_unit, runtime_path, due_date, runtime_warning_hours,
+  time_warning_days, last_maintenance, last_runtime,
   seed_last_maintenance, seed_last_runtime, created_at, updated_at`;
 
 export class TasksRepo {
@@ -27,9 +30,10 @@ export class TasksRepo {
     const result = this.db
       .prepare(
         `INSERT INTO tasks (slug, name, description, runtime_interval, time_interval,
-           time_interval_unit, runtime_path, due_date, last_maintenance, last_runtime,
+           time_interval_unit, runtime_path, due_date, runtime_warning_hours,
+           time_warning_days, last_maintenance, last_runtime,
            seed_last_maintenance, seed_last_runtime, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         t.slug,
@@ -40,6 +44,8 @@ export class TasksRepo {
         t.time_interval_unit,
         t.runtime_path,
         t.due_date,
+        t.runtime_warning_hours,
+        t.time_warning_days,
         t.last_maintenance,
         t.last_runtime,
         t.seed_last_maintenance,
@@ -87,7 +93,8 @@ export class TasksRepo {
       .prepare(
         `UPDATE tasks SET slug = ?, name = ?, description = ?, runtime_interval = ?,
            time_interval = ?, time_interval_unit = ?, runtime_path = ?,
-           due_date = ?, last_maintenance = ?, last_runtime = ?,
+           due_date = ?, runtime_warning_hours = ?, time_warning_days = ?,
+           last_maintenance = ?, last_runtime = ?,
            seed_last_maintenance = ?, seed_last_runtime = ?, updated_at = ?
          WHERE id = ?`,
       )
@@ -100,6 +107,8 @@ export class TasksRepo {
         t.time_interval_unit,
         t.runtime_path,
         t.due_date,
+        t.runtime_warning_hours,
+        t.time_warning_days,
         t.last_maintenance,
         t.last_runtime,
         t.seed_last_maintenance,

@@ -82,13 +82,17 @@ export const schema = {
     runtimeNotifyLeadHours: {
       type: 'number',
       title: 'Runtime lead window (hours)',
-      description: 'Tasks within this many runtime hours of due are "due soon"',
+      minimum: 0,
+      description:
+        'Tasks within this many runtime hours of due are "due soon". 0 disables the warning — tasks go straight from OK to overdue. Individual tasks can override this.',
       default: DEFAULT_OPTIONS.runtimeNotifyLeadHours,
     },
     timeNotifyLeadDays: {
       type: 'number',
       title: 'Time lead window (days)',
-      description: 'Tasks within this many days of due are "due soon"',
+      minimum: 0,
+      description:
+        'Tasks within this many days of due are "due soon". 0 disables the warning — tasks go straight from OK to overdue. Individual tasks can override this.',
       default: DEFAULT_OPTIONS.timeNotifyLeadDays,
     },
     recomputeIntervalMs: {

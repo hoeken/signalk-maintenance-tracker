@@ -77,6 +77,8 @@ export function makeTask(overrides) {
       time_interval_unit: 'months',
       runtime_path: 'propulsion.port.runTime',
       due_date: null,
+      runtime_warning_hours: null,
+      time_warning_days: null,
       last_maintenance: '2026-01-15T10:00:00.000Z',
       last_runtime: 1240.5,
       current_runtime: 1360,

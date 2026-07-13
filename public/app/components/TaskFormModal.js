@@ -11,7 +11,7 @@ import { MarkdownView } from './MarkdownView.js';
 import { TagInput } from './TagInput.js';
 import { ConsumablesPicker } from './ConsumablesPicker.js';
 import { PathPicker } from './PathPicker.js';
-import { createTask, updateTask, useTags } from '../api/hooks.js';
+import { createTask, updateTask, useTags, useHealth } from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
 import { toast } from '../lib/toasts.js';
 
@@ -54,6 +54,16 @@ export function TaskFormModal(props) {
   const [dueDate, setDueDate] = useState(
     task && task.due_date ? String(task.due_date).slice(0, 10) : '',
   );
+  const [runtimeWarning, setRuntimeWarning] = useState(
+    task && task.runtime_warning_hours !== null
+      ? String(task.runtime_warning_hours)
+      : '',
+  );
+  const [timeWarning, setTimeWarning] = useState(
+    task && task.time_warning_days !== null
+      ? String(task.time_warning_days)
+      : '',
+  );
   const [seedMaintenance, setSeedMaintenance] = useState('');
   const [seedRuntime, setSeedRuntime] = useState('');
   const [error, setError] = useState('');
@@ -63,6 +73,17 @@ export function TaskFormModal(props) {
   const suggestions = (tagsRes.data ? tagsRes.data.data : []).map(
     (t) => t.name,
   );
+
+  // Plugin-wide warning windows a blank field falls back to, shown as the
+  // input placeholder (e.g. "Default: 10").
+  const healthRes = useHealth();
+  const defaults = healthRes.data && healthRes.data.defaults;
+  const runtimeWarningPlaceholder = defaults
+    ? `Default: ${defaults.runtime_warning_hours}`
+    : '';
+  const timeWarningPlaceholder = defaults
+    ? `Default: ${defaults.time_warning_days}`
+    : '';
 
   const effectiveSlug = slugTouched ? slug : slugify(name || '');
   const slugChanged = isEdit && task && effectiveSlug !== task.slug;
@@ -87,6 +108,8 @@ export function TaskFormModal(props) {
       runtime_interval: null,
       time_interval: null,
       time_interval_unit: null,
+      runtime_warning_hours: null,
+      time_warning_days: null,
     };
     if (
       consumables.some((c) => !c.qty_per_service || !(c.qty_per_service > 0))
@@ -114,6 +137,22 @@ export function TaskFormModal(props) {
       }
       input.time_interval = magnitude;
       input.time_interval_unit = /** @type {TimeUnit} */ (timeUnit);
+    }
+    if (runtimeWarning.trim() !== '') {
+      const hours = Number(runtimeWarning);
+      if (!isFinite(hours) || hours < 0) {
+        setError('Runtime warning window must be 0 or a positive number.');
+        return;
+      }
+      input.runtime_warning_hours = hours;
+    }
+    if (timeWarning.trim() !== '') {
+      const days = Number(timeWarning);
+      if (!isFinite(days) || days < 0) {
+        setError('Time warning window must be 0 or a positive number.');
+        return;
+      }
+      input.time_warning_days = days;
     }
     if (isEdit) {
       if (slugChanged) input.slug = effectiveSlug;
@@ -301,6 +340,47 @@ export function TaskFormModal(props) {
           <div class="field-hint">
             One-time deadline (e.g. registration, renewal). Cleared when the
             task is completed. Empty = none.
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="task-runtime-warning"
+              >Runtime warning window (hours)</label
+            >
+            <input
+              id="task-runtime-warning"
+              class="input"
+              type="number"
+              min="0"
+              step="any"
+              placeholder=${runtimeWarningPlaceholder}
+              value=${runtimeWarning}
+              onInput=${(/** @type {any} */ e) => setRuntimeWarning(e.currentTarget.value)}
+            />
+            <div class="field-hint">
+              How early runtime tasks flag "due soon". Empty = plugin
+              default; 0 = no warning.
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="task-time-warning"
+              >Time warning window (days)</label
+            >
+            <input
+              id="task-time-warning"
+              class="input"
+              type="number"
+              min="0"
+              step="any"
+              placeholder=${timeWarningPlaceholder}
+              value=${timeWarning}
+              onInput=${(/** @type {any} */ e) => setTimeWarning(e.currentTarget.value)}
+            />
+            <div class="field-hint">
+              How early time & due-date tasks flag "due soon". Empty = plugin
+              default; 0 = no warning.
+            </div>
           </div>
         </div>
 

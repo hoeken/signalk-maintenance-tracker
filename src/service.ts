@@ -114,6 +114,8 @@ export class MaintenanceService {
       time_interval_unit: row.time_interval_unit,
       runtime_path: row.runtime_path,
       due_date: row.due_date,
+      runtime_warning_hours: row.runtime_warning_hours,
+      time_warning_days: row.time_warning_days,
       last_maintenance: row.last_maintenance,
       last_runtime: row.last_runtime,
       created_at: row.created_at,
@@ -249,6 +251,10 @@ export class MaintenanceService {
       body.time_interval,
       body.time_interval_unit,
     );
+    this.validateWarningWindows(
+      body.runtime_warning_hours,
+      body.time_warning_days,
+    );
 
     let slug: string;
     if (body.slug != null && body.slug.trim() !== '') {
@@ -273,6 +279,8 @@ export class MaintenanceService {
       time_interval_unit: body.time_interval_unit ?? null,
       runtime_path: body.runtime_path?.trim() || null,
       due_date: this.normalizeDueDate(body.due_date),
+      runtime_warning_hours: body.runtime_warning_hours ?? null,
+      time_warning_days: body.time_warning_days ?? null,
       last_maintenance: body.last_maintenance ?? null,
       last_runtime: body.last_runtime ?? null,
       seed_last_maintenance: body.last_maintenance ?? null,
@@ -322,6 +330,14 @@ export class MaintenanceService {
         body.due_date !== undefined
           ? this.normalizeDueDate(body.due_date)
           : row.due_date,
+      runtime_warning_hours:
+        body.runtime_warning_hours !== undefined
+          ? body.runtime_warning_hours
+          : row.runtime_warning_hours,
+      time_warning_days:
+        body.time_warning_days !== undefined
+          ? body.time_warning_days
+          : row.time_warning_days,
       last_maintenance: row.last_maintenance,
       last_runtime: row.last_runtime,
       seed_last_maintenance: row.seed_last_maintenance,
@@ -334,6 +350,10 @@ export class MaintenanceService {
       merged.runtime_interval,
       merged.time_interval,
       merged.time_interval_unit,
+    );
+    this.validateWarningWindows(
+      merged.runtime_warning_hours,
+      merged.time_warning_days,
     );
 
     // Slug change: normalize, uniqueness-check, remember old slug so the
@@ -585,11 +605,23 @@ export class MaintenanceService {
     return this.tasks.runtimePaths();
   }
 
-  health(): { tasks: number; logEntries: number; runtimePaths: string[] } {
+  health(): {
+    tasks: number;
+    logEntries: number;
+    runtimePaths: string[];
+    /** Plugin-wide "due soon" lead windows, i.e. the fallback a task uses when
+     * its own runtime_warning_hours / time_warning_days are unset. Keyed to
+     * match those task fields so the UI can offer them as placeholders. */
+    defaults: { runtime_warning_hours: number; time_warning_days: number };
+  } {
     return {
       tasks: this.tasks.count(),
       logEntries: this.logs.count(),
       runtimePaths: this.tasks.runtimePaths(),
+      defaults: {
+        runtime_warning_hours: this.deps.config.runtimeNotifyLeadHours,
+        time_warning_days: this.deps.config.timeNotifyLeadDays,
+      },
     };
   }
 
@@ -685,6 +717,28 @@ export class MaintenanceService {
         'invalid_interval',
         `time_interval_unit must be one of ${TIME_UNITS.join(', ')}`,
       );
+  }
+
+  /**
+   * Per-task "due soon" lead windows are optional overrides of the plugin
+   * defaults. null clears the override; 0 is valid and disables the window;
+   * anything else must be a non-negative number.
+   */
+  private validateWarningWindows(
+    runtimeWarningHours: number | null | undefined,
+    timeWarningDays: number | null | undefined,
+  ): void {
+    const check = (value: number | null | undefined, label: string) => {
+      if (value == null) return;
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+        throw new ApiError(
+          400,
+          'invalid_warning_window',
+          `${label} must be a non-negative number (0 disables the warning)`,
+        );
+    };
+    check(runtimeWarningHours, 'runtime_warning_hours');
+    check(timeWarningDays, 'time_warning_days');
   }
 
   /**

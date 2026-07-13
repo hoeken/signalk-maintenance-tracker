@@ -82,7 +82,7 @@ export function useTags() {
 /**
  * Plugin health/version (§8.5). Fetched once; the version can't change
  * without a server restart, so no polling.
- * @returns {import('./resource.js').ResourceState<{version: string}>}
+ * @returns {import('./resource.js').ResourceState<{ version: string, defaults: { runtime_warning_hours: number, time_warning_days: number } }>}
  */
 export function useHealth() {
   return useResource('health', () => apiFetch('/health'));

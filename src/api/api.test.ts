@@ -321,6 +321,7 @@ describe('tags & health endpoints', () => {
       logEntries: 0,
       runtimePaths: ['propulsion.port.runTime'],
       version: '0.1.0-test',
+      defaults: { runtime_warning_hours: 10, time_warning_days: 7 },
     });
   });
 

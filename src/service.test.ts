@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(3);
+    expect(schemaVersion(db)).toBe(4);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -107,6 +107,39 @@ describe('task CRUD', () => {
     const done = service.getTask(task.slug);
     expect(done.due_date).toBeNull();
     expect(done.due_date_status).toBeNull();
+  });
+
+  it('stores per-task warning windows and applies them over the defaults', () => {
+    const { service } = makeService();
+    // due_date 5 days out; default 7-day window → due_soon, but a 0-day
+    // per-task window disables the warning entirely.
+    const task = service.createTask({
+      name: 'Registration renewal',
+      due_date: '2026-07-14',
+      time_warning_days: 0,
+      runtime_warning_hours: 25,
+    });
+    expect(task.time_warning_days).toBe(0);
+    expect(task.runtime_warning_hours).toBe(25);
+    expect(task.due_date_status).toBe('ok');
+    expect(task.status).toBe('ok');
+
+    // null clears the override, falling back to the 7-day default → due_soon
+    const reset = service.updateTask(task.slug, { time_warning_days: null });
+    expect(reset.time_warning_days).toBeNull();
+    expect(reset.due_date_status).toBe('due_soon');
+  });
+
+  it('rejects a negative warning window', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({ name: 'Bad', time_warning_days: -1 }),
+    ).toThrowError(
+      expect.objectContaining({ status: 400, code: 'invalid_warning_window' }),
+    );
+    expect(() =>
+      service.createTask({ name: 'Bad', runtime_warning_hours: -5 }),
+    ).toThrow(ApiError);
   });
 
   it('auto-suffixes duplicate auto-generated slugs', () => {

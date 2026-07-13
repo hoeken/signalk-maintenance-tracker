@@ -63,6 +63,8 @@ export function computeTask(
     | 'time_interval_unit'
     | 'runtime_path'
     | 'due_date'
+    | 'runtime_warning_hours'
+    | 'time_warning_days'
     | 'last_maintenance'
     | 'last_runtime'
     | 'created_at'
@@ -71,6 +73,10 @@ export function computeTask(
   now: Date,
   cfg: StatusConfig,
 ): ComputedFields {
+  // Per-task lead windows override the plugin defaults; null falls back, 0 is
+  // a real value meaning "no due-soon window" (task goes straight ok→overdue).
+  const runtimeLead = task.runtime_warning_hours ?? cfg.runtimeNotifyLeadHours;
+  const timeLead = task.time_warning_days ?? cfg.timeNotifyLeadDays;
   const out: ComputedFields = {
     current_runtime: currentRuntime,
     elapsed_runtime: null,
@@ -105,7 +111,7 @@ export function computeTask(
       out.runtime_status =
         remaining <= 0
           ? 'overdue'
-          : remaining <= cfg.runtimeNotifyLeadHours
+          : remaining <= runtimeLead
             ? 'due_soon'
             : 'ok';
     } else {
@@ -126,7 +132,7 @@ export function computeTask(
       out.scheduled_remaining_ms = due - now.getTime();
       const span = due - last;
       out.scheduled_fraction = span > 0 ? (now.getTime() - last) / span : 1;
-      out.scheduled_status = dateStatus(out.scheduled_remaining_ms, cfg);
+      out.scheduled_status = dateStatus(out.scheduled_remaining_ms, timeLead);
     } else {
       out.scheduled_status = 'unknown';
     }
@@ -140,7 +146,7 @@ export function computeTask(
     const start = new Date(task.created_at).getTime();
     const span = due - start;
     out.due_date_fraction = span > 0 ? (now.getTime() - start) / span : 1;
-    out.due_date_status = dateStatus(out.due_date_remaining_ms, cfg);
+    out.due_date_status = dateStatus(out.due_date_remaining_ms, timeLead);
   }
 
   // Merged "time" dimension = the more urgent of the two: whichever has the
@@ -177,10 +183,11 @@ export function computeTask(
   return out;
 }
 
-/** Date-based sub-status from remaining milliseconds (§6.3). */
-function dateStatus(remainingMs: number, cfg: StatusConfig): Status {
+/** Date-based sub-status from remaining milliseconds (§6.3). leadDays 0 means
+ * no due-soon window: the task goes straight from ok to overdue. */
+function dateStatus(remainingMs: number, leadDays: number): Status {
   if (remainingMs <= 0) return 'overdue';
-  if (remainingMs <= cfg.timeNotifyLeadDays * MS_PER_DAY) return 'due_soon';
+  if (remainingMs <= leadDays * MS_PER_DAY) return 'due_soon';
   return 'ok';
 }
 

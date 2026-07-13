@@ -91,4 +91,16 @@ export const migrations: Migration[] = [
       db.exec(`ALTER TABLE tasks ADD COLUMN due_date TEXT;`);
     },
   },
+  {
+    version: 4,
+    up(db) {
+      // Per-task "due soon" lead windows overriding the plugin-wide defaults
+      // (runtimeNotifyLeadHours / timeNotifyLeadDays). NULL = fall back to the
+      // plugin default; 0 = no warning window (task jumps ok → overdue).
+      // time_warning_days covers both time sub-dimensions (recurring schedule
+      // and one-time due date), which share the same date-based status logic.
+      db.exec(`ALTER TABLE tasks ADD COLUMN runtime_warning_hours REAL;`);
+      db.exec(`ALTER TABLE tasks ADD COLUMN time_warning_days REAL;`);
+    },
+  },
 ];

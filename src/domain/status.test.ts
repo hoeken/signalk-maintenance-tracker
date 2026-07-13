@@ -10,6 +10,8 @@ const baseTask = {
   time_interval_unit: null as any,
   runtime_path: null as string | null,
   due_date: null as string | null,
+  runtime_warning_hours: null as number | null,
+  time_warning_days: null as number | null,
   last_maintenance: null as string | null,
   last_runtime: null as number | null,
   created_at: '2026-01-01T00:00:00Z',
@@ -234,6 +236,77 @@ describe('computeTask — merged time dimension', () => {
   });
 });
 
+describe('computeTask — per-task warning windows', () => {
+  it('runtime override widens the due-soon window past the plugin default', () => {
+    const task = {
+      ...baseTask,
+      runtime_interval: 200,
+      runtime_path: 'p',
+      last_runtime: 1000,
+      runtime_warning_hours: 50, // vs cfg default of 10
+    };
+    // 30h remaining: outside the 10h default, inside the 50h override
+    const c = computeTask(task, 1170, now, cfg);
+    expect(c.runtime_status).toBe('due_soon');
+  });
+
+  it('runtime override of 0 disables the window (ok straight to overdue)', () => {
+    const task = {
+      ...baseTask,
+      runtime_interval: 200,
+      runtime_path: 'p',
+      last_runtime: 1000,
+      runtime_warning_hours: 0,
+    };
+    // 5h remaining would be due_soon under the default, but 0 disables it
+    expect(computeTask(task, 1195, now, cfg).runtime_status).toBe('ok');
+    // still overdue once past due
+    expect(computeTask(task, 1205, now, cfg).runtime_status).toBe('overdue');
+  });
+
+  it('time override applies to both the recurring and due-date sub-dimensions', () => {
+    // recurring due 2026-07-14 (5 days out), due_date 2026-07-16 (7 days out)
+    const task = {
+      ...baseTask,
+      time_interval: 1,
+      time_interval_unit: 'weeks' as const,
+      last_maintenance: '2026-07-07T12:00:00Z',
+      due_date: '2026-07-16T00:00:00Z',
+      time_warning_days: 0, // disable warnings on both
+    };
+    const c = computeTask(task, null, now, cfg);
+    expect(c.scheduled_status).toBe('ok');
+    expect(c.due_date_status).toBe('ok');
+    expect(c.time_status).toBe('ok');
+    expect(c.status).toBe('ok');
+  });
+
+  it('time override of 0 still reports overdue past the deadline', () => {
+    const c = computeTask(
+      { ...baseTask, due_date: '2026-07-01T00:00:00Z', time_warning_days: 0 },
+      null,
+      now,
+      cfg,
+    );
+    expect(c.due_date_status).toBe('overdue');
+  });
+
+  it('null override falls back to the plugin default', () => {
+    // 5 days out, default lead 7 days → due_soon
+    const c = computeTask(
+      {
+        ...baseTask,
+        due_date: '2026-07-14T12:00:00Z',
+        time_warning_days: null,
+      },
+      null,
+      now,
+      cfg,
+    );
+    expect(c.due_date_status).toBe('due_soon');
+  });
+});
+
 describe('computeTask — combined & edge cases', () => {
   it('overall status is the most urgent dimension', () => {
     const c = computeTask(
@@ -244,6 +317,8 @@ describe('computeTask — combined & edge cases', () => {
         time_interval: 12,
         time_interval_unit: 'months',
         due_date: null,
+        runtime_warning_hours: null,
+        time_warning_days: null,
         last_maintenance: '2026-06-01T00:00:00Z',
         created_at: '2026-01-01T00:00:00Z',
       },
@@ -266,6 +341,8 @@ describe('computeTask — combined & edge cases', () => {
         time_interval: 12,
         time_interval_unit: 'months',
         due_date: null,
+        runtime_warning_hours: null,
+        time_warning_days: null,
         last_maintenance: '2026-06-01T00:00:00Z', // ok
         created_at: '2026-01-01T00:00:00Z',
       },

@@ -21,6 +21,12 @@ export interface TaskRow {
   time_interval_unit: TimeUnit | null;
   runtime_path: string | null;
   due_date: string | null;
+  /** Per-task "due soon" lead window overriding runtimeNotifyLeadHours;
+   * null = use the plugin default, 0 = no warning window. */
+  runtime_warning_hours: number | null;
+  /** Per-task "due soon" lead window (days) overriding timeNotifyLeadDays for
+   * both time sub-dimensions; null = use the plugin default, 0 = no window. */
+  time_warning_days: number | null;
   last_maintenance: string | null;
   last_runtime: number | null;
   seed_last_maintenance: string | null;
@@ -94,6 +100,8 @@ export interface TaskDTO extends ComputedFields {
   time_interval_unit: TimeUnit | null;
   runtime_path: string | null;
   due_date: string | null;
+  runtime_warning_hours: number | null;
+  time_warning_days: number | null;
   last_maintenance: string | null;
   last_runtime: number | null;
   created_at: string;
@@ -120,6 +128,12 @@ export interface TaskInput {
   time_interval_unit?: TimeUnit | null;
   runtime_path?: string | null;
   due_date?: string | null;
+  /** null clears the override (fall back to the plugin default); 0 disables
+   * the runtime "due soon" window entirely. */
+  runtime_warning_hours?: number | null;
+  /** null clears the override (fall back to the plugin default); 0 disables
+   * the time "due soon" window entirely. */
+  time_warning_days?: number | null;
   tags?: string[];
   last_maintenance?: string | null;
   last_runtime?: number | null;

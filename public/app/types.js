@@ -26,6 +26,8 @@
  * @property {TimeUnit|null} time_interval_unit
  * @property {string|null} runtime_path
  * @property {string|null} due_date
+ * @property {number|null} runtime_warning_hours
+ * @property {number|null} time_warning_days
  * @property {string|null} last_maintenance
  * @property {number|null} last_runtime
  * @property {number|null} current_runtime
@@ -92,6 +94,8 @@
  * @property {TimeUnit|null} [time_interval_unit]
  * @property {string|null} [runtime_path]
  * @property {string|null} [due_date]
+ * @property {number|null} [runtime_warning_hours]
+ * @property {number|null} [time_warning_days]
  * @property {string[]} [tags]
  * @property {string|null} [last_maintenance]
  * @property {number|null} [last_runtime]
