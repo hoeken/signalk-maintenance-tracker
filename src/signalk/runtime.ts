@@ -1,9 +1,16 @@
 import type { DatabaseSync } from 'node:sqlite';
 
+/** Floor between runtime_cache commits — deltas can arrive many times per
+ * second, and persisting each one hammers the disk. */
+export const FLUSH_INTERVAL_MS = 60_000;
+
 /**
  * Subscribes to the union of all task runtime paths on vessels.self, keeps an
  * in-memory map of the latest value, and persists it to runtime_cache so
  * values survive restarts (§10.2).
+ *
+ * Deltas only touch the in-memory map; dirty values are flushed to the DB in
+ * one transaction at most once per FLUSH_INTERVAL_MS (and on stop()).
  *
  * This is the single seconds→hours conversion boundary: SignalK runtime paths
  * are seconds; everything stored/returned here is hours.
@@ -14,10 +21,13 @@ export class RuntimeManager {
   private unsubscribes: (() => void)[] = [];
   private listeners: (() => void)[] = [];
   private lastUpdate: string | null = null;
+  private dirty = new Set<string>();
+  private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private app: any,
     private db: DatabaseSync,
+    private flushIntervalMs: number = FLUSH_INTERVAL_MS,
   ) {
     this.loadCache();
   }
@@ -83,20 +93,53 @@ export class RuntimeManager {
         const hours = v.value / 3600; // SignalK runtime is seconds (§10.2)
         const timestamp = new Date().toISOString();
         this.values.set(v.path, { value: hours, timestamp });
-        this.db
-          .prepare(
-            `INSERT INTO runtime_cache (path, value, timestamp) VALUES (?, ?, ?)
-             ON CONFLICT(path) DO UPDATE SET value = excluded.value, timestamp = excluded.timestamp`,
-          )
-          .run(v.path, hours, timestamp);
+        this.dirty.add(v.path);
         this.lastUpdate = timestamp;
         changed = true;
       }
     }
-    if (changed) for (const fn of this.listeners) fn();
+    if (changed) {
+      this.scheduleFlush();
+      for (const fn of this.listeners) fn();
+    }
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(() => this.flush(), this.flushIntervalMs);
+    this.flushTimer.unref?.();
+  }
+
+  /** Persist all dirty values in a single transaction. */
+  flush(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (!this.dirty.size) return;
+    const upsert = this.db.prepare(
+      `INSERT INTO runtime_cache (path, value, timestamp) VALUES (?, ?, ?)
+       ON CONFLICT(path) DO UPDATE SET value = excluded.value, timestamp = excluded.timestamp`,
+    );
+    this.db.exec('BEGIN');
+    try {
+      for (const path of this.dirty) {
+        const entry = this.values.get(path);
+        if (entry) upsert.run(path, entry.value, entry.timestamp);
+      }
+      this.db.exec('COMMIT');
+      this.dirty.clear();
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      this.app.error?.(
+        `maintenance-tracker runtime cache flush failed: ${err}`,
+      );
+    }
   }
 
   stop(): void {
+    // Flush before the plugin closes the DB so values survive restarts.
+    this.flush();
     this.teardown();
     this.paths = [];
   }

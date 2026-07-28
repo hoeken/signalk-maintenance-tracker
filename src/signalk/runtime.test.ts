@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { openDatabase } from '../db/database';
-import { RuntimeManager } from './runtime';
+import { FLUSH_INTERVAL_MS, RuntimeManager } from './runtime';
 
 function makeStubApp() {
   const subscriptions: any[] = [];
@@ -53,11 +53,58 @@ describe('RuntimeManager (§10.2)', () => {
     subscriptions[0].onDelta(delta('propulsion.port.runTime', 4_896_000)); // seconds
     expect(rm.getHours('propulsion.port.runTime')).toBeCloseTo(1360);
 
-    // persisted in hours too
+    // persisted in hours too (after flush — deltas alone don't hit the DB)
+    rm.flush();
     const row = db
       .prepare(`SELECT value FROM runtime_cache WHERE path = ?`)
       .get('propulsion.port.runTime') as { value: number };
     expect(row.value).toBeCloseTo(1360);
+  });
+
+  it('throttles persistence to one commit per flush interval', () => {
+    vi.useFakeTimers();
+    try {
+      const { app, subscriptions } = makeStubApp();
+      const db = openDatabase(':memory:');
+      const rm = new RuntimeManager(app, db, FLUSH_INTERVAL_MS);
+      rm.setPaths(['a.b']);
+
+      // A storm of deltas writes nothing to the DB…
+      for (let i = 1; i <= 100; i++) {
+        subscriptions[0].onDelta(delta('a.b', i * 36));
+      }
+      const count = () =>
+        (db.prepare(`SELECT COUNT(*) AS n FROM runtime_cache`).get() as any).n;
+      expect(count()).toBe(0);
+
+      // …until the flush interval elapses, then only the latest value lands.
+      vi.advanceTimersByTime(FLUSH_INTERVAL_MS);
+      expect(count()).toBe(1);
+      const row = db
+        .prepare(`SELECT value FROM runtime_cache WHERE path = ?`)
+        .get('a.b') as { value: number };
+      expect(row.value).toBeCloseTo(1); // 3600 s = 1 h
+
+      // A later delta starts a fresh interval rather than writing immediately.
+      subscriptions[0].onDelta(delta('a.b', 7200));
+      expect(
+        (
+          db
+            .prepare(`SELECT value FROM runtime_cache WHERE path = ?`)
+            .get('a.b') as any
+        ).value,
+      ).toBeCloseTo(1);
+      vi.advanceTimersByTime(FLUSH_INTERVAL_MS);
+      expect(
+        (
+          db
+            .prepare(`SELECT value FROM runtime_cache WHERE path = ?`)
+            .get('a.b') as any
+        ).value,
+      ).toBeCloseTo(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('ignores non-numeric values and unsubscribed paths', () => {
