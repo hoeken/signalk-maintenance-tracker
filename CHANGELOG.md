@@ -1,3 +1,15 @@
+# v1.1.1
+
+A small release with one important fix for your SD card's lifespan.
+
+## Fixes
+
+- **Runtime updates no longer hammer the disk.** Every SignalK runtime delta
+  was written straight to the database — up to several commits (and disk syncs)
+  per second while the engine was running. Runtime values are now kept in
+  memory and flushed in a single transaction at most once per minute, with a
+  final flush on shutdown so engine hours still survive restarts.
+
 # v1.1.0
 
 This release teaches Maintenance Tracker to talk to your spares locker, adds
