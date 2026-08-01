@@ -568,8 +568,11 @@ pre {
   background: transparent;
 }
 
+/* notes annotate a log entry rather than being its data, so they read one
+   step back from the row's figures — in the task log and the master log alike */
 .log-notes {
   display: flex;
+  color: var(--text-muted);
 }
 .log-notes-label {
   flex-shrink: 0;
