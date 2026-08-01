@@ -214,15 +214,17 @@ export function TaskDetailPage(props) {
           // Nothing to say without a description or parts: drop the card.
           task.description || consumables.length
             ? html`<div class="card">
-                <h3>Description</h3>
                 ${
                   task.description
-                    ? html`<${MarkdownView} markdown=${task.description} />`
-                    : html`<p class="muted" style="margin:0">No description.</p>`
+                    ? html`<h3>Description</h3>
+                        <${MarkdownView} markdown=${task.description} />`
+                    : null
                 }
                 ${
                   consumables.length
-                    ? html`<div style="margin-top:16px">
+                    ? html`<div
+                        style=${task.description ? 'margin-top:16px' : ''}
+                      >
                         <h3>Consumables</h3>
                         <ul class="consumables-list">
                           ${consumables.map(
