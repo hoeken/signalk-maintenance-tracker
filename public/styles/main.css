@@ -304,6 +304,12 @@ pre {
   min-height: 110px;
   resize: vertical;
 }
+/* Read-only value shown in an input's slot, so a derived field keeps the
+   layout of the editable one it replaces. */
+.input-static {
+  background: var(--bg-inset);
+  color: var(--text-muted);
+}
 /* iOS gives date inputs native chrome with its own oversized intrinsic height;
    flatten it so it matches the other inputs (min-height keeps it from collapsing) */
 .input[type='date'] {

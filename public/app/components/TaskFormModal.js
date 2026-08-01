@@ -13,6 +13,7 @@ import { ConsumablesPicker } from './ConsumablesPicker.js';
 import { PathPicker } from './PathPicker.js';
 import { createTask, updateTask, useTags, useHealth } from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
+import { formatDate, formatHours } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
@@ -421,7 +422,31 @@ export function TaskFormModal(props) {
                   </div>
                 </div>
               `
-            : null
+            : html`
+                <div class="field-row">
+                  <div class="field">
+                    <label class="field-label">Last maintenance</label>
+                    <div class="input input-static">
+                      ${formatDate(task.last_maintenance)}
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label class="field-label"
+                      >Runtime at last maintenance</label
+                    >
+                    <div class="input input-static">
+                      ${formatHours(task.last_runtime)}
+                    </div>
+                  </div>
+                </div>
+                <div class="field-hint" style="margin-top:-10px">
+                  <i class="bi bi-info-circle" /> These come from the task's
+                  most recent log entry, so they aren't editable here. Use${' '}
+                  <strong>Mark complete</strong>${' '}
+                  to record work — it accepts a past date and runtime — or edit
+                  the latest entry in the maintenance log to correct them.
+                </div>
+              `
         }
       </form>
     <//>
