@@ -37,7 +37,7 @@ describe('format helpers', () => {
   });
 
   it('formats elapsed spans, including future-dated entries', () => {
-    expect(formatElapsedTime(3 * DAY)).toBe('3 days ago');
+    expect(formatElapsedTime(3 * DAY)).toBe('3 days');
     expect(formatElapsedTime(-3 * DAY)).toBe('in 3 days');
     expect(formatElapsedTime(null)).toBe('—');
   });

@@ -63,13 +63,13 @@ export function formatRemainingTime(ms) {
 }
 
 /**
- * Elapsed span since something happened: "3 days ago". Negative spans (a
+ * Elapsed span since something happened: "3 days". Negative spans (a
  * future-dated log entry) read as "in 3 days".
  * @param {number|null|undefined} ms
  */
 export function formatElapsedTime(ms) {
   if (ms === null || ms === undefined) return '—';
-  return ms < 0 ? 'in ' + humanizeMs(-ms) : humanizeMs(ms) + ' ago';
+  return ms < 0 ? 'in ' + humanizeMs(-ms) : humanizeMs(ms);
 }
 
 /**

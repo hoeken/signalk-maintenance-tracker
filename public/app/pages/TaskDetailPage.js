@@ -13,6 +13,7 @@ import {
   formatRemainingHours,
   formatRemainingTime,
   formatUser,
+  toDateInput,
 } from '../lib/format.js';
 import { navigate } from '../lib/router.js';
 import { toast } from '../lib/toasts.js';
@@ -20,6 +21,7 @@ import { Table } from '../components/Table.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { StockBadge } from '../components/StockBadge.js';
 import { ProgressBar } from '../components/ProgressBar.js';
+import { StatTable } from '../components/StatTable.js';
 import { MarkdownView } from '../components/MarkdownView.js';
 import { TaskFormModal } from '../components/TaskFormModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
@@ -113,29 +115,52 @@ export function TaskDetailPage(props) {
   const timeConfigured = task.time_interval !== null;
   const dueDateConfigured = task.due_date !== null;
 
-  // Without an interval there is nothing to be due, but "when/at what hours was
-  // this last done, and how long ago" is still worth showing — so each
-  // dimension falls back to a bare elapsed readout when it has the inputs.
-  // The configured rows already print these figures, so the fallbacks only
-  // appear when their dimension has no interval of its own.
-  const showRuntimeOnly =
-    !runtimeConfigured &&
-    (task.current_runtime !== null || task.last_runtime !== null);
-  const showLastDoneOnly = !timeConfigured && task.last_maintenance !== null;
+  // Each card draws whatever its dimension actually knows. An interval is what
+  // makes something due, but a bare log entry or runtime reading still answers
+  // "when/at what hours was this last done, and how long since" — so a task
+  // with no interval at all is not an empty card.
+  const hasSchedule =
+    timeConfigured || dueDateConfigured || task.last_maintenance !== null;
+  const hasRuntime =
+    runtimeConfigured ||
+    task.runtime_path !== null ||
+    task.current_runtime !== null ||
+    task.last_runtime !== null;
+
+  // With both a recurring interval and a one-time deadline set, the deadline
+  // takes a row of its own; on its own it simply is the next thing due.
+  const bothTimeDimensions = timeConfigured && dueDateConfigured;
+
+  // "Next" is whichever time sub-dimension comes first — the same choice the
+  // backend makes for remaining_time_ms, so the two rows always agree.
+  const nextDueIso =
+    task.scheduled_remaining_ms !== null && task.due_date_remaining_ms !== null
+      ? task.scheduled_remaining_ms <= task.due_date_remaining_ms
+        ? task.scheduled_due_date
+        : task.due_date
+      : (task.scheduled_due_date ?? task.due_date);
+
+  /** Remaining figure colored by its sub-status, as in the task list. */
+  const remaining = (
+    /** @type {string} */ text,
+    /** @type {import('../types.js').Status|null} */ status,
+  ) => html`<span class=${'remaining ' + (status || '')}>${text}</span>`;
 
   // Per-task "due soon" lead windows, shown only when overriding the plugin
   // default (null = default, 0 = no warning).
-  const warnNote = (
+  const warnHint = (
     /** @type {number|null} */ value,
     /** @type {string} */ unit,
   ) =>
     value === null
-      ? ''
-      : value === 0
-        ? ' · no due-soon warning'
-        : ` · warns ${value}${unit} early`;
-  const runtimeWarnNote = warnNote(task.runtime_warning_hours, 'h');
-  const timeWarnNote = warnNote(task.time_warning_days, 'd');
+      ? null
+      : html`<div class="field-hint">
+          ${
+            value === 0
+              ? 'No due-soon warning.'
+              : 'Warns ' + value + unit + ' early.'
+          }
+        </div>`;
 
   return html`
     <div>
@@ -216,128 +241,135 @@ export function TaskDetailPage(props) {
         <div class="card">
           <h3>Schedule</h3>
           ${
-            !runtimeConfigured &&
-            !timeConfigured &&
-            !dueDateConfigured &&
-            !showRuntimeOnly &&
-            !showLastDoneOnly
+            !hasSchedule
               ? html`<p class="muted" style="margin:0">
-                  Informational task — no intervals configured.
+                  No interval or due date configured.
                 </p>`
-              : null
-          }
-          ${
-            runtimeConfigured
-              ? html`
-                  <div class="stat-row">
-                    <div class="stat-label">
-                      <span>Runtime — every ${formatHours(task.runtime_interval)}</span>
-                      <span class="stat-value"
-                        >${formatRemainingHours(task.remaining_runtime)}${task.remaining_runtime !== null && task.remaining_runtime >= 0 ? ' left' : ''}</span
-                      >
-                    </div>
-                    <${ProgressBar}
-                      fraction=${task.runtime_fraction}
-                      status=${task.runtime_status}
-                    />
-                    <div class="field-hint">
-                      Current ${formatHours(task.current_runtime)} · last done
-                      at ${formatHours(task.last_runtime)} · due
-                      at ${formatHours(task.due_runtime_at)}${runtimeWarnNote}
-                    </div>
-                  </div>
+              : html`
+                  <${ProgressBar}
+                    fraction=${task.time_fraction}
+                    status=${task.time_status}
+                  />
+                  <${StatTable}
+                    rows=${[
+                      {
+                        label: 'Interval',
+                        value: timeConfigured
+                          ? 'every ' +
+                            task.time_interval +
+                            ' ' +
+                            task.time_interval_unit
+                          : null,
+                      },
+                      {
+                        // Only when a recurring interval owns the Next row —
+                        // on its own the deadline *is* the next thing due.
+                        label: 'Deadline',
+                        value: bothTimeDimensions
+                          ? formatDate(task.due_date)
+                          : null,
+                      },
+                      { label: 'Today', value: toDateInput() },
+                      {
+                        label: 'Last',
+                        value:
+                          task.last_maintenance !== null
+                            ? formatDate(task.last_maintenance)
+                            : null,
+                      },
+                      {
+                        label: 'Elapsed',
+                        value:
+                          task.elapsed_time_ms !== null
+                            ? formatElapsedTime(task.elapsed_time_ms)
+                            : null,
+                      },
+                      {
+                        label: 'Next',
+                        value:
+                          nextDueIso !== null ? formatDate(nextDueIso) : null,
+                      },
+                      {
+                        label: 'Remaining',
+                        value:
+                          task.remaining_time_ms !== null
+                            ? remaining(
+                                formatRemainingTime(task.remaining_time_ms),
+                                task.time_status,
+                              )
+                            : null,
+                      },
+                    ]}
+                  />
+                  ${warnHint(task.time_warning_days, 'd')}
                 `
-              : null
-          }
-          ${
-            showRuntimeOnly
-              ? html`
-                  <div class="stat-row">
-                    <div class="stat-label">
-                      <span>Runtime — no interval</span>
-                      <span class="stat-value"
-                        >${formatHours(task.current_runtime)}</span
-                      >
-                    </div>
-                    <div class="field-hint">
-                      Last done at ${formatHours(task.last_runtime)}${
-                        task.elapsed_runtime !== null
-                          ? ' · ' + formatHours(task.elapsed_runtime) + ' since'
-                          : ''
-                      }
-                    </div>
-                  </div>
-                `
-              : null
-          }
-          ${
-            timeConfigured
-              ? html`
-                  <div class="stat-row">
-                    <div class="stat-label">
-                      <span>Time — every ${task.time_interval} ${task.time_interval_unit}</span>
-                      <span class="stat-value"
-                        >${formatRemainingTime(task.scheduled_remaining_ms)}${task.scheduled_remaining_ms !== null && task.scheduled_remaining_ms >= 0 ? ' left' : ''}</span
-                      >
-                    </div>
-                    <${ProgressBar}
-                      fraction=${task.scheduled_fraction}
-                      status=${task.scheduled_status}
-                    />
-                    <div class="field-hint">
-                      Last done ${formatDate(task.last_maintenance)} · next
-                      due ${formatDate(task.scheduled_due_date)}${timeWarnNote}
-                    </div>
-                  </div>
-                `
-              : null
-          }
-          ${
-            showLastDoneOnly
-              ? html`
-                  <div class="stat-row">
-                    <div class="stat-label">
-                      <span>Last done — no interval</span>
-                      <span class="stat-value"
-                        >${formatDate(task.last_maintenance)}</span
-                      >
-                    </div>
-                    <div class="field-hint">
-                      ${formatElapsedTime(task.elapsed_time_ms)}
-                    </div>
-                  </div>
-                `
-              : null
-          }
-          ${
-            dueDateConfigured
-              ? html`
-                  <div class="stat-row">
-                    <div class="stat-label">
-                      <span>Due date — ${formatDate(task.due_date)}</span>
-                      <span class="stat-value"
-                        >${formatRemainingTime(task.due_date_remaining_ms)}${task.due_date_remaining_ms !== null && task.due_date_remaining_ms >= 0 ? ' left' : ''}</span
-                      >
-                    </div>
-                    <${ProgressBar}
-                      fraction=${task.due_date_fraction}
-                      status=${task.due_date_status}
-                    />
-                    <div class="field-hint">
-                      One-time deadline.${timeWarnNote}
-                    </div>
-                  </div>
-                `
-              : null
-          }
-          ${
-            task.runtime_path
-              ? html`<div class="field-hint">
-                  Runtime source: <code>${task.runtime_path}</code>
-                </div>`
-              : null
           }
         </div>
+
+        ${
+          // Nothing to say about runtime on a task that doesn't track it —
+          // the remaining cards spread to fill the row.
+          hasRuntime
+            ? html`
+                <div class="card">
+                  <h3>Runtime</h3>
+                  <${ProgressBar}
+                    fraction=${task.runtime_fraction}
+                    status=${task.runtime_status}
+                  />
+                  <${StatTable}
+                    rows=${[
+                      {
+                        label: 'Interval',
+                        value: runtimeConfigured
+                          ? 'every ' + formatHours(task.runtime_interval)
+                          : null,
+                      },
+                      {
+                        label: 'Current',
+                        value:
+                          task.current_runtime !== null
+                            ? formatHours(task.current_runtime)
+                            : null,
+                      },
+                      {
+                        label: 'Last',
+                        value:
+                          task.last_runtime !== null
+                            ? formatHours(task.last_runtime)
+                            : null,
+                      },
+                      {
+                        label: 'Elapsed',
+                        value:
+                          task.elapsed_runtime !== null
+                            ? formatHours(task.elapsed_runtime)
+                            : null,
+                      },
+                      {
+                        label: 'Next',
+                        value:
+                          task.due_runtime_at !== null
+                            ? formatHours(task.due_runtime_at)
+                            : null,
+                      },
+                      {
+                        label: 'Remaining',
+                        value:
+                          task.remaining_runtime !== null
+                            ? remaining(
+                                formatRemainingHours(task.remaining_runtime),
+                                task.runtime_status,
+                              )
+                            : null,
+                      },
+                    ]}
+                  />
+                  ${warnHint(task.runtime_warning_hours, 'h')}
+                </div>
+              `
+            : null
+        }
       </div>
 
       <div class="page-header" style="margin-top:24px">

@@ -757,9 +757,11 @@ pre {
   grid-template-columns: 1fr;
   grid-gap: 16px;
 }
-@media (min-width: 800px) {
+/* description / schedule / runtime share the row evenly, and the survivors
+   spread to fill it when a card is hidden (e.g. no runtime source) */
+@media (min-width: 900px) {
   .detail-grid {
-    grid-template-columns: 3fr 2fr;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   }
 }
 
@@ -777,19 +779,40 @@ pre {
   color: var(--text-muted);
 }
 
-.stat-row {
-  margin-bottom: 12px;
-}
-.stat-row .stat-label {
-  display: flex;
-  justify-content: space-between;
+/* label/value readout in the schedule + runtime cards */
+.stat-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 15px;
-  color: var(--text-muted);
-  margin-bottom: 4px;
 }
-.stat-row .stat-value {
+.progress + .stat-table {
+  margin-top: 10px;
+}
+.stat-table th,
+.stat-table td {
+  padding: 5px 0;
+  vertical-align: baseline;
+  border-bottom: 1px solid var(--border);
+}
+.stat-table tr:last-child th,
+.stat-table tr:last-child td {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.stat-table th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.stat-table td {
+  text-align: right;
   color: var(--text);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.stat-table + .field-hint {
+  margin-top: 10px;
 }
 
 .markdown p:first-child {
