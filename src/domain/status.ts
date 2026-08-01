@@ -84,6 +84,7 @@ export function computeTask(
     due_runtime_at: null,
     runtime_fraction: null,
     runtime_status: null,
+    elapsed_time_ms: null,
     scheduled_due_date: null,
     scheduled_remaining_ms: null,
     scheduled_fraction: null,
@@ -99,12 +100,22 @@ export function computeTask(
     urgency: -Infinity,
   };
 
+  // Elapsed-since-last-service figures stand on their own: they need only a
+  // logged completion (plus, for runtime, a live reading), not an interval. A
+  // task with no schedule at all still shows "last done X, N hours since".
+  if (task.last_runtime != null && currentRuntime != null) {
+    out.elapsed_runtime = currentRuntime - task.last_runtime;
+  }
+  if (task.last_maintenance != null) {
+    out.elapsed_time_ms =
+      now.getTime() - new Date(task.last_maintenance).getTime();
+  }
+
   // Runtime dimension: configured when both interval and path are set.
   if (task.runtime_interval != null && task.runtime_path != null) {
     if (task.last_runtime != null && currentRuntime != null) {
       const elapsed = currentRuntime - task.last_runtime;
       const remaining = task.runtime_interval - elapsed;
-      out.elapsed_runtime = elapsed;
       out.remaining_runtime = remaining;
       out.due_runtime_at = task.last_runtime + task.runtime_interval;
       out.runtime_fraction = elapsed / task.runtime_interval;

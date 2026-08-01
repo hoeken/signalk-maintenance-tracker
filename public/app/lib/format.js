@@ -63,6 +63,16 @@ export function formatRemainingTime(ms) {
 }
 
 /**
+ * Elapsed span since something happened: "3 days ago". Negative spans (a
+ * future-dated log entry) read as "in 3 days".
+ * @param {number|null|undefined} ms
+ */
+export function formatElapsedTime(ms) {
+  if (ms === null || ms === undefined) return '—';
+  return ms < 0 ? 'in ' + humanizeMs(-ms) : humanizeMs(ms) + ' ago';
+}
+
+/**
  * Value for <input type="date">: today (local) by default, or the UTC date
  * part of a stored ISO string. The YYYY-MM-DD value is sent to the API as-is
  * (valid ISO-8601; the backend normalizes it to UTC midnight).

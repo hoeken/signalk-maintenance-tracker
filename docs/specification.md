@@ -315,10 +315,15 @@ denormalized last_* values)
 
 Given `now`:
 
+Elapsed-since-last-service (no interval required — these need only a logged
+completion, so an interval-less task can still report how long it has been):
+
+- `elapsed_runtime = current_runtime - last_runtime` (if both are known)
+- `elapsed_time_ms = now - last_maintenance` (if `last_maintenance` is known)
+
 Runtime dimension (only if `runtime_interval` and `runtime_path` and both
 `last_runtime` and `current_runtime` are known):
 
-- `elapsed_runtime = current_runtime - last_runtime`
 - `remaining_runtime = runtime_interval - elapsed_runtime`
 - `due_runtime_at = last_runtime + runtime_interval` (in runtime hours)
 - `runtime_fraction = elapsed_runtime / runtime_interval` (for progress bars)
@@ -708,6 +713,7 @@ Task response object (list item / detail):
   "due_runtime_at": 1440.5,
   "runtime_fraction": 0.5975,
   "runtime_status": "ok",
+  "elapsed_time_ms": 15552000000,
   "scheduled_due_date": "2027-01-15T10:00:00Z",
   "scheduled_remaining_ms": 16675200000,
   "scheduled_fraction": 0.48,

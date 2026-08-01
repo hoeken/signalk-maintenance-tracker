@@ -8,6 +8,7 @@ import { useTask, useTaskLogs, deleteTask, deleteLog } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import {
   formatDate,
+  formatElapsedTime,
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
@@ -112,6 +113,16 @@ export function TaskDetailPage(props) {
   const timeConfigured = task.time_interval !== null;
   const dueDateConfigured = task.due_date !== null;
 
+  // Without an interval there is nothing to be due, but "when/at what hours was
+  // this last done, and how long ago" is still worth showing — so each
+  // dimension falls back to a bare elapsed readout when it has the inputs.
+  // The configured rows already print these figures, so the fallbacks only
+  // appear when their dimension has no interval of its own.
+  const showRuntimeOnly =
+    !runtimeConfigured &&
+    (task.current_runtime !== null || task.last_runtime !== null);
+  const showLastDoneOnly = !timeConfigured && task.last_maintenance !== null;
+
   // Per-task "due soon" lead windows, shown only when overriding the plugin
   // default (null = default, 0 = no warning).
   const warnNote = (
@@ -205,7 +216,11 @@ export function TaskDetailPage(props) {
         <div class="card">
           <h3>Schedule</h3>
           ${
-            !runtimeConfigured && !timeConfigured && !dueDateConfigured
+            !runtimeConfigured &&
+            !timeConfigured &&
+            !dueDateConfigured &&
+            !showRuntimeOnly &&
+            !showLastDoneOnly
               ? html`<p class="muted" style="margin:0">
                   Informational task — no intervals configured.
                 </p>`
@@ -235,6 +250,27 @@ export function TaskDetailPage(props) {
               : null
           }
           ${
+            showRuntimeOnly
+              ? html`
+                  <div class="stat-row">
+                    <div class="stat-label">
+                      <span>Runtime — no interval</span>
+                      <span class="stat-value"
+                        >${formatHours(task.current_runtime)}</span
+                      >
+                    </div>
+                    <div class="field-hint">
+                      Last done at ${formatHours(task.last_runtime)}${
+                        task.elapsed_runtime !== null
+                          ? ' · ' + formatHours(task.elapsed_runtime) + ' since'
+                          : ''
+                      }
+                    </div>
+                  </div>
+                `
+              : null
+          }
+          ${
             timeConfigured
               ? html`
                   <div class="stat-row">
@@ -251,6 +287,23 @@ export function TaskDetailPage(props) {
                     <div class="field-hint">
                       Last done ${formatDate(task.last_maintenance)} · next
                       due ${formatDate(task.scheduled_due_date)}${timeWarnNote}
+                    </div>
+                  </div>
+                `
+              : null
+          }
+          ${
+            showLastDoneOnly
+              ? html`
+                  <div class="stat-row">
+                    <div class="stat-label">
+                      <span>Last done — no interval</span>
+                      <span class="stat-value"
+                        >${formatDate(task.last_maintenance)}</span
+                      >
+                    </div>
+                    <div class="field-hint">
+                      ${formatElapsedTime(task.elapsed_time_ms)}
                     </div>
                   </div>
                 `

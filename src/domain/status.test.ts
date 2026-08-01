@@ -85,6 +85,43 @@ describe('computeTask — runtime dimension', () => {
   });
 });
 
+describe('computeTask — elapsed since last service (interval-independent)', () => {
+  it('reports elapsed runtime with no runtime interval configured', () => {
+    const c = computeTask(
+      { ...baseTask, runtime_path: 'p', last_runtime: 1000 },
+      1119.5,
+      now,
+      cfg,
+    );
+    expect(c.current_runtime).toBeCloseTo(1119.5);
+    expect(c.elapsed_runtime).toBeCloseTo(119.5);
+    // no interval → nothing is due
+    expect(c.runtime_status).toBeNull();
+    expect(c.remaining_runtime).toBeNull();
+    expect(c.runtime_fraction).toBeNull();
+  });
+
+  it('reports elapsed time with neither interval nor due date configured', () => {
+    const c = computeTask(
+      { ...baseTask, last_maintenance: '2026-07-02T12:00:00Z' },
+      null,
+      now,
+      cfg,
+    );
+    expect(c.elapsed_time_ms).toBe(7 * 86_400_000);
+    expect(c.scheduled_due_date).toBeNull();
+    expect(c.time_status).toBeNull();
+    expect(c.status).toBe('unknown');
+  });
+
+  it('leaves elapsed figures null when their inputs are missing', () => {
+    // runtime path but no reading yet, and no completion logged
+    const c = computeTask({ ...baseTask, last_runtime: 1000 }, null, now, cfg);
+    expect(c.elapsed_runtime).toBeNull();
+    expect(c.elapsed_time_ms).toBeNull();
+  });
+});
+
 describe('computeTask — recurring time-interval dimension', () => {
   const task = {
     ...baseTask,

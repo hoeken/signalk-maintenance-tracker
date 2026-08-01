@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatDate,
+  formatElapsedTime,
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
@@ -33,6 +34,12 @@ describe('format helpers', () => {
   it('marks negative remaining time as overdue', () => {
     expect(formatRemainingTime(-3 * DAY)).toBe('3 days overdue');
     expect(formatRemainingTime(null)).toBe('—');
+  });
+
+  it('formats elapsed spans, including future-dated entries', () => {
+    expect(formatElapsedTime(3 * DAY)).toBe('3 days ago');
+    expect(formatElapsedTime(-3 * DAY)).toBe('in 3 days');
+    expect(formatElapsedTime(null)).toBe('—');
   });
 
   it('formats dates from the stored UTC date part, never local time', () => {

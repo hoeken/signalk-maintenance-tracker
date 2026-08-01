@@ -25,6 +25,7 @@ function makeTask(overrides: Partial<TaskDTO>): TaskDTO {
     due_runtime_at: null,
     runtime_fraction: null,
     runtime_status: null,
+    elapsed_time_ms: null,
     due_date: null,
     scheduled_due_date: null,
     scheduled_remaining_ms: null,

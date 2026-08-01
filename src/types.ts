@@ -52,11 +52,18 @@ export interface LogDTO extends LogRow {
 
 export interface ComputedFields {
   current_runtime: number | null;
+  /** `current_runtime - last_runtime`. Known whenever both readings exist,
+   * independent of any configured interval — an interval-less task still wants
+   * to show how many hours it has run since it was last serviced. */
   elapsed_runtime: number | null;
   remaining_runtime: number | null;
   due_runtime_at: number | null;
   runtime_fraction: number | null;
   runtime_status: Status | null;
+
+  /** Wall-clock ms since `last_maintenance`. The time-side counterpart to
+   * `elapsed_runtime`, and likewise interval-independent. */
+  elapsed_time_ms: number | null;
 
   // Recurring time-interval dimension (last_maintenance + interval).
   scheduled_due_date: string | null;

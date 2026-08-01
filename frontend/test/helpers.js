@@ -87,6 +87,7 @@ export function makeTask(overrides) {
       due_runtime_at: 1440.5,
       runtime_fraction: 0.5975,
       runtime_status: 'ok',
+      elapsed_time_ms: 15552000000,
       scheduled_due_date: '2027-01-15T10:00:00.000Z',
       scheduled_remaining_ms: 16675200000,
       scheduled_fraction: 0.48,

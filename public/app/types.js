@@ -36,6 +36,7 @@
  * @property {number|null} due_runtime_at
  * @property {number|null} runtime_fraction
  * @property {Status|null} runtime_status
+ * @property {number|null} elapsed_time_ms
  * @property {string|null} scheduled_due_date
  * @property {number|null} scheduled_remaining_ms
  * @property {number|null} scheduled_fraction
