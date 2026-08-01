@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { openDatabase } from '../db/database';
-import { FLUSH_INTERVAL_MS, RuntimeManager } from './runtime';
+import {
+  FLUSH_INTERVAL_MS,
+  RuntimeManager,
+  SUBSCRIBE_MIN_PERIOD_MS,
+} from './runtime';
 
 function makeStubApp() {
   const subscriptions: any[] = [];
@@ -43,6 +47,17 @@ describe('RuntimeManager (§10.2)', () => {
       'propulsion.port.runTime',
       'propulsion.starboard.runTime',
     ]);
+  });
+
+  it("throttles with minPeriod, not period — 'period' implies policy 'fixed'", () => {
+    const { app, subscriptions } = makeStubApp();
+    const rm = new RuntimeManager(app, openDatabase(':memory:'));
+    rm.setPaths(['propulsion.port.runTime']);
+    for (const s of subscriptions[0].command.subscribe) {
+      expect(s.policy).toBe('instant');
+      expect(s.minPeriod).toBe(SUBSCRIBE_MIN_PERIOD_MS);
+      expect(s.period).toBeUndefined();
+    }
   });
 
   it('converts seconds to hours — the single conversion boundary', () => {

@@ -4,6 +4,10 @@ import type { DatabaseSync } from 'node:sqlite';
  * second, and persisting each one hammers the disk. */
 export const FLUSH_INTERVAL_MS = 60_000;
 
+/** Throttle applied to each subscribed path (policy 'instant'): the first
+ * delta arrives immediately, then at most one per interval. */
+export const SUBSCRIBE_MIN_PERIOD_MS = 5000;
+
 /**
  * Subscribes to the union of all task runtime paths on vessels.self, keeps an
  * in-memory map of the latest value, and persists it to runtime_cache so
@@ -70,7 +74,11 @@ export class RuntimeManager {
         context: 'vessels.self',
         subscribe: next.map((path) => ({
           path,
-          period: 5000,
+          // minPeriod (not period) is the throttle that goes with policy
+          // 'instant' — period implies policy 'fixed' and the server logs a
+          // warning if both are given. Runtime hours creep upward slowly, so
+          // one delta per SUBSCRIBE_MIN_PERIOD_MS per path is plenty.
+          minPeriod: SUBSCRIBE_MIN_PERIOD_MS,
           policy: 'instant',
         })),
       },
