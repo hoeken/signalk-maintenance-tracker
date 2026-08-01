@@ -1,3 +1,42 @@
+# v1.2.0
+
+A task detail page that puts the numbers you actually compare side by side,
+plus figures for tasks that have no schedule at all.
+
+## Highlights
+
+- **Schedule and Runtime are now their own tabular cards.** The old prose
+  readout ("Current 1360 h · last done at 1240.5 h · due at 1440.5 h") buried
+  the numbers. Each dimension gets its own card with an Interval / Today /
+  Last / Elapsed / Next / Remaining table — current reading above the
+  last-service one, elapsed as their difference right below — with the
+  progress bar under the table and the remaining figure colored by status.
+  Rows that don't apply simply fall away, and the runtime card disappears
+  entirely for tasks that don't track runtime.
+- **Interval-less tasks now show their figures too.** "Last done" and "hours
+  since" only ever needed a logged completion, not an interval, so a purely
+  informational task now reports how long (and how many engine hours) it has
+  been since it was last serviced. The new `elapsed_time_ms` field is on the
+  task API alongside `elapsed_runtime`.
+- **The task edit form explains its read-only fields.** Last maintenance and
+  runtime-at-last-maintenance are shown with a note that they come from the
+  task's most recent log entry, and that **Mark complete** (or editing the log)
+  is how you change them.
+
+## Smaller changes and fixes
+
+- Runtime subscriptions now throttle with `minPeriod` instead of `period`.
+  Pairing `period` with policy `instant` made the SignalK server log a warning
+  and ignore the throttle; each path is now limited to one delta per 5s as
+  intended.
+- Tags moved from the description card into the task's title bar, and the
+  description card is dropped entirely when a task has neither a description
+  nor consumables.
+- Log notes are muted wherever the log is rendered, so they read as annotation
+  rather than data.
+- Danger and success buttons use the theme's accent text color instead of a
+  hardcoded white, which was low-contrast in some MFD themes.
+
 # v1.1.1
 
 A small release with one important fix for your SD card's lifespan.
