@@ -28,6 +28,7 @@ import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
 import { apiFetch } from '../api/client.js';
+import { stowageItemUrl } from '../api/stowage.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
@@ -233,7 +234,9 @@ export function TaskDetailPage(props) {
                               class="consumables-row"
                             >
                               <span class="consumables-name"
-                                >${c.item_name}${' '}
+                                ><a href=${stowageItemUrl(c.item_id)}
+                                  >${c.item_name}</a
+                                >${' '}
                                 <span class="muted"
                                   >× ${c.qty_per_service}</span
                                 ></span

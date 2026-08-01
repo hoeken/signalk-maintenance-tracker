@@ -11,6 +11,18 @@ import { useResource } from './resource.js';
 
 export const STOWAGE_API_BASE = '/plugins/signalk-stowage-mgmt';
 
+/** stowage-mgmt's own webapp, for linking a person at an item we only show
+ * the name of (its UI, not its API — different mount point). */
+export const STOWAGE_APP_BASE = '/signalk-stowage-mgmt';
+
+/**
+ * Deep link to an item's detail view in the stowage-mgmt webapp.
+ * @param {string} itemId
+ */
+export function stowageItemUrl(itemId) {
+  return STOWAGE_APP_BASE + '/?item=' + encodeURIComponent(itemId);
+}
+
 /** @typedef {{ id: string, location_id: string|null, location_name: string|null, quantity: number }} StowagePlacement */
 /** @typedef {{ id: string, name: string, actual_quantity: number, target_quantity: number|null, placements: StowagePlacement[] }} StowageItem */
 

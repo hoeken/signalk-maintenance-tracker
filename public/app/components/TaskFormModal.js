@@ -15,6 +15,7 @@ import { createTask, updateTask, useTags, useHealth } from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
 import { formatDate, formatHours } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
+import { STOWAGE_APP_BASE } from '../api/stowage.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 /** @typedef {import('../types.js').TaskInput} TaskInput */
@@ -278,7 +279,7 @@ export function TaskFormModal(props) {
         </div>
 
         <div class="field">
-          <label class="field-label">Consumables (<a href="/signalk-stowage-mgmt">Stowage Management</a>)</label>
+          <label class="field-label">Consumables (<a href=${STOWAGE_APP_BASE}>Stowage Management</a>)</label>
           <${ConsumablesPicker} value=${consumables} onChange=${setConsumables} />
           <div class="field-hint">
             Decrements stock in stowage management when this task is marked

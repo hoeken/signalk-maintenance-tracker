@@ -247,6 +247,24 @@ describe('TaskDetailPage — title bar and description card', () => {
     expect(screen.getByText('Oil filter')).toBeTruthy();
   });
 
+  it('links each part at its stowage-mgmt detail page', async () => {
+    await renderTask({
+      description: null,
+      consumables: [
+        {
+          item_id: 'oil filter/7',
+          item_name: 'Oil filter',
+          qty_per_service: 1,
+        },
+      ],
+    });
+    const link = screen.getByText('Oil filter');
+    expect(link.tagName).toBe('A');
+    expect(link.getAttribute('href')).toBe(
+      '/signalk-stowage-mgmt/?item=oil%20filter%2F7',
+    );
+  });
+
   it('keeps the description card for a description alone', async () => {
     await renderTask({ description: 'Drain the sump.', consumables: [] });
     expect(screen.getByText('Drain the sump.')).toBeTruthy();
