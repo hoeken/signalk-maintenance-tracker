@@ -254,10 +254,6 @@ export function TaskDetailPage(props) {
                   No interval or due date configured.
                 </p>`
               : html`
-                  <${ProgressBar}
-                    fraction=${task.time_fraction}
-                    status=${task.time_status}
-                  />
                   <${StatTable}
                     rows=${[
                       {
@@ -310,6 +306,10 @@ export function TaskDetailPage(props) {
                     ]}
                   />
                   ${warnHint(task.time_warning_days, 'd')}
+                  <${ProgressBar}
+                    fraction=${task.time_fraction}
+                    status=${task.time_status}
+                  />
                 `
           }
         </div>
@@ -321,10 +321,6 @@ export function TaskDetailPage(props) {
             ? html`
                 <div class="card">
                   <h3>Runtime</h3>
-                  <${ProgressBar}
-                    fraction=${task.runtime_fraction}
-                    status=${task.runtime_status}
-                  />
                   <${StatTable}
                     rows=${[
                       {
@@ -374,6 +370,10 @@ export function TaskDetailPage(props) {
                     ]}
                   />
                   ${warnHint(task.runtime_warning_hours, 'h')}
+                  <${ProgressBar}
+                    fraction=${task.runtime_fraction}
+                    status=${task.runtime_status}
+                  />
                 </div>
               `
             : null

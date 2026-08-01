@@ -200,12 +200,18 @@ describe('TaskDetailPage — schedule and runtime cards', () => {
     expect(document.querySelector('.stat-table')).toBeNull();
   });
 
-  it('keeps the progress bars alongside the tables', async () => {
+  it('draws each progress bar below its table', async () => {
     await renderTask({});
     const bars = document.querySelectorAll('.progress');
     expect(bars.length).toBe(2);
     expect(bars[0].getAttribute('aria-valuenow')).toBe('48'); // time_fraction
     expect(bars[1].getAttribute('aria-valuenow')).toBe('60'); // runtime_fraction
+    // Last in the card, so the tables start at the same line whether or not a
+    // card has a bar to draw.
+    for (const bar of bars) {
+      expect(bar.previousElementSibling.className).toContain('stat-table');
+      expect(bar.parentElement.lastElementChild).toBe(bar);
+    }
   });
 });
 

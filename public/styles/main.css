@@ -801,9 +801,6 @@ pre {
   border-collapse: collapse;
   font-size: 15px;
 }
-.progress + .stat-table {
-  margin-top: 10px;
-}
 .stat-table th,
 .stat-table td {
   padding: 5px 0;
@@ -829,6 +826,12 @@ pre {
 }
 .stat-table + .field-hint {
   margin-top: 10px;
+}
+/* the bar reads below the numbers it summarises, so the two cards' tables
+   start on the same line whether or not a card has a bar to draw */
+.stat-table + .progress,
+.field-hint + .progress {
+  margin-top: 12px;
 }
 
 .markdown p:first-child {
