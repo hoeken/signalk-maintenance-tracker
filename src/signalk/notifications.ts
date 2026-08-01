@@ -31,7 +31,7 @@ export class NotificationManager {
       case 'overdue':
         return this.opts.alarmStateOverdue;
       default:
-        return undefined; // unknown
+        return undefined; // info
     }
   }
 
@@ -40,10 +40,10 @@ export class NotificationManager {
     for (const task of tasks) {
       const state = this.stateForStatus(task.status);
       if (!state) {
-        // unknown: publish nothing, but clear a previously-raised notification
+        // info: publish nothing, but clear a previously-raised notification
         const last = this.lastState.get(task.slug);
         if (last && last !== 'none') {
-          this.send(task.slug, 'none', `${task.name}: status unknown`);
+          this.send(task.slug, 'none', `${task.name}: status info`);
         }
         continue;
       }

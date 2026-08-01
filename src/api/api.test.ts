@@ -156,7 +156,7 @@ describe('tasks endpoints', () => {
     expect(res.body.pageSize).toBe(1);
 
     const filtered = await request(app).get(
-      `${base}/tasks?status=unknown&search=alp`,
+      `${base}/tasks?status=info&search=alp`,
     );
     expect(filtered.body.data.map((t: any) => t.name)).toEqual(['Alpha']);
   });

@@ -363,9 +363,9 @@ Each active dimension yields a sub-status; the task's overall status is the
 | `overdue`  | `remaining <= 0`                                                                                                                              |
 | `due_soon` | not overdue AND within the lead window (runtime: `remaining_runtime <= runtimeNotifyLeadHours`; time: `remaining_time <= timeNotifyLeadDays`) |
 | `ok`       | otherwise                                                                                                                                     |
-| `unknown`  | dimension configured but inputs missing (e.g. runtime path set but no value seen yet)                                                         |
+| `info`     | dimension configured but inputs missing (e.g. runtime path set but no value seen yet)                                                         |
 
-Overall precedence: `overdue` > `due_soon` > `ok` > `unknown`. A sort key
+Overall precedence: `overdue` > `due_soon` > `ok` > `info`. A sort key
 (`status_rank` + soonest `remaining`) is emitted so the UI's default sort =
 "past-due first, then upcoming" is a straightforward server-side ORDER BY on the
 already-computed list.
@@ -672,7 +672,7 @@ assume authorization has already passed and never re-check it (§9).
 
 | Method | Path           | Description                                                                                                                                                                                                                                                                                     |
 | ------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/unknown), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
+| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/info), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
 | POST   | `/tasks`       | Create. Body below. Server generates slug.                                                                                                                                                                                                                                                      |
 | GET    | `/tasks/:slug` | Task detail incl. computed fields, tags, and recent log entries (or a link + `GET /tasks/:slug/logs`).                                                                                                                                                                                          |
 | PUT    | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, consumables, seed last_* on tasks with no logs). May also change `slug` (normalized + uniqueness-checked; triggers notification-path migration, §6.4).                                                                |
@@ -934,7 +934,7 @@ app.handleMessage(plugin.id, {
 The alarm state for each task status is configurable (`alarmState*` options),
 choosing from SignalK's states `none | normal | alert | warn | alarm | emergency`.
 Defaults: `overdue → alarm`, `due_soon → warn`, `ok → none`. A `none` state
-publishes a `null` value, which clears the notification. `unknown` publishes
+publishes a `null` value, which clears the notification. `info` publishes
 nothing (or clears a prior notification). Notifications are only published when
 `enableNotifications` is true and when a task's state changes (to avoid delta
 spam); a task with both dimensions publishes one notification reflecting the more

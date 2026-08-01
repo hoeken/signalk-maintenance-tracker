@@ -5,7 +5,7 @@
  */
 
 /** @typedef {'days'|'weeks'|'months'|'years'} TimeUnit */
-/** @typedef {'overdue'|'due_soon'|'ok'|'unknown'} Status */
+/** @typedef {'overdue'|'due_soon'|'ok'|'info'} Status */
 
 /**
  * @typedef {Object} TaskConsumableDTO

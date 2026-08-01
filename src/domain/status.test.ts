@@ -72,16 +72,16 @@ describe('computeTask — runtime dimension', () => {
     expect(c.remaining_runtime).toBeCloseTo(-20);
   });
 
-  it('is unknown when no runtime value has been seen', () => {
+  it('is info when no runtime value has been seen', () => {
     const c = computeTask(task, null, now, cfg);
-    expect(c.runtime_status).toBe('unknown');
-    expect(c.status).toBe('unknown');
+    expect(c.runtime_status).toBe('info');
+    expect(c.status).toBe('info');
     expect(c.remaining_runtime).toBeNull();
   });
 
-  it('is unknown when last_runtime is missing', () => {
+  it('is info when last_runtime is missing', () => {
     const c = computeTask({ ...task, last_runtime: null }, 1100, now, cfg);
-    expect(c.runtime_status).toBe('unknown');
+    expect(c.runtime_status).toBe('info');
   });
 });
 
@@ -111,7 +111,7 @@ describe('computeTask — elapsed since last service (interval-independent)', ()
     expect(c.elapsed_time_ms).toBe(7 * 86_400_000);
     expect(c.scheduled_due_date).toBeNull();
     expect(c.time_status).toBeNull();
-    expect(c.status).toBe('unknown');
+    expect(c.status).toBe('info');
   });
 
   it('leaves elapsed figures null when their inputs are missing', () => {
@@ -167,11 +167,11 @@ describe('computeTask — recurring time-interval dimension', () => {
     expect(c.status).toBe('due_soon');
   });
 
-  it('is unknown without last_maintenance', () => {
+  it('is info without last_maintenance', () => {
     const c = computeTask({ ...task, last_maintenance: null }, null, now, cfg);
-    expect(c.scheduled_status).toBe('unknown');
-    expect(c.time_status).toBe('unknown');
-    expect(c.status).toBe('unknown');
+    expect(c.scheduled_status).toBe('info');
+    expect(c.time_status).toBe('info');
+    expect(c.status).toBe('info');
   });
 });
 
@@ -369,12 +369,12 @@ describe('computeTask — combined & edge cases', () => {
     expect(c.status_rank).toBe(0);
   });
 
-  it('unknown in one dimension does not mask ok in the other', () => {
+  it('info in one dimension does not mask ok in the other', () => {
     const c = computeTask(
       {
         runtime_interval: 200,
         runtime_path: 'p',
-        last_runtime: null, // unknown
+        last_runtime: null, // info
         time_interval: 12,
         time_interval_unit: 'months',
         due_date: null,
@@ -390,9 +390,9 @@ describe('computeTask — combined & edge cases', () => {
     expect(c.status).toBe('ok');
   });
 
-  it('informational-only tasks (no intervals) are unknown with no computed fields', () => {
+  it('informational-only tasks (no intervals) are info with no computed fields', () => {
     const c = computeTask(baseTask, null, now, cfg);
-    expect(c.status).toBe('unknown');
+    expect(c.status).toBe('info');
     expect(c.runtime_status).toBeNull();
     expect(c.time_status).toBeNull();
     expect(c.scheduled_due_date).toBeNull();

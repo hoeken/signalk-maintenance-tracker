@@ -105,15 +105,15 @@ describe('NotificationManager (§10.3)', () => {
     expect(app.handleMessage).toHaveBeenCalledTimes(2);
   });
 
-  it('publishes nothing for unknown status, but clears a prior alarm', () => {
+  it('publishes nothing for info status, but clears a prior alarm', () => {
     const { app, manager } = makeManager();
-    manager.publishAll([makeTask({ status: 'unknown' })]);
+    manager.publishAll([makeTask({ status: 'info' })]);
     expect(app.handleMessage).not.toHaveBeenCalled();
 
     manager.publishAll([
       makeTask({ status: 'overdue', runtime_status: 'overdue' }),
     ]);
-    manager.publishAll([makeTask({ status: 'unknown' })]);
+    manager.publishAll([makeTask({ status: 'info' })]);
     const values = sentValues(app);
     expect(values.at(-1)?.value).toBeNull();
   });

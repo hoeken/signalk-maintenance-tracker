@@ -624,9 +624,9 @@ pre {
   background: var(--ok-bg);
   color: var(--ok);
 }
-.badge.unknown {
-  background: var(--unknown-bg);
-  color: var(--unknown);
+.badge.info {
+  background: var(--info-bg);
+  color: var(--info);
 }
 
 /* stock status badge (parts linked via signalk-stowage-mgmt) */

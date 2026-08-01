@@ -11,7 +11,7 @@ else that comes due by engine hours, by calendar time, or both.
   (days/weeks/months/years). Add a one-time calendar due date for a one-off
   job, or leave every interval blank to keep a plain informational record.
 - **Status tracking** — each task is `overdue`, `due soon`, `ok`, or
-  `unknown`; the task list sorts most-urgent first. Any task can override the
+  `info`; the task list sorts most-urgent first. Any task can override the
   plugin-wide "due soon" lead windows with its own runtime-hours and
   calendar-days thresholds.
 - **Maintenance log** — per-task history plus a master log across all tasks,

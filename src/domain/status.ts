@@ -47,7 +47,7 @@ function addMonths(d: Date, n: number): Date {
 }
 
 function mostUrgent(statuses: Status[]): Status {
-  if (statuses.length === 0) return 'unknown';
+  if (statuses.length === 0) return 'info';
   return statuses.reduce((a, b) => (STATUS_RANK[a] <= STATUS_RANK[b] ? a : b));
 }
 
@@ -95,8 +95,8 @@ export function computeTask(
     remaining_time_ms: null,
     time_fraction: null,
     time_status: null,
-    status: 'unknown',
-    status_rank: STATUS_RANK.unknown,
+    status: 'info',
+    status_rank: STATUS_RANK.info,
     urgency: -Infinity,
   };
 
@@ -126,7 +126,7 @@ export function computeTask(
             ? 'due_soon'
             : 'ok';
     } else {
-      out.runtime_status = 'unknown';
+      out.runtime_status = 'info';
     }
   }
 
@@ -145,7 +145,7 @@ export function computeTask(
       out.scheduled_fraction = span > 0 ? (now.getTime() - last) / span : 1;
       out.scheduled_status = dateStatus(out.scheduled_remaining_ms, timeLead);
     } else {
-      out.scheduled_status = 'unknown';
+      out.scheduled_status = 'info';
     }
   }
 
@@ -162,8 +162,8 @@ export function computeTask(
 
   // Merged "time" dimension = the more urgent of the two: whichever has the
   // lower remaining drives remaining_time_ms + time_fraction; time_status is
-  // the most-urgent of the sub-statuses (so a configured-but-unknown recurring
-  // dimension still surfaces as unknown).
+  // the most-urgent of the sub-statuses (so a configured-but-uncomputable
+  // recurring dimension still surfaces as info).
   const timeSubs = [
     { remaining: out.scheduled_remaining_ms, fraction: out.scheduled_fraction },
     { remaining: out.due_date_remaining_ms, fraction: out.due_date_fraction },

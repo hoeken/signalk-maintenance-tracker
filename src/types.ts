@@ -2,13 +2,13 @@ export type TimeUnit = 'days' | 'weeks' | 'months' | 'years';
 
 export const TIME_UNITS: TimeUnit[] = ['days', 'weeks', 'months', 'years'];
 
-export type Status = 'overdue' | 'due_soon' | 'ok' | 'unknown';
+export type Status = 'overdue' | 'due_soon' | 'ok' | 'info';
 
 export const STATUS_RANK: Record<Status, number> = {
   overdue: 0,
   due_soon: 1,
   ok: 2,
-  unknown: 3,
+  info: 3,
 };
 
 export interface TaskRow {

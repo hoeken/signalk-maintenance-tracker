@@ -81,7 +81,7 @@ describe('task CRUD', () => {
     const cleared = service.updateTask(task.slug, { due_date: null });
     expect(cleared.due_date).toBeNull();
     expect(cleared.due_date_status).toBeNull();
-    expect(cleared.status).toBe('unknown');
+    expect(cleared.status).toBe('info');
   });
 
   it('rejects an invalid due_date', () => {
@@ -186,7 +186,7 @@ describe('task CRUD', () => {
   it('allows informational-only tasks with no intervals', () => {
     const { service } = makeService();
     const t = service.createTask({ name: 'Registration paperwork' });
-    expect(t.status).toBe('unknown');
+    expect(t.status).toBe('info');
   });
 
   it('updates fields without touching the slug on rename', () => {
@@ -439,7 +439,7 @@ describe('denormalization invariant (§5.6)', () => {
     const t = service.getTask('check-bilge-pump');
     expect(t.last_maintenance).toBe('2026-07-01T00:00:00.000Z');
     expect(t.last_runtime).toBe(1234.5);
-    expect(t.status).toBe('unknown'); // still no due-date/status without an interval
+    expect(t.status).toBe('info'); // still no due-date/status without an interval
     expect(t.scheduled_due_date).toBeNull();
   });
 
@@ -503,7 +503,7 @@ describe('task list query (§8.1)', () => {
       last_maintenance: '2026-07-01T00:00:00Z',
       tags: ['Water', 'Engines'],
     });
-    // informational => unknown
+    // informational => info
     service.createTask({ name: 'Unknown paperwork' });
   }
 
@@ -515,7 +515,7 @@ describe('task list query (§8.1)', () => {
       'overdue',
       'due_soon',
       'ok',
-      'unknown',
+      'info',
     ]);
     expect(page.total).toBe(4);
   });
