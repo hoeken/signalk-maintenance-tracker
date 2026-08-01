@@ -241,7 +241,9 @@ describe('TaskDetailPage — title bar and description card', () => {
         },
       ],
     });
-    expect(card('Description')).toBeTruthy();
+    // Parts keep the card, but with no description there is nothing to head.
+    expect(card('Consumables')).toBeTruthy();
+    expect(screen.queryByText('Description')).toBeNull();
     expect(screen.getByText('Oil filter')).toBeTruthy();
   });
 

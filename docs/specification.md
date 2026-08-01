@@ -589,6 +589,25 @@ never inject script. A small `<MarkdownView/>` component owns render + sanitize 
 `dangerouslySetInnerHTML` (Preact supports the same prop as React) in one place;
 nothing else sets raw HTML.
 
+snarkdown only links explicit `[text](url)`, so a final **autolink** pass over the
+sanitized HTML turns bare `http(s)://` and `www.` runs into anchors — a pasted URL
+is the common case in a note. The link text is the URL's **hostname** (a pasted
+tracking URL is unreadable inline) with the full URL kept as the `title`. It walks
+text nodes, skipping anything already inside `<a>`, `<code>` or `<pre>`, and builds
+each `href` from a match that must start with a known scheme, so it cannot
+reintroduce a `javascript:` URL after sanitizing.
+
+**Authored line breaks** are kept, in two steps around snarkdown, because
+markdown throws away both kinds: a lone newline is whitespace, and a run of blank
+lines collapses to a single `<br>`. A note is typed into a textarea, so every
+line and every blank line the author pressed is meant. Before rendering, each
+run of newlines is split by a marker control character, which snarkdown's grammar
+ignores and so cannot collapse; after sanitizing, the newlines left in the text
+become `<br>` and the markers are dropped. Fenced code is passed through
+untouched (blank lines there are code), newlines inside `<code>`/`<pre>` stay as
+they are, and an *unmarked* newline against a block element is snarkdown's own
+output formatting — dropped, rather than rendered as a stray blank line.
+
 ### 7.9 Browser support & compatibility
 
 **Floor: Chromium 69** (Navico/B&G MFDs, Sept 2018). **Ceiling: current evergreen
