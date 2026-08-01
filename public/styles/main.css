@@ -229,7 +229,7 @@ pre {
 .btn-danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: var(--accent-text);
 }
 .btn-danger:hover {
   background: var(--danger-hover);
@@ -239,7 +239,7 @@ pre {
 .btn-success {
   background: var(--ok);
   border-color: var(--ok);
-  color: #fff;
+  color: var(--accent-text);
 }
 .btn-success:hover {
   background: var(--ok-hover);
