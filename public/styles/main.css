@@ -155,6 +155,19 @@ pre {
 .page-title .badge {
   margin-left: 10px;
 }
+/* tags trail the badges on the same 10px rhythm; their own margins give way to
+   a gap so no trailing space knocks the row off center */
+.page-title .chips {
+  margin-left: 10px;
+  margin-bottom: 0;
+  gap: 4px 10px;
+}
+.page-title .chips > * {
+  margin: 0;
+}
+.page-title .tag {
+  font-weight: 400;
+}
 
 /* header action buttons; wraps below the title on narrow screens */
 .page-actions {

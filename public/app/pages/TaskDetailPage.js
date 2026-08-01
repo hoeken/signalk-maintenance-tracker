@@ -127,6 +127,8 @@ export function TaskDetailPage(props) {
     task.current_runtime !== null ||
     task.last_runtime !== null;
 
+  const consumables = task.consumables || [];
+
   // With both a recurring interval and a one-time deadline set, the deadline
   // takes a row of its own; on its own it simply is the next thing due.
   const bothTimeDimensions = timeConfigured && dueDateConfigured;
@@ -167,7 +169,14 @@ export function TaskDetailPage(props) {
       <div class="page-header">
         <h1 class="page-title">
           ${task.name} <${StatusBadge} status=${task.status} />
-          <${StockBadge} consumables=${task.consumables} />
+          <${StockBadge} consumables=${consumables} />
+          ${
+            task.tags.length
+              ? html`<span class="chips">
+                  ${task.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}
+                </span>`
+              : null
+          }
         </h1>
         ${
           auth.isLoggedIn
@@ -201,42 +210,41 @@ export function TaskDetailPage(props) {
       </div>
 
       <div class="detail-grid">
-        <div class="card">
-          <h3>Description</h3>
-          ${
-            task.description
-              ? html`<${MarkdownView} markdown=${task.description} />`
-              : html`<p class="muted" style="margin:0">No description.</p>`
-          }
-          ${
-            task.tags.length
-              ? html`<div class="chips" style="margin-top:12px">
-                  ${task.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}
-                </div>`
-              : null
-          }
-          ${
-            (task.consumables || []).length
-              ? html`<div style="margin-top:12px">
-                  <div class="field-label" style="margin-bottom:4px">
-                    Consumables
-                  </div>
-                  <ul class="consumables-list">
-                    ${task.consumables.map(
-                      (c) => html`<li key=${c.item_id} class="consumables-row">
-                        <span class="consumables-name"
-                          >${c.item_name}${' '}
-                          <span class="muted"
-                            >× ${c.qty_per_service}</span
-                          ></span
-                        >
-                      </li>`,
-                    )}
-                  </ul>
-                </div>`
-              : null
-          }
-        </div>
+        ${
+          // Nothing to say without a description or parts: drop the card.
+          task.description || consumables.length
+            ? html`<div class="card">
+                <h3>Description</h3>
+                ${
+                  task.description
+                    ? html`<${MarkdownView} markdown=${task.description} />`
+                    : html`<p class="muted" style="margin:0">No description.</p>`
+                }
+                ${
+                  consumables.length
+                    ? html`<div style="margin-top:16px">
+                        <h3>Consumables</h3>
+                        <ul class="consumables-list">
+                          ${consumables.map(
+                            (c) => html`<li
+                              key=${c.item_id}
+                              class="consumables-row"
+                            >
+                              <span class="consumables-name"
+                                >${c.item_name}${' '}
+                                <span class="muted"
+                                  >× ${c.qty_per_service}</span
+                                ></span
+                              >
+                            </li>`,
+                          )}
+                        </ul>
+                      </div>`
+                    : null
+                }
+              </div>`
+            : null
+        }
 
         <div class="card">
           <h3>Schedule</h3>

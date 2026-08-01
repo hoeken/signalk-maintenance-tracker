@@ -58,7 +58,7 @@ describe('TaskDetailPage — schedule and runtime cards', () => {
     const headings = screen
       .getAllByRole('heading', { level: 3 })
       .map((h) => h.textContent);
-    expect(headings).toEqual(['Description', 'Schedule', 'Runtime']);
+    expect(headings).toEqual(['Schedule', 'Runtime']);
   });
 
   it('tabulates the runtime dimension', async () => {
@@ -193,7 +193,7 @@ describe('TaskDetailPage — schedule and runtime cards', () => {
     const headings = screen
       .getAllByRole('heading', { level: 3 })
       .map((h) => h.textContent);
-    expect(headings).toEqual(['Description', 'Schedule']);
+    expect(headings).toEqual(['Schedule']);
     expect(
       screen.getByText('No interval or due date configured.'),
     ).toBeTruthy();
@@ -206,5 +206,41 @@ describe('TaskDetailPage — schedule and runtime cards', () => {
     expect(bars.length).toBe(2);
     expect(bars[0].getAttribute('aria-valuenow')).toBe('48'); // time_fraction
     expect(bars[1].getAttribute('aria-valuenow')).toBe('60'); // runtime_fraction
+  });
+});
+
+describe('TaskDetailPage — title bar and description card', () => {
+  it('labels the task with its tags in the title, not the description', async () => {
+    await renderTask({ tags: ['Engines', 'Fluids'] });
+    const tags = Array.from(document.querySelectorAll('.page-title .tag')).map(
+      (el) => el.textContent,
+    );
+    expect(tags).toEqual(['Engines', 'Fluids']);
+  });
+
+  it('drops the description card when there is no description and no parts', async () => {
+    await renderTask({ description: null, consumables: [] });
+    expect(screen.queryByText('Description')).toBeNull();
+  });
+
+  it('keeps the description card for parts alone', async () => {
+    await renderTask({
+      description: null,
+      consumables: [
+        {
+          item_id: 7,
+          item_name: 'Oil filter',
+          qty_per_service: 1,
+          qty_on_hand: 3,
+        },
+      ],
+    });
+    expect(card('Description')).toBeTruthy();
+    expect(screen.getByText('Oil filter')).toBeTruthy();
+  });
+
+  it('keeps the description card for a description alone', async () => {
+    await renderTask({ description: 'Drain the sump.', consumables: [] });
+    expect(screen.getByText('Drain the sump.')).toBeTruthy();
   });
 });
