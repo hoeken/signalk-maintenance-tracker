@@ -1,3 +1,43 @@
+# v1.3.0
+
+Notes and descriptions now render the way you typed them: pasted URLs become
+links, and line breaks stay where you put them. And the `unknown` task status
+is now `info`.
+
+## Highlights
+
+- **Bare URLs in notes and descriptions become links.** Pasting a manual's URL
+  into a note used to leave dead text, since markdown only links explicit
+  `[text](url)`. Bare `http(s)://` and `www.` runs are now anchored, with the
+  hostname as the link text (a pasted tracking URL is unreadable inline) and the
+  full URL on hover. Linking runs over the already-sanitized HTML and skips text
+  inside existing links, `code` and `pre`, so it can't reintroduce a
+  `javascript:` URL.
+- **Line breaks survive.** A note typed over several lines came out as one
+  run-on line, because a lone newline means whitespace to markdown but a line
+  break to whoever typed it into a textarea. Single newlines are now kept as
+  breaks and runs of blank lines are no longer collapsed, while fenced code
+  blocks and list spacing are left exactly as markdown intends them.
+- **The `unknown` task status is now `info`.** A task with no intervals is a
+  plain informational record, not one whose state we failed to work out — but
+  the badge read "unknown", which sounds like something is missing. The rename
+  goes all the way through: badge, CSS tokens, API filter value, and the status
+  the notification manager declines to publish for. Precedence is unchanged:
+  `overdue` > `due_soon` > `ok` > `info`.
+
+## Breaking changes
+
+- `GET /tasks?status=unknown` no longer matches anything. Unrecognized filter
+  values are dropped rather than rejected, so an old caller gets an unfiltered
+  list instead of an error — pass `status=info` instead. Task status values in
+  API responses and on published SignalK paths change from `unknown` to `info`
+  as well.
+
+## Smaller changes and fixes
+
+- The task detail page no longer shows a "Description" heading (or a "No
+  description." placeholder) for a task that only has consumables.
+
 # v1.2.0
 
 A task detail page that puts the numbers you actually compare side by side,

@@ -1,6 +1,6 @@
 {
   "name": "signalk-maintenance-tracker",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Track recurring boat maintenance tasks with runtime and calendar based intervals.",
   "main": "dist/index.js",
   "license": "MIT",
