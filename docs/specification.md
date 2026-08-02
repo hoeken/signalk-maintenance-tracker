@@ -465,8 +465,12 @@ drives the attribute.
 - Default sort: overdue first, then due_soon, then upcoming — driven by the
   server's `status_rank` + remaining sort.
 - Controls: freeform search box; tag filter (multi-select chips, select/deselect);
-  column-header sorting (name, remaining runtime, remaining time); pagination.
-- All list state (search, tags, sort, page) is held in the URL hash query string so
+  status filter (the same chips, trailing the tags — deliberately uncolored, since
+  they are filter controls rather than a task's own badge); column-header sorting
+  (name, remaining runtime, remaining time); pagination. Search, tags and status
+  narrow the list together (AND), each multi-select being an OR within itself for
+  status and an AND for tags.
+- All list state (search, tags, status, sort, page) is held in the URL hash query string so
   views are shareable/bookmarkable and survive refresh (a `useListParams` helper
   over the hash router).
 - Live-updating via the data layer's polling (default 5 s, configurable — §7.6).
@@ -977,8 +981,11 @@ These were open during drafting and are now settled:
 - **Slug editing:** slug is auto-generated on first save (create) and is
   **user-editable** thereafter; renaming the task does not regenerate it. A slug
   change re-checks uniqueness and migrates the notification path. (§6.4, §8.1)
-- **Search backend:** plain `LIKE` across name/description/tags/notes. Expected
-  scale is < ~200 records, so no FTS5 needed. (§5.4, §6.3)
+- **Search backend:** plain `LIKE` across name/description/tags/notes, plus a
+  whole-string match against the computed status ("overdue", "due soon"/
+  "due_soon", "ok", "info") so a status can be typed as well as clicked — a
+  substring match there would let a one-letter query drag in every task.
+  Expected scale is < ~200 records, so no FTS5 needed. (§5.4, §6.3)
 - **Deep-link routing:** **hash-based routing** (confirmed). The app is served at
   both `/signalk-maintenance-tracker/` and `…/index.html`; a hash router needs no
   server-side SPA fallback. (§7.1)

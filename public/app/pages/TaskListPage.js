@@ -7,7 +7,12 @@ import { useState, useEffect } from '../../vendor/preact-hooks.js';
 import { useTasks, useTags, deleteTask } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import { useListParams } from '../lib/useListParams.js';
-import { formatRemainingHours, formatRemainingTime } from '../lib/format.js';
+import {
+  STATUSES,
+  formatRemainingHours,
+  formatRemainingTime,
+  statusLabel,
+} from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
@@ -28,6 +33,7 @@ export function TaskListPage() {
   const page = parseInt(params.page || '1', 10) || 1;
   const search = params.search || '';
   const tagsCsv = params.tags || '';
+  const statusCsv = params.status || '';
   const sort = params.sort || '';
   const order = params.order || '';
 
@@ -48,6 +54,7 @@ export function TaskListPage() {
   const tasksRes = useTasks({
     search: search || undefined,
     tags: tagsCsv || undefined,
+    status: statusCsv || undefined,
     sort: sort || undefined,
     order: order || undefined,
     page: page,
@@ -72,6 +79,19 @@ export function TaskListPage() {
         ? selectedTags.concat([tag])
         : selectedTags.filter((t) => t !== tag);
     update({ tags: next.join(',') || undefined, page: undefined });
+  };
+
+  // Status chips filter alongside (not instead of) the search box and tags.
+  const selectedStatuses = statusCsv
+    ? statusCsv.split(',').filter(Boolean)
+    : [];
+  /** @param {string} status */
+  const toggleStatus = (status) => {
+    const next =
+      selectedStatuses.indexOf(status) === -1
+        ? selectedStatuses.concat([status])
+        : selectedStatuses.filter((s) => s !== status);
+    update({ status: next.join(',') || undefined, page: undefined });
   };
 
   /** @param {string} key */
@@ -204,6 +224,19 @@ export function TaskListPage() {
             </button>
           `,
         )}
+        ${STATUSES.map(
+          (status) => html`
+            <button
+              type="button"
+              key=${status}
+              class=${'chip' + (selectedStatuses.indexOf(status) !== -1 ? ' selected' : '')}
+              aria-pressed=${selectedStatuses.indexOf(status) !== -1}
+              onClick=${() => toggleStatus(status)}
+            >
+              ${statusLabel(status)}
+            </button>
+          `,
+        )}
       </div>
 
       ${
@@ -219,7 +252,7 @@ export function TaskListPage() {
                 order=${order}
                 onSort=${onSort}
                 loading=${tasksRes.loading}
-                emptyMessage=${search || tagsCsv ? 'No tasks match your filters.' : 'No maintenance tasks yet.'}
+                emptyMessage=${search || tagsCsv || statusCsv ? 'No tasks match your filters.' : 'No maintenance tasks yet.'}
               />
               ${
                 pageData

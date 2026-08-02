@@ -531,6 +531,23 @@ describe('task list query (§8.1)', () => {
     ).toEqual(['Ok watermaker']);
   });
 
+  it('searches the computed status as whole text', () => {
+    const { service } = makeService({ 'propulsion.port.runTime': 150 });
+    seed(service);
+    expect(
+      service.listTasks({ search: 'info' }).data.map((t) => t.name),
+    ).toEqual(['Unknown paperwork']);
+    // the displayed label and the raw value both work
+    expect(
+      service.listTasks({ search: 'due soon' }).data.map((t) => t.name),
+    ).toEqual(['Soon zinc check']);
+    expect(
+      service.listTasks({ search: 'DUE_SOON' }).data.map((t) => t.name),
+    ).toEqual(['Soon zinc check']);
+    // ...but a fragment of a status is not a status match
+    expect(service.listTasks({ search: 'inf' }).data).toHaveLength(0);
+  });
+
   it('searches log notes too (§6.3)', async () => {
     const { service } = makeService();
     seed(service);

@@ -34,7 +34,10 @@ describe('TaskListPage (§7.4)', () => {
       expect(screen.getByText('Engine oil change')).toBeTruthy(),
     );
     expect(screen.getByText('Winch service')).toBeTruthy();
-    expect(screen.getByText('overdue')).toBeTruthy();
+    // the row badge, not the same-named status filter chip
+    expect(document.querySelector('.badge.overdue')?.textContent).toBe(
+      'overdue',
+    );
     expect(screen.getByText('20 h overdue')).toBeTruthy();
     // task detail links use hash routes
     expect(screen.getByText('Engine oil change').getAttribute('href')).toBe(
@@ -45,7 +48,7 @@ describe('TaskListPage (§7.4)', () => {
   it('sends filters from the URL hash to the API', async () => {
     const fn = mockFetch(apiRoutes({ tasks: [] }));
     route.value = parseHash(
-      '#/?search=oil&tags=Engines&sort=name&order=desc&page=2',
+      '#/?search=oil&tags=Engines&status=overdue,due_soon&sort=name&order=desc&page=2',
     );
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);
@@ -57,6 +60,7 @@ describe('TaskListPage (§7.4)', () => {
       const url = String(tasksCall[0]);
       expect(url).toContain('search=oil');
       expect(url).toContain('tags=Engines');
+      expect(url).toContain('status=overdue%2Cdue_soon');
       expect(url).toContain('sort=name');
       expect(url).toContain('order=desc');
       expect(url).toContain('page=2');
@@ -76,5 +80,39 @@ describe('TaskListPage (§7.4)', () => {
       expect(route.value.query.tags).toBe('Engines');
       expect(route.value.query.page).toBeUndefined();
     });
+  });
+
+  it('status chips filter alongside the other options and toggle off again', async () => {
+    mockFetch(
+      apiRoutes({ tasks: [], tags: [{ id: 1, name: 'Engines', count: 3 }] }),
+    );
+    route.value = parseHash('#/?search=oil&tags=Engines&page=4');
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${TaskListPage} />`);
+
+    // one chip per status, rendered after the tag chips
+    await waitFor(() => expect(screen.getByText('Engines')).toBeTruthy());
+    const chips = Array.from(document.querySelectorAll('.chips .chip')).map(
+      (el) => el.textContent.trim(),
+    );
+    expect(chips).toEqual(['Engines3', 'overdue', 'due soon', 'ok', 'info']);
+
+    fireEvent.click(screen.getByText('due soon'));
+    await waitFor(() => expect(route.value.query.status).toBe('due_soon'));
+    // added to the existing filters, not replacing them; paging resets
+    expect(route.value.query.search).toBe('oil');
+    expect(route.value.query.tags).toBe('Engines');
+    expect(route.value.query.page).toBeUndefined();
+
+    fireEvent.click(screen.getByText('overdue'));
+    await waitFor(() =>
+      expect(route.value.query.status).toBe('due_soon,overdue'),
+    );
+
+    fireEvent.click(screen.getByText('due soon'));
+    await waitFor(() => expect(route.value.query.status).toBe('overdue'));
+
+    fireEvent.click(screen.getByText('overdue'));
+    await waitFor(() => expect(route.value.query.status).toBeUndefined());
   });
 });

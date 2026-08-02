@@ -121,6 +121,12 @@ export function formatUser(name) {
   return isTokenUser(trimmed) ? trimmed.slice(0, 8) : trimmed;
 }
 
+/**
+ * Every task status, most urgent first (mirrors STATUS_RANK in src/types.ts).
+ * @type {import('../types.js').Status[]}
+ */
+export const STATUSES = ['overdue', 'due_soon', 'ok', 'info'];
+
 /** Status → human label. @param {string} status */
 export function statusLabel(status) {
   if (status === 'due_soon') return 'due soon';
