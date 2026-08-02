@@ -1,3 +1,7 @@
+# v1.5
+
+- add support for one-off TODO list type entries
+
 # Long Term
 
 - responsibility assignment
