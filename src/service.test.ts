@@ -531,21 +531,37 @@ describe('task list query (§8.1)', () => {
     ).toEqual(['Ok watermaker']);
   });
 
-  it('searches the computed status as whole text', () => {
+  it('searches the computed status as a substring', () => {
     const { service } = makeService({ 'propulsion.port.runTime': 150 });
     seed(service);
     expect(
       service.listTasks({ search: 'info' }).data.map((t) => t.name),
     ).toEqual(['Unknown paperwork']);
-    // the displayed label and the raw value both work
+    // a couple of characters is enough — no name or tag here holds "inf"
     expect(
-      service.listTasks({ search: 'due soon' }).data.map((t) => t.name),
+      service.listTasks({ search: 'inf' }).data.map((t) => t.name),
+    ).toEqual(['Unknown paperwork']);
+    // the displayed label and the raw value both work, case-insensitively
+    expect(
+      service.listTasks({ search: 'due so' }).data.map((t) => t.name),
     ).toEqual(['Soon zinc check']);
     expect(
       service.listTasks({ search: 'DUE_SOON' }).data.map((t) => t.name),
     ).toEqual(['Soon zinc check']);
-    // ...but a fragment of a status is not a status match
-    expect(service.listTasks({ search: 'inf' }).data).toHaveLength(0);
+  });
+
+  it('does not treat a whitespace-only search as a due_soon wildcard', () => {
+    // single-word names, so nothing here can match on the space itself
+    const { service } = makeService();
+    service.createTask({ name: 'Paperwork' });
+    service.createTask({
+      name: 'Zincs',
+      time_interval: 1,
+      time_interval_unit: 'weeks',
+      last_maintenance: '2026-07-05T12:00:00Z',
+    });
+    expect(service.listTasks({ search: 'due soon' }).data).toHaveLength(1);
+    expect(service.listTasks({ search: ' ' }).data).toHaveLength(0);
   });
 
   it('searches log notes too (§6.3)', async () => {

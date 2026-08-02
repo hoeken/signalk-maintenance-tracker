@@ -982,10 +982,10 @@ These were open during drafting and are now settled:
   **user-editable** thereafter; renaming the task does not regenerate it. A slug
   change re-checks uniqueness and migrates the notification path. (§6.4, §8.1)
 - **Search backend:** plain `LIKE` across name/description/tags/notes, plus a
-  whole-string match against the computed status ("overdue", "due soon"/
-  "due_soon", "ok", "info") so a status can be typed as well as clicked — a
-  substring match there would let a one-letter query drag in every task.
-  Expected scale is < ~200 records, so no FTS5 needed. (§5.4, §6.3)
+  substring match against the computed status so a status can be typed as well
+  as clicked. The needle is underscored first, so "due soon" (as displayed) and
+  "due_soon" (as stored) both hit; two characters is enough to mean what you
+  mean. Expected scale is < ~200 records, so no FTS5 needed. (§5.4, §6.3)
 - **Deep-link routing:** **hash-based routing** (confirmed). The app is served at
   both `/signalk-maintenance-tracker/` and `…/index.html`; a hash router needs no
   server-side SPA fallback. (§7.1)

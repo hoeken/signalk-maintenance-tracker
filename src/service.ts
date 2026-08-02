@@ -152,9 +152,11 @@ export class MaintenanceService {
 
     if (q.search) {
       const needle = q.search.toLowerCase();
-      // Status is matched whole, not as a substring: "due soon" (as displayed)
-      // and "due_soon" both work, but a one-letter query doesn't drag in every
-      // ok/overdue/info task.
+      // Status matches as a substring, like every other searched field. The
+      // needle is underscored first so the status reads the way it's displayed
+      // ("due soon") as well as the way it's stored ("due_soon"). Trimming
+      // guards the one input that would otherwise be a wildcard: a lone space
+      // becoming "_" and matching every due_soon task.
       const statusNeedle = needle.trim().replace(/\s+/g, '_');
       const noteMatches = this.logs.taskIdsWithNotesLike(`%${q.search}%`);
       items = items.filter(
@@ -162,7 +164,7 @@ export class MaintenanceService {
           t.name.toLowerCase().includes(needle) ||
           (t.description ?? '').toLowerCase().includes(needle) ||
           t.tags.some((tag) => tag.toLowerCase().includes(needle)) ||
-          t.status === statusNeedle ||
+          (statusNeedle !== '' && t.status.includes(statusNeedle)) ||
           noteMatches.has(t.id),
       );
     }
