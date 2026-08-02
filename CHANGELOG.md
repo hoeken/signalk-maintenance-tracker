@@ -1,3 +1,45 @@
+# v1.4.0
+
+Retired gear can now retire its tasks too, and the task list is quicker to
+narrow down to the work you actually mean.
+
+## Highlights
+
+- **Archive a task.** A decommissioned watermaker's service history is worth
+  keeping, but its overdue badge isn't. The task detail page gains an
+  **Archive**/**Unarchive** button: an archived task keeps its log and its
+  computed figures, but reads as the new `archived` status, ranked after
+  `info` — it sinks to the end of the default sort, drops out of the other
+  status filters into its own chip, and never raises a notification
+  (archiving also clears one the task had already raised). On the API,
+  `is_archived` is a plain boolean on the task, and `archived` joins the
+  status values that responses and published SignalK paths can carry.
+- **Filter the task list by status.** The tag chips get a sibling row of
+  status chips (Overdue, Due Soon, OK, Info, Archived), and search, tag and
+  status narrow the list together. Both chip rows are now single-select —
+  a task has exactly one status, and tags are used as categories, so
+  combining two of either usually narrowed to nothing; clicking a chip
+  replaces the selection and clicking it again clears it. The API still
+  accepts CSV for both, so hand-written multi-value URLs keep working, and
+  the selection lives in the URL hash like the rest of the list state.
+- **Search matches status too.** Typing `due` — or `due soon`, spaces work —
+  now finds the tasks wearing that badge, alongside the usual name,
+  description, tag and note matches, so a status can be typed as well as
+  clicked.
+- **Consumables link to their stowage item.** Each consumable name on the
+  task detail page is now a link to the item's own page in stowage-mgmt, so
+  "how many are left, and where?" no longer means opening Stowage Management
+  and searching for the item by hand.
+
+## Smaller changes and fixes
+
+- Task status labels are capitalized wherever they're shown ("Due Soon",
+  "OK"), matching the stock badges.
+- The tag chips no longer show per-tag counts; live counts meant a redraw of
+  the whole chip row on every keystroke, a flicker that cost more than the
+  number was worth. (`GET /tags` still returns each tag's count.)
+- Info badges are now accent-blue; grey now means archived.
+
 # v1.3.0
 
 Notes and descriptions now render the way you typed them: pasted URLs become
