@@ -67,22 +67,65 @@ describe('TaskListPage (§7.4)', () => {
     });
   });
 
-  it('toggling a tag chip updates the hash query and resets the page', async () => {
+  it('status chips carry the count each would return', async () => {
     mockFetch(
-      apiRoutes({ tasks: [], tags: [{ id: 1, name: 'Engines', count: 3 }] }),
+      apiRoutes({
+        tasks: [
+          makeTask({ id: 1, status: 'overdue' }),
+          makeTask({ id: 2, slug: 'winch', name: 'Winch', status: 'overdue' }),
+          makeTask({ id: 3, slug: 'zincs', name: 'Zincs', status: 'ok' }),
+        ],
+      }),
+    );
+    route.value = parseHash('#/');
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${TaskListPage} />`);
+
+    await waitFor(() => expect(screen.getByText('Zincs')).toBeTruthy());
+    const chips = Array.from(document.querySelectorAll('.chips .chip')).map(
+      (el) => el.textContent.trim(),
+    );
+    // counts come from the server's facets, so they cover every page, and an
+    // empty status still shows its zero
+    expect(chips).toEqual(['Overdue2', 'Due Soon0', 'OK1', 'Info0']);
+    // no tags defined, so that row (and its label) is left out entirely
+    expect(
+      Array.from(document.querySelectorAll('.chips-label')).map(
+        (el) => el.textContent,
+      ),
+    ).toEqual(['Status:']);
+  });
+
+  it('tag chips single-select: a second tag replaces the first, and the selected one clears', async () => {
+    mockFetch(
+      apiRoutes({
+        tasks: [],
+        tags: [
+          { id: 1, name: 'Engines', count: 3 },
+          { id: 2, name: 'Rigging', count: 2 },
+        ],
+      }),
     );
     route.value = parseHash('#/?page=4');
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);
     await waitFor(() => expect(screen.getByText('Engines')).toBeTruthy());
+
     fireEvent.click(screen.getByText('Engines'));
     await waitFor(() => {
       expect(route.value.query.tags).toBe('Engines');
       expect(route.value.query.page).toBeUndefined();
     });
+
+    // one click to switch categories — no deselect first, and no AND of the two
+    fireEvent.click(screen.getByText('Rigging'));
+    await waitFor(() => expect(route.value.query.tags).toBe('Rigging'));
+
+    fireEvent.click(screen.getByText('Rigging'));
+    await waitFor(() => expect(route.value.query.tags).toBeUndefined());
   });
 
-  it('status chips filter alongside the other options and toggle off again', async () => {
+  it('status chips single-select and filter alongside the other options', async () => {
     mockFetch(
       apiRoutes({ tasks: [], tags: [{ id: 1, name: 'Engines', count: 3 }] }),
     );
@@ -90,26 +133,37 @@ describe('TaskListPage (§7.4)', () => {
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);
 
-    // one chip per status, rendered after the tag chips
+    // one chip per status, on their own labelled row below the tags
     await waitFor(() => expect(screen.getByText('Engines')).toBeTruthy());
+    const rows = Array.from(document.querySelectorAll('.chip-filters .chips'));
+    expect(
+      rows.map((r) => r.querySelector('.chips-label').textContent),
+    ).toEqual(['Tags:', 'Status:']);
+    expect(
+      Array.from(rows[1].querySelectorAll('.chip')).map((el) =>
+        el.textContent.trim(),
+      ),
+    ).toEqual(['Overdue0', 'Due Soon0', 'OK0', 'Info0']);
     const chips = Array.from(document.querySelectorAll('.chips .chip')).map(
       (el) => el.textContent.trim(),
     );
-    expect(chips).toEqual(['Engines3', 'Overdue', 'Due Soon', 'OK', 'Info']);
+    expect(chips).toEqual([
+      'Engines3',
+      'Overdue0',
+      'Due Soon0',
+      'OK0',
+      'Info0',
+    ]);
 
     fireEvent.click(screen.getByText('Due Soon'));
     await waitFor(() => expect(route.value.query.status).toBe('due_soon'));
-    // added to the existing filters, not replacing them; paging resets
+    // ANDed with the existing filters, not replacing them; paging resets
     expect(route.value.query.search).toBe('oil');
     expect(route.value.query.tags).toBe('Engines');
     expect(route.value.query.page).toBeUndefined();
 
+    // a task only ever has one status, so the second chip replaces the first
     fireEvent.click(screen.getByText('Overdue'));
-    await waitFor(() =>
-      expect(route.value.query.status).toBe('due_soon,overdue'),
-    );
-
-    fireEvent.click(screen.getByText('Due Soon'));
     await waitFor(() => expect(route.value.query.status).toBe('overdue'));
 
     fireEvent.click(screen.getByText('Overdue'));

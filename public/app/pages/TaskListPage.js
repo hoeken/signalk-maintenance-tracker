@@ -71,28 +71,29 @@ export function TaskListPage() {
   );
   const [deleting, setDeleting] = useState(/** @type {TaskDTO|null} */ (null));
 
+  // Tags and status are single-select, so search, tag and status simply AND
+  // together. A task has exactly one status, and tags are used as categories,
+  // so combining two of either narrows to nothing more often than not. Clicking
+  // a chip replaces the current selection; clicking the selected one clears it.
+  // The API still accepts CSV, so a hand-written multi-value URL keeps
+  // filtering (and highlighting) — it just collapses on the next click.
   const selectedTags = tagsCsv ? tagsCsv.split(',').filter(Boolean) : [];
   /** @param {string} tag */
-  const toggleTag = (tag) => {
-    const next =
-      selectedTags.indexOf(tag) === -1
-        ? selectedTags.concat([tag])
-        : selectedTags.filter((t) => t !== tag);
-    update({ tags: next.join(',') || undefined, page: undefined });
-  };
+  const selectTag = (tag) =>
+    update({
+      tags: selectedTags.indexOf(tag) === -1 ? tag : undefined,
+      page: undefined,
+    });
 
-  // Status chips filter alongside (not instead of) the search box and tags.
   const selectedStatuses = statusCsv
     ? statusCsv.split(',').filter(Boolean)
     : [];
   /** @param {string} status */
-  const toggleStatus = (status) => {
-    const next =
-      selectedStatuses.indexOf(status) === -1
-        ? selectedStatuses.concat([status])
-        : selectedStatuses.filter((s) => s !== status);
-    update({ status: next.join(',') || undefined, page: undefined });
-  };
+  const selectStatus = (status) =>
+    update({
+      status: selectedStatuses.indexOf(status) === -1 ? status : undefined,
+      page: undefined,
+    });
 
   /** @param {string} key */
   const onSort = (key) => {
@@ -181,7 +182,11 @@ export function TaskListPage() {
     },
   ];
 
+  const tagList = tagsRes.data ? tagsRes.data.data : [];
   const pageData = tasksRes.data;
+  // Server-computed facets: what each status chip would return, given the
+  // search and tag already in effect. Absent until the first response lands.
+  const statusCounts = pageData ? pageData.statusCounts : null;
 
   return html`
     <div>
@@ -211,32 +216,49 @@ export function TaskListPage() {
         }
       </div>
 
-      <div class="chips">
-        ${(tagsRes.data ? tagsRes.data.data : []).map(
-          (tag) => html`
-            <button
-              type="button"
-              key=${tag.name}
-              class=${'chip' + (selectedTags.indexOf(tag.name) !== -1 ? ' selected' : '')}
-              onClick=${() => toggleTag(tag.name)}
-            >
-              ${tag.name}<span class="chip-count">${tag.count}</span>
-            </button>
-          `,
-        )}
-        ${STATUSES.map(
-          (status) => html`
-            <button
-              type="button"
-              key=${status}
-              class=${'chip' + (selectedStatuses.indexOf(status) !== -1 ? ' selected' : '')}
-              aria-pressed=${selectedStatuses.indexOf(status) !== -1}
-              onClick=${() => toggleStatus(status)}
-            >
-              ${statusLabel(status)}
-            </button>
-          `,
-        )}
+      <div class="chip-filters">
+        ${
+          tagList.length
+            ? html`
+                <div class="chips" role="group" aria-labelledby="tag-filter-label">
+                  <span class="chips-label" id="tag-filter-label">Tags:</span>
+                  ${tagList.map(
+                    (tag) => html`
+                      <button
+                        type="button"
+                        key=${tag.name}
+                        class=${'chip' + (selectedTags.indexOf(tag.name) !== -1 ? ' selected' : '')}
+                        aria-pressed=${selectedTags.indexOf(tag.name) !== -1}
+                        onClick=${() => selectTag(tag.name)}
+                      >
+                        ${tag.name}<span class="chip-count">${tag.count}</span>
+                      </button>
+                    `,
+                  )}
+                </div>
+              `
+            : null
+        }
+        <div class="chips" role="group" aria-labelledby="status-filter-label">
+          <span class="chips-label" id="status-filter-label">Status:</span>
+          ${STATUSES.map(
+            (status) => html`
+              <button
+                type="button"
+                key=${status}
+                class=${'chip' + (selectedStatuses.indexOf(status) !== -1 ? ' selected' : '')}
+                aria-pressed=${selectedStatuses.indexOf(status) !== -1}
+                onClick=${() => selectStatus(status)}
+              >
+                ${statusLabel(status)}${
+                  statusCounts
+                    ? html`<span class="chip-count">${statusCounts[status] || 0}</span>`
+                    : null
+                }
+              </button>
+            `,
+          )}
+        </div>
       </div>
 
       ${

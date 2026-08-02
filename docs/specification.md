@@ -464,12 +464,26 @@ drives the attribute.
   `view` action.
 - Default sort: overdue first, then due_soon, then upcoming — driven by the
   server's `status_rank` + remaining sort.
-- Controls: freeform search box; tag filter (multi-select chips, select/deselect);
-  status filter (the same chips, trailing the tags — deliberately uncolored, since
-  they are filter controls rather than a task's own badge); column-header sorting
-  (name, remaining runtime, remaining time); pagination. Search, tags and status
-  narrow the list together (AND), each multi-select being an OR within itself for
-  status and an AND for tags.
+- Controls: freeform search box; tag filter (single-select chips); status filter
+  (the same chips, trailing the tags — deliberately uncolored, since they are
+  filter controls rather than a task's own badge); column-header sorting (name,
+  remaining runtime, remaining time); pagination. Search, tag and status narrow
+  the list together (AND). Both chip rows are single-select: clicking a chip
+  replaces the current selection, clicking the selected one clears it. A task
+  carries exactly one status, and tags are used as categories, so combining two
+  of either would usually narrow to nothing. The API still takes CSV for both
+  (AND across tags, set membership for status), so hand-written multi-value URLs
+  keep working; the UI only ever writes one value.
+- The two filters sit on their own labelled rows ("Tags:" / "Status:"), each a
+  `role="group"` labelled by its own text, so the single-select-per-row rule is
+  legible from the layout. The labels share a min-width so both rows' chips line
+  up. The tag row is omitted entirely when no tags exist; the status row always
+  renders all four.
+- Both chip rows carry a count. Tag counts are global (from `GET /tags`); status
+  counts are facets from the list response's `statusCounts` — they honour the
+  active search and tag but ignore the status filter itself, so each chip reads
+  "how many you'd see if you picked me" and picking one leaves its neighbours'
+  counts standing. A status with nothing in it shows `0` rather than hiding.
 - All list state (search, tags, status, sort, page) is held in the URL hash query string so
   views are shareable/bookmarkable and survive refresh (a `useListParams` helper
   over the hash router).
@@ -676,7 +690,7 @@ assume authorization has already passed and never re-check it (§9).
 
 | Method | Path           | Description                                                                                                                                                                                                                                                                                     |
 | ------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/info), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
+| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/info), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. The envelope carries an extra `statusCounts` object (all four keys, always) counting the whole result set after `search`/`tags` but before `status` — the filter-chip facets, §7.4. |
 | POST   | `/tasks`       | Create. Body below. Server generates slug.                                                                                                                                                                                                                                                      |
 | GET    | `/tasks/:slug` | Task detail incl. computed fields, tags, and recent log entries (or a link + `GET /tasks/:slug/logs`).                                                                                                                                                                                          |
 | PUT    | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, consumables, seed last_* on tasks with no logs). May also change `slug` (normalized + uniqueness-checked; triggers notification-path migration, §6.4).                                                                |

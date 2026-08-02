@@ -430,6 +430,21 @@ pre {
   margin-bottom: 4px;
 }
 
+/* The task list's two filter rows (tags, status), each behind its own label.
+   The labels share a min-width so both rows' chips start on the same column. */
+.chip-filters {
+  margin-bottom: 8px;
+}
+.chip-filters .chips {
+  margin-bottom: 0;
+}
+.chips-label {
+  flex: 0 0 auto;
+  min-width: 3.6em;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
 .chip {
   display: inline-flex;
   align-items: center;

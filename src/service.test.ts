@@ -592,6 +592,54 @@ describe('task list query (§8.1)', () => {
     ).toHaveLength(2);
   });
 
+  it('counts each status as a facet: honouring search/tags, ignoring status', () => {
+    const { service } = makeService({ 'propulsion.port.runTime': 150 });
+    seed(service);
+    expect(service.listTasks({}).statusCounts).toEqual({
+      overdue: 1,
+      due_soon: 1,
+      ok: 1,
+      info: 1,
+    });
+    // narrowed by tag: only the two Engines tasks are counted
+    expect(service.listTasks({ tags: ['Engines'] }).statusCounts).toEqual({
+      overdue: 1,
+      due_soon: 0,
+      ok: 1,
+      info: 0,
+    });
+    // ...and by search
+    expect(service.listTasks({ search: 'zinc' }).statusCounts).toEqual({
+      overdue: 0,
+      due_soon: 1,
+      ok: 0,
+      info: 0,
+    });
+    // but a selected status doesn't zero out the chips beside it — the counts
+    // stay the same as the unfiltered list even though `data` is narrowed
+    const picked = service.listTasks({ status: ['overdue'] });
+    expect(picked.data).toHaveLength(1);
+    expect(picked.statusCounts).toEqual({
+      overdue: 1,
+      due_soon: 1,
+      ok: 1,
+      info: 1,
+    });
+  });
+
+  it('counts the whole result set, not just the current page', () => {
+    const { service } = makeService({ 'propulsion.port.runTime': 150 });
+    seed(service);
+    const p2 = service.listTasks({ page: 2, pageSize: 1 });
+    expect(p2.data).toHaveLength(1);
+    expect(p2.statusCounts).toEqual({
+      overdue: 1,
+      due_soon: 1,
+      ok: 1,
+      info: 1,
+    });
+  });
+
   it('sorts by name and by remaining_time with nulls last', () => {
     const { service } = makeService({ 'propulsion.port.runTime': 150 });
     seed(service);

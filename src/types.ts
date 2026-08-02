@@ -126,6 +126,16 @@ export interface Page<T> {
   pageSize: number;
 }
 
+/**
+ * The task list page, plus a count per status for the filter chips. The counts
+ * are facets: they honour `search` and `tags` but ignore `status` itself, so
+ * each one answers "how many tasks would I see if I picked this status" and
+ * picking one doesn't zero out the rest. All four keys are always present.
+ */
+export interface TaskPage extends Page<TaskDTO> {
+  statusCounts: Record<Status, number>;
+}
+
 export interface TaskInput {
   name?: string;
   slug?: string;
