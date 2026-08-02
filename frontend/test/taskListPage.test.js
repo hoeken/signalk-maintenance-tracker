@@ -67,28 +67,16 @@ describe('TaskListPage (§7.4)', () => {
     });
   });
 
-  it('status chips carry the count each would return', async () => {
-    mockFetch(
-      apiRoutes({
-        tasks: [
-          makeTask({ id: 1, status: 'overdue' }),
-          makeTask({ id: 2, slug: 'winch', name: 'Winch', status: 'overdue' }),
-          makeTask({ id: 3, slug: 'zincs', name: 'Zincs', status: 'ok' }),
-        ],
-      }),
-    );
+  it('leaves out the tag row entirely when no tags exist', async () => {
+    mockFetch(apiRoutes({ tasks: [makeTask({ id: 1, status: 'overdue' })] }));
     route.value = parseHash('#/');
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskListPage} />`);
 
-    await waitFor(() => expect(screen.getByText('Zincs')).toBeTruthy());
-    const chips = Array.from(document.querySelectorAll('.chips .chip')).map(
-      (el) => el.textContent.trim(),
+    await waitFor(() =>
+      expect(screen.getByText('Engine oil change')).toBeTruthy(),
     );
-    // counts come from the server's facets, so they cover every page, and an
-    // empty status still shows its zero
-    expect(chips).toEqual(['Overdue2', 'Due Soon0', 'OK1', 'Info0']);
-    // no tags defined, so that row (and its label) is left out entirely
+    // no lone "Tags:" label with nothing behind it
     expect(
       Array.from(document.querySelectorAll('.chips-label')).map(
         (el) => el.textContent,
@@ -140,20 +128,12 @@ describe('TaskListPage (§7.4)', () => {
       rows.map((r) => r.querySelector('.chips-label').textContent),
     ).toEqual(['Tags:', 'Status:']);
     expect(
-      Array.from(rows[1].querySelectorAll('.chip')).map((el) =>
-        el.textContent.trim(),
+      rows.map((r) =>
+        Array.from(r.querySelectorAll('.chip')).map((el) =>
+          el.textContent.trim(),
+        ),
       ),
-    ).toEqual(['Overdue0', 'Due Soon0', 'OK0', 'Info0']);
-    const chips = Array.from(document.querySelectorAll('.chips .chip')).map(
-      (el) => el.textContent.trim(),
-    );
-    expect(chips).toEqual([
-      'Engines3',
-      'Overdue0',
-      'Due Soon0',
-      'OK0',
-      'Info0',
-    ]);
+    ).toEqual([['Engines'], ['Overdue', 'Due Soon', 'OK', 'Info']]);
 
     fireEvent.click(screen.getByText('Due Soon'));
     await waitFor(() => expect(route.value.query.status).toBe('due_soon'));

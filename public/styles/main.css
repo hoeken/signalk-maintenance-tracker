@@ -467,10 +467,6 @@ pre {
   border-color: var(--accent);
   color: var(--accent-text);
 }
-.chip .chip-count {
-  opacity: 0.7;
-  margin-left: 5px;
-}
 .chip .bi {
   margin-left: 6px;
 }

@@ -47,27 +47,10 @@ export function apiRoutes(overrides) {
   const tasks = o.tasks || [];
   const logs = o.logs || [];
   const tags = o.tags || [];
-  // Status facets, as the server sends them — derived from the mocked tasks
-  // unless a test wants to pin them.
-  const statusCounts =
-    o.statusCounts ||
-    tasks.reduce(
-      (acc, t) => {
-        acc[t.status] = (acc[t.status] || 0) + 1;
-        return acc;
-      },
-      { overdue: 0, due_soon: 0, ok: 0, info: 0 },
-    );
   return [
     {
       match: (m, u) => m === 'GET' && u.indexOf('/api/tasks?') !== -1,
-      body: {
-        data: tasks,
-        total: tasks.length,
-        page: 1,
-        pageSize: 20,
-        statusCounts,
-      },
+      body: { data: tasks, total: tasks.length, page: 1, pageSize: 20 },
     },
     {
       match: (m, u) => m === 'GET' && u.indexOf('/api/logs') !== -1,

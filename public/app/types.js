@@ -86,13 +86,6 @@
  */
 
 /**
- * The task list page. `statusCounts` drives the counts on the status filter
- * chips: it honours `search` and `tags` but ignores `status` itself, so each
- * count is what picking that status would show.
- * @typedef {Page<TaskDTO> & { statusCounts: Record<Status, number> }} TaskPage
- */
-
-/**
  * @typedef {Object} TaskInput
  * @property {string} [name]
  * @property {string} [slug]

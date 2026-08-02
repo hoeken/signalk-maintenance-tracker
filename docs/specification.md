@@ -479,11 +479,10 @@ drives the attribute.
   legible from the layout. The labels share a min-width so both rows' chips line
   up. The tag row is omitted entirely when no tags exist; the status row always
   renders all four.
-- Both chip rows carry a count. Tag counts are global (from `GET /tags`); status
-  counts are facets from the list response's `statusCounts` — they honour the
-  active search and tag but ignore the status filter itself, so each chip reads
-  "how many you'd see if you picked me" and picking one leaves its neighbours'
-  counts standing. A status with nothing in it shows `0` rather than hiding.
+- Chips carry no count. Status counts would have to come from the filtered list
+  response, so every keystroke and every chip click blanked and re-drew them —
+  a flicker in the toolbar that cost more than the number was worth. `GET /tags`
+  still returns a `count` per tag; the list UI simply doesn't render it.
 - All list state (search, tags, status, sort, page) is held in the URL hash query string so
   views are shareable/bookmarkable and survive refresh (a `useListParams` helper
   over the hash router).
@@ -690,7 +689,7 @@ assume authorization has already passed and never re-check it (§9).
 
 | Method | Path           | Description                                                                                                                                                                                                                                                                                     |
 | ------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/info), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. The envelope carries an extra `statusCounts` object (all four keys, always) counting the whole result set after `search`/`tags` but before `status` — the filter-chip facets, §7.4. |
+| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/info), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
 | POST   | `/tasks`       | Create. Body below. Server generates slug.                                                                                                                                                                                                                                                      |
 | GET    | `/tasks/:slug` | Task detail incl. computed fields, tags, and recent log entries (or a link + `GET /tasks/:slug/logs`).                                                                                                                                                                                          |
 | PUT    | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, consumables, seed last_* on tasks with no logs). May also change `slug` (normalized + uniqueness-checked; triggers notification-path migration, §6.4).                                                                |

@@ -184,9 +184,6 @@ export function TaskListPage() {
 
   const tagList = tagsRes.data ? tagsRes.data.data : [];
   const pageData = tasksRes.data;
-  // Server-computed facets: what each status chip would return, given the
-  // search and tag already in effect. Absent until the first response lands.
-  const statusCounts = pageData ? pageData.statusCounts : null;
 
   return html`
     <div>
@@ -231,7 +228,7 @@ export function TaskListPage() {
                         aria-pressed=${selectedTags.indexOf(tag.name) !== -1}
                         onClick=${() => selectTag(tag.name)}
                       >
-                        ${tag.name}<span class="chip-count">${tag.count}</span>
+                        ${tag.name}
                       </button>
                     `,
                   )}
@@ -250,11 +247,7 @@ export function TaskListPage() {
                 aria-pressed=${selectedStatuses.indexOf(status) !== -1}
                 onClick=${() => selectStatus(status)}
               >
-                ${statusLabel(status)}${
-                  statusCounts
-                    ? html`<span class="chip-count">${statusCounts[status] || 0}</span>`
-                    : null
-                }
+                ${statusLabel(status)}
               </button>
             `,
           )}

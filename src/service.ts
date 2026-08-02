@@ -15,7 +15,6 @@ import {
   Status,
   TaskDTO,
   TaskInput,
-  TaskPage,
   TaskRow,
   TIME_UNITS,
 } from './types';
@@ -132,7 +131,7 @@ export class MaintenanceService {
 
   // ---- tasks ----
 
-  listTasks(q: TaskListQuery): TaskPage {
+  listTasks(q: TaskListQuery): Page<TaskDTO> {
     const page = Math.max(1, q.page ?? 1);
     const pageSize = Math.min(
       MAX_PAGE_SIZE,
@@ -177,18 +176,6 @@ export class MaintenanceService {
         return wanted.every((w) => have.includes(w));
       });
     }
-
-    // Facet counts for the status filter chips: everything else has narrowed
-    // the list by now, but the status filter hasn't run yet, so each count is
-    // what picking that status would show — and picking one leaves the other
-    // counts standing rather than zeroing them.
-    const statusCounts: Record<Status, number> = {
-      overdue: 0,
-      due_soon: 0,
-      ok: 0,
-      info: 0,
-    };
-    for (const t of items) statusCounts[t.status] += 1;
 
     if (q.status && q.status.length) {
       const set = new Set(q.status);
@@ -237,7 +224,7 @@ export class MaintenanceService {
 
     const total = items.length;
     const data = items.slice((page - 1) * pageSize, page * pageSize);
-    return { data, total, page, pageSize, statusCounts };
+    return { data, total, page, pageSize };
   }
 
   listAllComputed(): TaskDTO[] {

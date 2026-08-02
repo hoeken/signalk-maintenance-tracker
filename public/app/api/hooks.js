@@ -22,7 +22,7 @@ function encodeSlug(slug) {
 
 /**
  * @param {Record<string, string|number|undefined|null>} [params]
- * @returns {import('./resource.js').ResourceState<import('../types.js').TaskPage>}
+ * @returns {import('./resource.js').ResourceState<import('../types.js').Page<TaskDTO>>}
  */
 export function useTasks(params) {
   const query = buildQuery(params);
