@@ -36,7 +36,7 @@ describe('TaskListPage (§7.4)', () => {
     expect(screen.getByText('Winch service')).toBeTruthy();
     // the row badge, not the same-named status filter chip
     expect(document.querySelector('.badge.overdue')?.textContent).toBe(
-      'overdue',
+      'Overdue',
     );
     expect(screen.getByText('20 h overdue')).toBeTruthy();
     // task detail links use hash routes
@@ -95,24 +95,24 @@ describe('TaskListPage (§7.4)', () => {
     const chips = Array.from(document.querySelectorAll('.chips .chip')).map(
       (el) => el.textContent.trim(),
     );
-    expect(chips).toEqual(['Engines3', 'overdue', 'due soon', 'ok', 'info']);
+    expect(chips).toEqual(['Engines3', 'Overdue', 'Due Soon', 'OK', 'Info']);
 
-    fireEvent.click(screen.getByText('due soon'));
+    fireEvent.click(screen.getByText('Due Soon'));
     await waitFor(() => expect(route.value.query.status).toBe('due_soon'));
     // added to the existing filters, not replacing them; paging resets
     expect(route.value.query.search).toBe('oil');
     expect(route.value.query.tags).toBe('Engines');
     expect(route.value.query.page).toBeUndefined();
 
-    fireEvent.click(screen.getByText('overdue'));
+    fireEvent.click(screen.getByText('Overdue'));
     await waitFor(() =>
       expect(route.value.query.status).toBe('due_soon,overdue'),
     );
 
-    fireEvent.click(screen.getByText('due soon'));
+    fireEvent.click(screen.getByText('Due Soon'));
     await waitFor(() => expect(route.value.query.status).toBe('overdue'));
 
-    fireEvent.click(screen.getByText('overdue'));
+    fireEvent.click(screen.getByText('Overdue'));
     await waitFor(() => expect(route.value.query.status).toBeUndefined());
   });
 });

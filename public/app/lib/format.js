@@ -127,8 +127,15 @@ export function formatUser(name) {
  */
 export const STATUSES = ['overdue', 'due_soon', 'ok', 'info'];
 
-/** Status → human label. @param {string} status */
+/** Status → human label, cased like the stock badges ("Low stock"). */
+const STATUS_LABELS = {
+  overdue: 'Overdue',
+  due_soon: 'Due Soon',
+  ok: 'OK',
+  info: 'Info',
+};
+
+/** @param {string} status */
 export function statusLabel(status) {
-  if (status === 'due_soon') return 'due soon';
-  return status;
+  return STATUS_LABELS[status] || status;
 }
