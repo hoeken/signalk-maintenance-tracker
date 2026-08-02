@@ -103,4 +103,15 @@ export const migrations: Migration[] = [
       db.exec(`ALTER TABLE tasks ADD COLUMN time_warning_days REAL;`);
     },
   },
+  {
+    version: 5,
+    up(db) {
+      // Archived tasks keep their history but read as status 'archived',
+      // which outranks every computed status: they drop out of the other
+      // status lists, sort after 'info', and never raise notifications.
+      db.exec(
+        `ALTER TABLE tasks ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;`,
+      );
+    },
+  },
 ];

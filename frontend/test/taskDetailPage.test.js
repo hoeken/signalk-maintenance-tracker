@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/preact';
+import { render, screen, waitFor, fireEvent } from '@testing-library/preact';
 import { html } from '../../public/app/lib/html.js';
 import { TaskDetailPage } from '../../public/app/pages/TaskDetailPage.js';
 import { authState } from '../../public/app/auth/auth.js';
@@ -212,6 +212,61 @@ describe('TaskDetailPage — schedule and runtime cards', () => {
       expect(bar.previousElementSibling.className).toContain('stat-table');
       expect(bar.parentElement.lastElementChild).toBe(bar);
     }
+  });
+});
+
+describe('TaskDetailPage — archive/unarchive', () => {
+  async function renderLoggedIn(overrides) {
+    const task = makeTask(overrides);
+    const fn = mockFetch([
+      {
+        match: (m, u) => m === 'PUT' && u.indexOf('/api/tasks/') !== -1,
+        body: Object.assign({}, task, { is_archived: !task.is_archived }),
+      },
+      ...detailRoutes(task),
+    ]);
+    authState.value = { checked: true, isLoggedIn: true, username: 'admin' };
+    render(html`<${TaskDetailPage} slug=${task.slug} />`);
+    await waitFor(() => expect(screen.getByText('Schedule')).toBeTruthy());
+    return { task, fn };
+  }
+
+  it('offers Archive on a live task and PUTs is_archived: true', async () => {
+    const { task, fn } = await renderLoggedIn({});
+    expect(screen.queryByText('Unarchive')).toBeNull();
+    const button = screen.getByText('Archive');
+    expect(button.closest('button').className).toContain('btn-warning');
+
+    fireEvent.click(button);
+    await waitFor(() => {
+      const put = fn.mock.calls.find((c) => c[1] && c[1].method === 'PUT');
+      expect(put).toBeTruthy();
+      expect(String(put[0])).toContain('/api/tasks/' + task.slug);
+      expect(JSON.parse(put[1].body)).toEqual({ is_archived: true });
+    });
+  });
+
+  it('offers Unarchive on an archived task and PUTs is_archived: false', async () => {
+    const { fn } = await renderLoggedIn({
+      is_archived: true,
+      status: 'archived',
+      status_rank: 4,
+    });
+    expect(screen.queryByText('Archive')).toBeNull();
+    // the title badge reflects the archived status
+    expect(document.querySelector('.page-title .badge.archived')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Unarchive'));
+    await waitFor(() => {
+      const put = fn.mock.calls.find((c) => c[1] && c[1].method === 'PUT');
+      expect(put).toBeTruthy();
+      expect(JSON.parse(put[1].body)).toEqual({ is_archived: false });
+    });
+  });
+
+  it('hides the button when logged out', async () => {
+    await renderTask({});
+    expect(screen.queryByText('Archive')).toBeNull();
   });
 });
 

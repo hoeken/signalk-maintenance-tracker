@@ -25,6 +25,7 @@ function setup() {
       last_runtime: null,
       seed_last_maintenance: null,
       seed_last_runtime: null,
+      is_archived: 0,
     },
     NOW,
   );
@@ -135,6 +136,7 @@ describe('ConsumablesRepo', () => {
         last_runtime: null,
         seed_last_maintenance: null,
         seed_last_runtime: null,
+        is_archived: 0,
       },
       NOW,
     );
@@ -177,6 +179,7 @@ describe('ConsumablesRepo', () => {
         last_runtime: null,
         seed_last_maintenance: null,
         seed_last_runtime: null,
+        is_archived: 0,
       },
       NOW,
     );

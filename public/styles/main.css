@@ -246,6 +246,16 @@ pre {
   border-color: var(--ok-hover);
 }
 
+.btn-warning {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: var(--accent-text);
+}
+.btn-warning:hover {
+  background: var(--warn-hover);
+  border-color: var(--warn-hover);
+}
+
 .btn-icon {
   display: inline-flex;
   align-items: center;
@@ -636,6 +646,10 @@ pre {
   color: var(--ok);
 }
 .badge.info {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.badge.archived {
   background: var(--info-bg);
   color: var(--info);
 }

@@ -16,12 +16,14 @@ export interface NewTask {
   last_runtime: number | null;
   seed_last_maintenance: string | null;
   seed_last_runtime: number | null;
+  /** SQLite boolean (0/1) — node:sqlite can't bind JS booleans. */
+  is_archived: number;
 }
 
 const COLUMNS = `id, slug, name, description, runtime_interval, time_interval,
   time_interval_unit, runtime_path, due_date, runtime_warning_hours,
   time_warning_days, last_maintenance, last_runtime,
-  seed_last_maintenance, seed_last_runtime, created_at, updated_at`;
+  seed_last_maintenance, seed_last_runtime, is_archived, created_at, updated_at`;
 
 export class TasksRepo {
   constructor(private db: DatabaseSync) {}
@@ -32,8 +34,8 @@ export class TasksRepo {
         `INSERT INTO tasks (slug, name, description, runtime_interval, time_interval,
            time_interval_unit, runtime_path, due_date, runtime_warning_hours,
            time_warning_days, last_maintenance, last_runtime,
-           seed_last_maintenance, seed_last_runtime, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           seed_last_maintenance, seed_last_runtime, is_archived, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         t.slug,
@@ -50,6 +52,7 @@ export class TasksRepo {
         t.last_runtime,
         t.seed_last_maintenance,
         t.seed_last_runtime,
+        t.is_archived,
         nowIso,
         nowIso,
       );
@@ -95,7 +98,8 @@ export class TasksRepo {
            time_interval = ?, time_interval_unit = ?, runtime_path = ?,
            due_date = ?, runtime_warning_hours = ?, time_warning_days = ?,
            last_maintenance = ?, last_runtime = ?,
-           seed_last_maintenance = ?, seed_last_runtime = ?, updated_at = ?
+           seed_last_maintenance = ?, seed_last_runtime = ?, is_archived = ?,
+           updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -113,6 +117,7 @@ export class TasksRepo {
         t.last_runtime,
         t.seed_last_maintenance,
         t.seed_last_runtime,
+        t.is_archived,
         nowIso,
         id,
       );

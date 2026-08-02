@@ -240,7 +240,7 @@ function parseTaskListQuery(req: Request): TaskListQuery {
     search: str(req.query.search),
     tags: csv(req.query.tags),
     status: csv(req.query.status)?.filter((s): s is Status =>
-      ['overdue', 'due_soon', 'ok', 'info'].includes(s),
+      ['overdue', 'due_soon', 'ok', 'info', 'archived'].includes(s),
     ),
     sort: pickEnum(req.query.sort, [
       'name',

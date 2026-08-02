@@ -67,6 +67,7 @@ export function computeTask(
     | 'time_warning_days'
     | 'last_maintenance'
     | 'last_runtime'
+    | 'is_archived'
     | 'created_at'
   >,
   currentRuntime: number | null,
@@ -185,7 +186,11 @@ export function computeTask(
   const dims = [out.runtime_status, out.time_status].filter(
     (s): s is Status => s != null,
   );
-  out.status = mostUrgent(dims);
+  // Archived overrides whatever the dimensions say: the task keeps its
+  // computed figures (the detail page still shows them) but its status —
+  // what lists filter on, sort by, and notifications publish — is 'archived',
+  // ranked after 'info' so archived tasks sink to the end of the default sort.
+  out.status = task.is_archived ? 'archived' : mostUrgent(dims);
   out.status_rank = STATUS_RANK[out.status];
   const fractions = [out.runtime_fraction, out.time_fraction].filter(
     (f): f is number => f != null,

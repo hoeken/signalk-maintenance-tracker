@@ -98,6 +98,7 @@ export function makeTask(overrides) {
       remaining_time_ms: 16675200000,
       time_fraction: 0.48,
       time_status: 'ok',
+      is_archived: false,
       status: 'ok',
       status_rank: 2,
       urgency: 0.5975,

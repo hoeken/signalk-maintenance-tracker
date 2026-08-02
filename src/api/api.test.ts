@@ -161,6 +161,21 @@ describe('tasks endpoints', () => {
     expect(filtered.body.data.map((t: any) => t.name)).toEqual(['Alpha']);
   });
 
+  it('filters archived tasks through status=archived', async () => {
+    await request(app).post(`${base}/tasks`).send({ name: 'Active' });
+    await request(app)
+      .post(`${base}/tasks`)
+      .send({ name: 'Retired', is_archived: true });
+
+    const info = await request(app).get(`${base}/tasks?status=info`);
+    expect(info.body.data.map((t: any) => t.name)).toEqual(['Active']);
+
+    const archived = await request(app).get(`${base}/tasks?status=archived`);
+    expect(archived.body.data.map((t: any) => t.name)).toEqual(['Retired']);
+    expect(archived.body.data[0].is_archived).toBe(true);
+    expect(archived.body.data[0].status).toBe('archived');
+  });
+
   it('GET/PUT/DELETE /tasks/:slug round-trip', async () => {
     await request(app).post(`${base}/tasks`).send({ name: 'Winch service' });
 

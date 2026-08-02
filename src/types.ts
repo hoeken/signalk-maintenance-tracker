@@ -2,13 +2,14 @@ export type TimeUnit = 'days' | 'weeks' | 'months' | 'years';
 
 export const TIME_UNITS: TimeUnit[] = ['days', 'weeks', 'months', 'years'];
 
-export type Status = 'overdue' | 'due_soon' | 'ok' | 'info';
+export type Status = 'overdue' | 'due_soon' | 'ok' | 'info' | 'archived';
 
 export const STATUS_RANK: Record<Status, number> = {
   overdue: 0,
   due_soon: 1,
   ok: 2,
   info: 3,
+  archived: 4,
 };
 
 export interface TaskRow {
@@ -31,6 +32,10 @@ export interface TaskRow {
   last_runtime: number | null;
   seed_last_maintenance: string | null;
   seed_last_runtime: number | null;
+  /** SQLite boolean (0/1). An archived task's status is always 'archived',
+   * which outranks every computed status — it never shows up in the other
+   * status lists and never raises a notification. */
+  is_archived: number;
   created_at: string;
   updated_at: string;
 }
@@ -111,6 +116,7 @@ export interface TaskDTO extends ComputedFields {
   time_warning_days: number | null;
   last_maintenance: string | null;
   last_runtime: number | null;
+  is_archived: boolean;
   created_at: string;
   updated_at: string;
   /** Items in signalk-stowage-mgmt this task consumes on completion — see
@@ -144,6 +150,9 @@ export interface TaskInput {
   tags?: string[];
   last_maintenance?: string | null;
   last_runtime?: number | null;
+  /** Archived tasks read as status 'archived' and drop out of every other
+   * status list; toggled from the task detail page. */
+  is_archived?: boolean;
   /** Wholesale-replaces the task's linked consumables when present, same
    * semantics as `tags` (docs/inventory-interaction.md). */
   consumables?: TaskConsumableDTO[];

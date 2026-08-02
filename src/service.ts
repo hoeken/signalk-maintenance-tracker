@@ -118,6 +118,7 @@ export class MaintenanceService {
       time_warning_days: row.time_warning_days,
       last_maintenance: row.last_maintenance,
       last_runtime: row.last_runtime,
+      is_archived: row.is_archived !== 0,
       created_at: row.created_at,
       updated_at: row.updated_at,
       consumables: consumables.map((c) => ({
@@ -292,6 +293,7 @@ export class MaintenanceService {
       last_runtime: body.last_runtime ?? null,
       seed_last_maintenance: body.last_maintenance ?? null,
       seed_last_runtime: body.last_runtime ?? null,
+      is_archived: this.validateArchived(body.is_archived) ? 1 : 0,
     };
     const row = this.tasks.create(seed, nowIso);
     if (body.tags) this.tags.setTaskTags(row.id, body.tags);
@@ -349,6 +351,12 @@ export class MaintenanceService {
       last_runtime: row.last_runtime,
       seed_last_maintenance: row.seed_last_maintenance,
       seed_last_runtime: row.seed_last_runtime,
+      is_archived:
+        body.is_archived !== undefined
+          ? this.validateArchived(body.is_archived)
+            ? 1
+            : 0
+          : row.is_archived,
     };
 
     if (!merged.name)
@@ -746,6 +754,19 @@ export class MaintenanceService {
     };
     check(runtimeWarningHours, 'runtime_warning_hours');
     check(timeWarningDays, 'time_warning_days');
+  }
+
+  /** is_archived must be a real boolean when present; null/undefined = false
+   * (create) or "leave unchanged" (update, handled at the call site). */
+  private validateArchived(value: boolean | null | undefined): boolean {
+    if (value == null) return false;
+    if (typeof value !== 'boolean')
+      throw new ApiError(
+        400,
+        'invalid_archived',
+        'is_archived must be a boolean',
+      );
+    return value;
   }
 
   /**

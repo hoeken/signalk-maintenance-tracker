@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(4);
+    expect(schemaVersion(db)).toBe(5);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -620,6 +620,67 @@ describe('task list query (§8.1)', () => {
     expect(p2.data).toHaveLength(1);
     expect(p1.total).toBe(4);
     expect(p2.page).toBe(2);
+  });
+});
+
+describe('archiving', () => {
+  it('defaults to not archived and toggles through updateTask', () => {
+    const { service } = makeService({ 'propulsion.port.runTime': 150 });
+    const task = service.createTask({
+      name: 'Overdue engine',
+      runtime_interval: 100,
+      runtime_path: 'propulsion.port.runTime',
+      last_runtime: 0,
+    });
+    expect(task.is_archived).toBe(false);
+    expect(task.status).toBe('overdue');
+
+    const archived = service.updateTask(task.slug, { is_archived: true });
+    expect(archived.is_archived).toBe(true);
+    expect(archived.status).toBe('archived');
+    // the computed figures survive archiving; only the overall status changes
+    expect(archived.runtime_status).toBe('overdue');
+
+    const restored = service.updateTask(task.slug, { is_archived: false });
+    expect(restored.is_archived).toBe(false);
+    expect(restored.status).toBe('overdue');
+  });
+
+  it('rejects a non-boolean is_archived', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({ name: 'Bad', is_archived: 'yes' as never }),
+    ).toThrow(ApiError);
+  });
+
+  it('archived tasks leave the other status lists and gain their own', () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Paperwork' });
+    service.createTask({ name: 'Old paperwork', is_archived: true });
+
+    expect(
+      service.listTasks({ status: ['info'] }).data.map((t) => t.name),
+    ).toEqual(['Paperwork']);
+    expect(
+      service.listTasks({ status: ['archived'] }).data.map((t) => t.name),
+    ).toEqual(['Old paperwork']);
+  });
+
+  it('archived tasks sort at the very end of the default order, after info', () => {
+    const { service } = makeService({ 'propulsion.port.runTime': 150 });
+    service.createTask({
+      name: 'Overdue engine',
+      runtime_interval: 100,
+      runtime_path: 'propulsion.port.runTime',
+      last_runtime: 0,
+    });
+    service.createTask({ name: 'Paperwork' });
+    service.createTask({ name: 'Old paperwork', is_archived: true });
+    expect(service.listTasks({}).data.map((t) => t.status)).toEqual([
+      'overdue',
+      'info',
+      'archived',
+    ]);
   });
 });
 

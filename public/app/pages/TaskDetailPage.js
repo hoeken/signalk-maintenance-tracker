@@ -4,7 +4,13 @@
  */
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
-import { useTask, useTaskLogs, deleteTask, deleteLog } from '../api/hooks.js';
+import {
+  useTask,
+  useTaskLogs,
+  updateTask,
+  deleteTask,
+  deleteLog,
+} from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import {
   formatDate,
@@ -196,6 +202,23 @@ export function TaskDetailPage(props) {
                     onClick=${() => setEditing(true)}
                   >
                     <i class="bi bi-pencil" />Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-warning"
+                    onClick=${async () => {
+                      await updateTask(task.slug, {
+                        is_archived: !task.is_archived,
+                      });
+                      toast(
+                        task.is_archived
+                          ? 'Task unarchived.'
+                          : 'Task archived.',
+                        'success',
+                      );
+                    }}
+                  >
+                    <i class="bi bi-archive" />${task.is_archived ? 'Unarchive' : 'Archive'}
                   </button>
                   <button
                     type="button"

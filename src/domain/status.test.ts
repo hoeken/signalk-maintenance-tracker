@@ -14,6 +14,7 @@ const baseTask = {
   time_warning_days: null as number | null,
   last_maintenance: null as string | null,
   last_runtime: null as number | null,
+  is_archived: 0,
   created_at: '2026-01-01T00:00:00Z',
 };
 
@@ -119,6 +120,32 @@ describe('computeTask — elapsed since last service (interval-independent)', ()
     const c = computeTask({ ...baseTask, last_runtime: 1000 }, null, now, cfg);
     expect(c.elapsed_runtime).toBeNull();
     expect(c.elapsed_time_ms).toBeNull();
+  });
+});
+
+describe('computeTask — archived', () => {
+  it('overrides the computed status but keeps the figures', () => {
+    const c = computeTask(
+      {
+        ...baseTask,
+        runtime_interval: 200,
+        runtime_path: 'propulsion.port.runTime',
+        last_runtime: 1000,
+        is_archived: 1,
+      },
+      1220,
+      now,
+      cfg,
+    );
+    expect(c.status).toBe('archived');
+    expect(c.status_rank).toBe(4); // after info: archived sinks to the end
+    expect(c.runtime_status).toBe('overdue');
+    expect(c.remaining_runtime).toBeCloseTo(-20);
+  });
+
+  it('archives an informational task too', () => {
+    const c = computeTask({ ...baseTask, is_archived: 1 }, null, now, cfg);
+    expect(c.status).toBe('archived');
   });
 });
 
