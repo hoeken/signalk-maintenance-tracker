@@ -595,10 +595,6 @@ pre {
   display: flex;
   color: var(--text-muted);
 }
-.log-notes-label {
-  flex-shrink: 0;
-  margin-right: 6px;
-}
 .log-notes-body {
   min-width: 0;
 }

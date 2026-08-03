@@ -156,7 +156,6 @@ export function MasterLogPage() {
             </button>
           `;
     return html`<div class="log-notes">
-      <strong class="log-notes-label">Notes:</strong>
       <div class="log-notes-body">${body}</div>
     </div>`;
   };

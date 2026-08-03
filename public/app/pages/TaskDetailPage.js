@@ -430,7 +430,6 @@ export function TaskDetailPage(props) {
         renderDetail=${(/** @type {LogDTO} */ e) =>
           e.notes
             ? html`<div class="log-notes">
-                <strong class="log-notes-label">Notes:</strong>
                 <div class="log-notes-body">
                   <${MarkdownView} markdown=${e.notes} />
                 </div>
