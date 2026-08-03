@@ -244,14 +244,6 @@ export function LogEntryModal(props) {
                   value=${runtime}
                   onInput=${(/** @type {any} */ e) => setRuntime(e.currentTarget.value)}
                 />
-                ${
-                  !isEdit
-                    ? html`<div class="field-hint">
-                        Prefilled with the current runtime reading when
-                        available.
-                      </div>`
-                    : null
-                }
               </div>`
             : null
         }
