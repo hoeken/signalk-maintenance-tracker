@@ -218,7 +218,7 @@ export function TaskListPage() {
           tagList.length
             ? html`
                 <div class="chips" role="group" aria-labelledby="tag-filter-label">
-                  <span class="chips-label" id="tag-filter-label">Tags:</span>
+                  <span class="chips-label" id="tag-filter-label">TAGS:</span>
                   ${tagList.map(
                     (tag) => html`
                       <button
@@ -237,7 +237,7 @@ export function TaskListPage() {
             : null
         }
         <div class="chips" role="group" aria-labelledby="status-filter-label">
-          <span class="chips-label" id="status-filter-label">Status:</span>
+          <span class="chips-label" id="status-filter-label">STATUS:</span>
           ${STATUSES.map(
             (status) => html`
               <button
