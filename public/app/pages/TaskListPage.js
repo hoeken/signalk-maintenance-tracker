@@ -107,7 +107,6 @@ export function TaskListPage() {
       key: 'status',
       label: 'Status',
       sortable: true,
-      className: 'col-status',
       render: (/** @type {TaskDTO} */ t) =>
         html`<span class="status-badges"
           ><${StatusBadge} status=${t.status} /><${StockBadge} consumables=${t.consumables}
@@ -117,6 +116,7 @@ export function TaskListPage() {
       key: 'name',
       label: 'Name',
       sortable: true,
+      className: 'col-name',
       render: (/** @type {TaskDTO} */ t) =>
         html`<a href=${'#/tasks/' + encodeURIComponent(t.slug)}>${t.name}</a>`,
     },

@@ -587,10 +587,11 @@ pre {
   font-variant-numeric: tabular-nums;
 }
 
-/* status column: room for status + stock badges side by side */
-.table th.col-status,
-.table td.col-status {
-  width: 220px;
+/* columns size to content, so status expands to fit its badges side by side
+   when there's room; this floor keeps a name from being squeezed to one word
+   wide when it isn't */
+.table td.col-name {
+  min-width: min(8em, 35vw);
 }
 .status-badges {
   display: flex;
@@ -625,6 +626,16 @@ pre {
   .table th.hide-sm,
   .table td.hide-sm {
     display: none;
+  }
+
+  /* auto table layout hands every column a share of the slack in proportion to
+     how much wider it wants to be, so side-by-side badges keep claiming half a
+     phone's width and the name wraps beneath them. Stacking pins the status
+     column to its widest single badge — it wants nothing more, so the rest of
+     the row is the name's. */
+  .status-badges {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
