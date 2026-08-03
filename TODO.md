@@ -1,14 +1,17 @@
 # v1.5
 
 - add support for one-off TODO list type entries
-  - start by adding an isRecurring boolean flag.  default all current TODO lists to true
+  - start by adding an isRecurring boolean flag.
+    - default all existing tasks with an interval field to true
+    - default all existing tasks without to false
+    - tasks that are currently set as 'info' will become 'todo' items instead
   - if !isRecurring, then it is a todo list item
     - todo lists can have a due date.
       if they have a due date, then they can have one of these states: overdue / due soon / todo / archived (completed)
     - if no due date, they can either be todo / archived
-  - sort order should be overdue -> due soon -> todo -> ok -> info -> archived
+  - sort order should be overdue -> due soon -> todo -> ok -> archived
+    - drop the 'info' status.
   - todo badge should be blue/info
-  - we will need to keep the info style tasks / badge, but it becomes obsolete with the requirement that a maintenance task requires an interval.
   - modify existing New Task modal to support 'Is Recurring?'
     - move Due Date row above our interval fields
     - dynamically toggle our intervals, warning period, runtime path, last maintenance, and last runtime fields based on isRecurring

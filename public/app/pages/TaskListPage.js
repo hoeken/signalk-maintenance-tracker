@@ -203,7 +203,7 @@ export function TaskListPage() {
             ? html`
                 <button
                   type="button"
-                  class="btn btn-primary toolbar-action"
+                  class="btn btn-success toolbar-action"
                   onClick=${() => setEditorTask(null)}
                 >
                   <i class="bi bi-plus-lg" />New task

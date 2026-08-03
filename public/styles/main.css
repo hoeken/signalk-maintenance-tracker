@@ -416,6 +416,7 @@ pre {
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-start;
+  gap: 8px;
   margin-bottom: 8px;
 }
 .toolbar .search-box {
