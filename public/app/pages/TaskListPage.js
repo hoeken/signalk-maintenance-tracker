@@ -66,6 +66,9 @@ export function TaskListPage() {
   const [editorTask, setEditorTask] = useState(
     /** @type {TaskDTO|null|undefined} */ (undefined),
   );
+  // What the editor's "Recurring task" toggle defaults to on create: true
+  // from "New task", false from "New todo". Ignored when editing.
+  const [editorRecurring, setEditorRecurring] = useState(true);
   const [completing, setCompleting] = useState(
     /** @type {TaskDTO|null} */ (null),
   );
@@ -204,9 +207,22 @@ export function TaskListPage() {
                 <button
                   type="button"
                   class="btn btn-success toolbar-action"
-                  onClick=${() => setEditorTask(null)}
+                  onClick=${() => {
+                    setEditorRecurring(true);
+                    setEditorTask(null);
+                  }}
                 >
-                  <i class="bi bi-plus-lg" />New task
+                  <i class="bi bi-plus-lg" />New Task
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-success toolbar-action"
+                  onClick=${() => {
+                    setEditorRecurring(false);
+                    setEditorTask(null);
+                  }}
+                >
+                  <i class="bi bi-plus-lg" />New Todo
                 </button>
               `
             : null
@@ -285,6 +301,7 @@ export function TaskListPage() {
         editorTask !== undefined
           ? html`<${TaskFormModal}
               task=${editorTask}
+              defaultRecurring=${editorRecurring}
               onClose=${() => setEditorTask(undefined)}
             />`
           : null

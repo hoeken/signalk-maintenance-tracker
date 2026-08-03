@@ -125,7 +125,14 @@ export function formatUser(name) {
  * Every task status, most urgent first (mirrors STATUS_RANK in src/types.ts).
  * @type {import('../types.js').Status[]}
  */
-export const STATUSES = ['overdue', 'due_soon', 'ok', 'info', 'archived'];
+export const STATUSES = [
+  'overdue',
+  'due_soon',
+  'todo',
+  'ok',
+  'pending',
+  'archived',
+];
 
 /**
  * Status → human label, cased like the stock badges ("Low stock").
@@ -134,8 +141,9 @@ export const STATUSES = ['overdue', 'due_soon', 'ok', 'info', 'archived'];
 const STATUS_LABELS = {
   overdue: 'Overdue',
   due_soon: 'Due Soon',
+  todo: 'Todo',
   ok: 'OK',
-  info: 'Info',
+  pending: 'Pending',
   archived: 'Archived',
 };
 

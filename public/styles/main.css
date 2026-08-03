@@ -646,9 +646,13 @@ pre {
   background: var(--ok-bg);
   color: var(--ok);
 }
-.badge.info {
+.badge.todo {
   background: var(--accent-bg);
   color: var(--accent);
+}
+.badge.pending {
+  background: var(--pending-bg);
+  color: var(--pending);
 }
 .badge.archived {
   background: var(--info-bg);

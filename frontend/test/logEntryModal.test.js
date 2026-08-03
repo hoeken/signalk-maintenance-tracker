@@ -39,6 +39,21 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     expect(screen.getByLabelText('Runtime hours').value).toBe('');
   });
 
+  it('hides the runtime field entirely when completing a todo', () => {
+    mockFetch([]);
+    render(
+      html`<${LogEntryModal}
+        task=${makeTask({
+          is_recurring: false,
+          runtime_path: null,
+          current_runtime: null,
+        })}
+        onClose=${() => {}}
+      />`,
+    );
+    expect(screen.queryByLabelText('Runtime hours')).toBeNull();
+  });
+
   it('POSTs the log entry and closes', async () => {
     const fn = mockFetch([
       {

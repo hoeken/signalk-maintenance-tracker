@@ -5,7 +5,7 @@
  */
 
 /** @typedef {'days'|'weeks'|'months'|'years'} TimeUnit */
-/** @typedef {'overdue'|'due_soon'|'ok'|'info'|'archived'} Status */
+/** @typedef {'overdue'|'due_soon'|'todo'|'ok'|'pending'|'archived'} Status */
 
 /**
  * @typedef {Object} TaskConsumableDTO
@@ -48,6 +48,7 @@
  * @property {number|null} time_fraction
  * @property {Status|null} time_status
  * @property {boolean} is_archived
+ * @property {boolean} is_recurring false = one-off todo item
  * @property {Status} status
  * @property {number} status_rank
  * @property {number} urgency
@@ -103,6 +104,7 @@
  * @property {string|null} [last_maintenance]
  * @property {number|null} [last_runtime]
  * @property {boolean} [is_archived]
+ * @property {boolean} [is_recurring] false = one-off todo item
  * @property {TaskConsumableDTO[]} [consumables]
  */
 

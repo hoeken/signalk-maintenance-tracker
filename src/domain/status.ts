@@ -47,7 +47,7 @@ function addMonths(d: Date, n: number): Date {
 }
 
 function mostUrgent(statuses: Status[]): Status {
-  if (statuses.length === 0) return 'info';
+  if (statuses.length === 0) return 'pending';
   return statuses.reduce((a, b) => (STATUS_RANK[a] <= STATUS_RANK[b] ? a : b));
 }
 
@@ -68,6 +68,7 @@ export function computeTask(
     | 'last_maintenance'
     | 'last_runtime'
     | 'is_archived'
+    | 'is_recurring'
     | 'created_at'
   >,
   currentRuntime: number | null,
@@ -96,8 +97,8 @@ export function computeTask(
     remaining_time_ms: null,
     time_fraction: null,
     time_status: null,
-    status: 'info',
-    status_rank: STATUS_RANK.info,
+    status: 'pending',
+    status_rank: STATUS_RANK.pending,
     urgency: -Infinity,
   };
 
@@ -127,7 +128,7 @@ export function computeTask(
             ? 'due_soon'
             : 'ok';
     } else {
-      out.runtime_status = 'info';
+      out.runtime_status = 'pending';
     }
   }
 
@@ -146,7 +147,7 @@ export function computeTask(
       out.scheduled_fraction = span > 0 ? (now.getTime() - last) / span : 1;
       out.scheduled_status = dateStatus(out.scheduled_remaining_ms, timeLead);
     } else {
-      out.scheduled_status = 'info';
+      out.scheduled_status = 'pending';
     }
   }
 
@@ -164,7 +165,7 @@ export function computeTask(
   // Merged "time" dimension = the more urgent of the two: whichever has the
   // lower remaining drives remaining_time_ms + time_fraction; time_status is
   // the most-urgent of the sub-statuses (so a configured-but-uncomputable
-  // recurring dimension still surfaces as info).
+  // recurring dimension still surfaces as pending).
   const timeSubs = [
     { remaining: out.scheduled_remaining_ms, fraction: out.scheduled_fraction },
     { remaining: out.due_date_remaining_ms, fraction: out.due_date_fraction },
@@ -189,8 +190,21 @@ export function computeTask(
   // Archived overrides whatever the dimensions say: the task keeps its
   // computed figures (the detail page still shows them) but its status —
   // what lists filter on, sort by, and notifications publish — is 'archived',
-  // ranked after 'info' so archived tasks sink to the end of the default sort.
-  out.status = task.is_archived ? 'archived' : mostUrgent(dims);
+  // ranked last so archived tasks sink to the end of the default sort.
+  //
+  // A non-recurring task (todo) only ever has the due-date dimension, and an
+  // open todo is actionable rather than healthy or unknown — so 'ok' (due
+  // date not close yet) and "no dimensions at all" both read as 'todo';
+  // overdue/due_soon pass through. Recurring tasks with no computable
+  // dimension read as 'pending' instead.
+  if (task.is_archived) {
+    out.status = 'archived';
+  } else if (task.is_recurring === 0) {
+    const urgent = mostUrgent(dims);
+    out.status = urgent === 'ok' || urgent === 'pending' ? 'todo' : urgent;
+  } else {
+    out.status = mostUrgent(dims);
+  }
   out.status_rank = STATUS_RANK[out.status];
   const fractions = [out.runtime_fraction, out.time_fraction].filter(
     (f): f is number => f != null,

@@ -1,3 +1,38 @@
+# v1.5.0
+
+The tracker learns the difference between maintenance you repeat and jobs you
+do once: one-off **todo** items now live alongside recurring tasks.
+
+## Highlights
+
+- **One-off todos.** Every task now carries an `is_recurring` flag. Recurring
+  tasks work as before (and must have at least one interval — runtime or
+  time); a todo has no schedule at all, just an optional due date. An open
+  todo wears a blue **Todo** badge, sorts above `ok` (it's actionable), and
+  raises no notification until its due date makes it due-soon or overdue.
+  Completing a todo archives it — unarchive to reopen it. A **New Todo**
+  button sits next to **New Task**, opening the same form with the new
+  "Recurring task" toggle off; toggling an existing task to todo clears its
+  schedule fields.
+- **`info` is now `pending`.** The old catch-all `info` status split in two:
+  schedule-less tasks became todos, and `pending` now means exactly one
+  thing — a recurring task that can't compute its status yet (an interval
+  with no completion ever logged, or a runtime path with no reading seen).
+  Sort order is `overdue → due_soon → todo → ok → pending → archived`.
+
+## Migration notes
+
+- Migration 7 backfills the flag: tasks with a runtime or time interval stay
+  recurring, everything else becomes a todo (with any runtime path/warning
+  cleared). If one of those was really a recurring "tracker" task, give it an
+  interval — or just unarchive it whenever the work comes around again.
+- **API:** the `info` status value is gone; `todo` and `pending` are new
+  (`?status=info` bookmarks and filters need updating). `is_recurring` is a
+  boolean on task bodies; omitted on create, it is inferred from whether an
+  interval is present, so pre-v1.5 API calls keep working. Todos reject
+  intervals/runtime paths, recurring tasks reject having neither interval
+  (`400 invalid_recurring`).
+
 # v1.4.0
 
 Retired gear can now retire its tasks too, and the task list is quicker to

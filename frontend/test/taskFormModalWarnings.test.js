@@ -46,6 +46,10 @@ describe('TaskFormModal — per-task warning windows', () => {
     fireEvent.input(screen.getByLabelText('Name'), {
       target: { value: 'Reg renewal' },
     });
+    // recurring tasks need an interval to save
+    fireEvent.input(screen.getByLabelText('Time interval'), {
+      target: { value: '12' },
+    });
     fireEvent.input(screen.getByLabelText('Runtime warning window (hours)'), {
       target: { value: '25' },
     });
@@ -80,6 +84,9 @@ describe('TaskFormModal — per-task warning windows', () => {
     fireEvent.input(screen.getByLabelText('Name'), {
       target: { value: 'Reg renewal' },
     });
+    fireEvent.input(screen.getByLabelText('Time interval'), {
+      target: { value: '12' },
+    });
     fireEvent.submit(document.getElementById('task-form'));
 
     let call;
@@ -110,6 +117,9 @@ describe('TaskFormModal — per-task warning windows', () => {
     render(html`<${TaskFormModal} task=${null} onClose=${vi.fn()} />`);
     fireEvent.input(screen.getByLabelText('Name'), {
       target: { value: 'X' },
+    });
+    fireEvent.input(screen.getByLabelText('Time interval'), {
+      target: { value: '12' },
     });
     fireEvent.input(screen.getByLabelText('Time warning window (days)'), {
       target: { value: '-2' },

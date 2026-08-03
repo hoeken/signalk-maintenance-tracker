@@ -18,12 +18,15 @@ export interface NewTask {
   seed_last_runtime: number | null;
   /** SQLite boolean (0/1) — node:sqlite can't bind JS booleans. */
   is_archived: number;
+  /** SQLite boolean (0/1). 0 = one-off todo item. */
+  is_recurring: number;
 }
 
 const COLUMNS = `id, slug, name, description, runtime_interval, time_interval,
   time_interval_unit, runtime_path, due_date, runtime_warning_hours,
   time_warning_days, last_maintenance, last_runtime,
-  seed_last_maintenance, seed_last_runtime, is_archived, created_at, updated_at`;
+  seed_last_maintenance, seed_last_runtime, is_archived, is_recurring,
+  created_at, updated_at`;
 
 export class TasksRepo {
   constructor(private db: DatabaseSync) {}
@@ -34,8 +37,9 @@ export class TasksRepo {
         `INSERT INTO tasks (slug, name, description, runtime_interval, time_interval,
            time_interval_unit, runtime_path, due_date, runtime_warning_hours,
            time_warning_days, last_maintenance, last_runtime,
-           seed_last_maintenance, seed_last_runtime, is_archived, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           seed_last_maintenance, seed_last_runtime, is_archived, is_recurring,
+           created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         t.slug,
@@ -53,6 +57,7 @@ export class TasksRepo {
         t.seed_last_maintenance,
         t.seed_last_runtime,
         t.is_archived,
+        t.is_recurring,
         nowIso,
         nowIso,
       );
@@ -99,7 +104,7 @@ export class TasksRepo {
            due_date = ?, runtime_warning_hours = ?, time_warning_days = ?,
            last_maintenance = ?, last_runtime = ?,
            seed_last_maintenance = ?, seed_last_runtime = ?, is_archived = ?,
-           updated_at = ?
+           is_recurring = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -118,6 +123,7 @@ export class TasksRepo {
         t.seed_last_maintenance,
         t.seed_last_runtime,
         t.is_archived,
+        t.is_recurring,
         nowIso,
         id,
       );
@@ -138,6 +144,13 @@ export class TasksRepo {
   /** Clear a task's one-time due date (a completed deadline no longer applies). */
   clearDueDate(id: number): void {
     this.db.prepare(`UPDATE tasks SET due_date = NULL WHERE id = ?`).run(id);
+  }
+
+  /** Flip the archived flag (a completed todo archives itself). */
+  setArchived(id: number, archived: number): void {
+    this.db
+      .prepare(`UPDATE tasks SET is_archived = ? WHERE id = ?`)
+      .run(archived, id);
   }
 
   delete(id: number): void {

@@ -144,4 +144,22 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 7,
+    up(db) {
+      // v1.5: one-off "todo" items vs recurring maintenance tasks. Existing
+      // tasks keeping any interval stay recurring; the rest become todos.
+      // A todo carries no runtime tracking, so the runtime path (and its
+      // warning override) is cleared on demoted rows — the service layer
+      // enforces the same invariant on every write.
+      db.exec(
+        `ALTER TABLE tasks ADD COLUMN is_recurring INTEGER NOT NULL DEFAULT 1;`,
+      );
+      db.exec(`
+        UPDATE tasks
+        SET is_recurring = 0, runtime_path = NULL, runtime_warning_hours = NULL
+        WHERE runtime_interval IS NULL AND time_interval IS NULL;
+      `);
+    },
+  },
 ];

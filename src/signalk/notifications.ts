@@ -31,7 +31,7 @@ export class NotificationManager {
       case 'overdue':
         return this.opts.alarmStateOverdue;
       default:
-        return undefined; // info
+        return undefined; // todo / pending / archived — never notify
     }
   }
 
@@ -40,10 +40,11 @@ export class NotificationManager {
     for (const task of tasks) {
       const state = this.stateForStatus(task.status);
       if (!state) {
-        // info: publish nothing, but clear a previously-raised notification
+        // todo/pending/archived: publish nothing, but clear a
+        // previously-raised notification
         const last = this.lastState.get(task.slug);
         if (last && last !== 'none') {
-          this.send(task.slug, 'none', `${task.name}: status info`);
+          this.send(task.slug, 'none', `${task.name}: status ${task.status}`);
         }
         continue;
       }

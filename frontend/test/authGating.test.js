@@ -14,7 +14,8 @@ describe('auth gating (§7.7)', () => {
     await waitFor(() =>
       expect(screen.getByText('Engine oil change')).toBeTruthy(),
     );
-    expect(screen.queryByText('New task')).toBeNull();
+    expect(screen.queryByText('New Task')).toBeNull();
+    expect(screen.queryByText('New Todo')).toBeNull();
     expect(screen.queryByLabelText('Edit Engine oil change')).toBeNull();
     expect(screen.queryByLabelText('Delete Engine oil change')).toBeNull();
     expect(screen.queryByLabelText('Complete Engine oil change')).toBeNull();
@@ -31,7 +32,8 @@ describe('auth gating (§7.7)', () => {
     await waitFor(() =>
       expect(screen.getByText('Engine oil change')).toBeTruthy(),
     );
-    expect(screen.getByText('New task')).toBeTruthy();
+    expect(screen.getByText('New Task')).toBeTruthy();
+    expect(screen.getByText('New Todo')).toBeTruthy();
     expect(screen.getByLabelText('Edit Engine oil change')).toBeTruthy();
     expect(screen.getByLabelText('Delete Engine oil change')).toBeTruthy();
     expect(screen.getByLabelText('Complete Engine oil change')).toBeTruthy();

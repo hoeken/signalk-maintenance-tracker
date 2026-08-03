@@ -25,6 +25,8 @@
   --ok-bg: #d3f9d8;
   --info: #5c6570;
   --info-bg: #e9ecef;
+  --pending: #6741d9;
+  --pending-bg: #e5dbff;
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   --overlay: rgba(20, 24, 28, 0.5);
 }
@@ -52,6 +54,8 @@
   --ok-bg: #1e3325;
   --info: #9aa4ae;
   --info-bg: #272d33;
+  --pending: #b197fc;
+  --pending-bg: #2a2440;
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
   --overlay: rgba(0, 0, 0, 0.65);
 }

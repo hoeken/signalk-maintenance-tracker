@@ -39,6 +39,10 @@ describe('TaskFormModal — consumables (docs/inventory-interaction.md)', () => 
     fireEvent.input(screen.getByLabelText('Name'), {
       target: { value: 'Oil change' },
     });
+    // recurring tasks need an interval to save
+    fireEvent.input(screen.getByLabelText('Time interval'), {
+      target: { value: '6' },
+    });
 
     const search = screen.getByPlaceholderText(
       'Search stowage-mgmt items to add',

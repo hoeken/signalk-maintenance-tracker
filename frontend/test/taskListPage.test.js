@@ -133,7 +133,10 @@ describe('TaskListPage (§7.4)', () => {
           el.textContent.trim(),
         ),
       ),
-    ).toEqual([['Engines'], ['Overdue', 'Due Soon', 'OK', 'Info', 'Archived']]);
+    ).toEqual([
+      ['Engines'],
+      ['Overdue', 'Due Soon', 'Todo', 'OK', 'Pending', 'Archived'],
+    ]);
 
     fireEvent.click(screen.getByText('Due Soon'));
     await waitFor(() => expect(route.value.query.status).toBe('due_soon'));

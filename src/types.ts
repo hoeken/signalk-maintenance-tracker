@@ -2,14 +2,21 @@ export type TimeUnit = 'days' | 'weeks' | 'months' | 'years';
 
 export const TIME_UNITS: TimeUnit[] = ['days', 'weeks', 'months', 'years'];
 
-export type Status = 'overdue' | 'due_soon' | 'ok' | 'info' | 'archived';
+/**
+ * `todo` is an open non-recurring item (outranks `ok`: todos are actionable);
+ * `pending` is a recurring task whose schedule can't be computed yet (interval
+ * configured but no runtime reading / no maintenance ever logged).
+ */
+export type Status =
+  'overdue' | 'due_soon' | 'todo' | 'ok' | 'pending' | 'archived';
 
 export const STATUS_RANK: Record<Status, number> = {
   overdue: 0,
   due_soon: 1,
-  ok: 2,
-  info: 3,
-  archived: 4,
+  todo: 2,
+  ok: 3,
+  pending: 4,
+  archived: 5,
 };
 
 export interface TaskRow {
@@ -36,6 +43,9 @@ export interface TaskRow {
    * which outranks every computed status — it never shows up in the other
    * status lists and never raises a notification. */
   is_archived: number;
+  /** SQLite boolean (0/1). 0 = a one-off "todo" item: no intervals or runtime
+   * path (service-enforced), optional due date, archived when completed. */
+  is_recurring: number;
   created_at: string;
   updated_at: string;
 }
@@ -122,6 +132,7 @@ export interface TaskDTO extends ComputedFields {
   last_maintenance: string | null;
   last_runtime: number | null;
   is_archived: boolean;
+  is_recurring: boolean;
   created_at: string;
   updated_at: string;
   /** Items in signalk-stowage-mgmt this task consumes on completion — see
@@ -158,6 +169,10 @@ export interface TaskInput {
   /** Archived tasks read as status 'archived' and drop out of every other
    * status list; toggled from the task detail page. */
   is_archived?: boolean;
+  /** false = one-off todo item. Omitted on create = inferred from whether an
+   * interval is present (keeps pre-v1.5 API calls working). Setting false
+   * clears any schedule; recurring tasks must keep at least one interval. */
+  is_recurring?: boolean;
   /** Wholesale-replaces the task's linked consumables when present, same
    * semantics as `tags` (docs/inventory-interaction.md). */
   consumables?: TaskConsumableDTO[];

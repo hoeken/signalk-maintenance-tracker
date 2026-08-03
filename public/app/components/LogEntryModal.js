@@ -27,6 +27,9 @@ export function LogEntryModal(props) {
   const task = props.task || null;
   const isEdit = !!entry;
   const isStandalone = entry ? entry.task_id === null : !task;
+  // Completing a one-off todo archives it; it also has no runtime meter, so
+  // the runtime-hours field is dropped.
+  const isTodo = !!task && task.is_recurring === false;
 
   const initialRuntime = isEdit
     ? entry && entry.runtime_hours !== null
@@ -131,7 +134,12 @@ export function LogEntryModal(props) {
           }
         }
         const created = await addLog(task.slug, input);
-        toast('Marked "' + task.name + '" complete.', 'success');
+        toast(
+          isTodo
+            ? 'Completed "' + task.name + '" — moved to archive.'
+            : 'Marked "' + task.name + '" complete.',
+          'success',
+        );
         if (created.consumable_warnings && created.consumable_warnings.length) {
           toast(
             'Stock not fully updated: ' +
@@ -219,8 +227,9 @@ export function LogEntryModal(props) {
         }
 
         ${
-          // Standalone entries aren't tied to anything with a runtime meter.
-          !isStandalone
+          // Standalone entries and todos aren't tied to anything with a
+          // runtime meter.
+          !isStandalone && !isTodo
             ? html`<div class="field">
                 <label class="field-label" for="log-runtime">
                   Runtime hours

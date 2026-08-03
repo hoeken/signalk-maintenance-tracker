@@ -15,6 +15,7 @@ const baseTask = {
   last_maintenance: null as string | null,
   last_runtime: null as number | null,
   is_archived: 0,
+  is_recurring: 1,
   created_at: '2026-01-01T00:00:00Z',
 };
 
@@ -73,16 +74,16 @@ describe('computeTask — runtime dimension', () => {
     expect(c.remaining_runtime).toBeCloseTo(-20);
   });
 
-  it('is info when no runtime value has been seen', () => {
+  it('is pending when no runtime value has been seen', () => {
     const c = computeTask(task, null, now, cfg);
-    expect(c.runtime_status).toBe('info');
-    expect(c.status).toBe('info');
+    expect(c.runtime_status).toBe('pending');
+    expect(c.status).toBe('pending');
     expect(c.remaining_runtime).toBeNull();
   });
 
-  it('is info when last_runtime is missing', () => {
+  it('is pending when last_runtime is missing', () => {
     const c = computeTask({ ...task, last_runtime: null }, 1100, now, cfg);
-    expect(c.runtime_status).toBe('info');
+    expect(c.runtime_status).toBe('pending');
   });
 });
 
@@ -112,7 +113,7 @@ describe('computeTask — elapsed since last service (interval-independent)', ()
     expect(c.elapsed_time_ms).toBe(7 * 86_400_000);
     expect(c.scheduled_due_date).toBeNull();
     expect(c.time_status).toBeNull();
-    expect(c.status).toBe('info');
+    expect(c.status).toBe('pending');
   });
 
   it('leaves elapsed figures null when their inputs are missing', () => {
@@ -138,7 +139,7 @@ describe('computeTask — archived', () => {
       cfg,
     );
     expect(c.status).toBe('archived');
-    expect(c.status_rank).toBe(4); // after info: archived sinks to the end
+    expect(c.status_rank).toBe(5); // ranked last: archived sinks to the end
     expect(c.runtime_status).toBe('overdue');
     expect(c.remaining_runtime).toBeCloseTo(-20);
   });
@@ -194,11 +195,11 @@ describe('computeTask — recurring time-interval dimension', () => {
     expect(c.status).toBe('due_soon');
   });
 
-  it('is info without last_maintenance', () => {
+  it('is pending without last_maintenance', () => {
     const c = computeTask({ ...task, last_maintenance: null }, null, now, cfg);
-    expect(c.scheduled_status).toBe('info');
-    expect(c.time_status).toBe('info');
-    expect(c.status).toBe('info');
+    expect(c.scheduled_status).toBe('pending');
+    expect(c.time_status).toBe('pending');
+    expect(c.status).toBe('pending');
   });
 });
 
@@ -384,6 +385,8 @@ describe('computeTask — combined & edge cases', () => {
         runtime_warning_hours: null,
         time_warning_days: null,
         last_maintenance: '2026-06-01T00:00:00Z',
+        is_archived: 0,
+        is_recurring: 1,
         created_at: '2026-01-01T00:00:00Z',
       },
       1250, // runtime overdue
@@ -396,18 +399,20 @@ describe('computeTask — combined & edge cases', () => {
     expect(c.status_rank).toBe(0);
   });
 
-  it('info in one dimension does not mask ok in the other', () => {
+  it('pending in one dimension does not mask ok in the other', () => {
     const c = computeTask(
       {
         runtime_interval: 200,
         runtime_path: 'p',
-        last_runtime: null, // info
+        last_runtime: null, // pending
         time_interval: 12,
         time_interval_unit: 'months',
         due_date: null,
         runtime_warning_hours: null,
         time_warning_days: null,
         last_maintenance: '2026-06-01T00:00:00Z', // ok
+        is_archived: 0,
+        is_recurring: 1,
         created_at: '2026-01-01T00:00:00Z',
       },
       null,
@@ -417,9 +422,9 @@ describe('computeTask — combined & edge cases', () => {
     expect(c.status).toBe('ok');
   });
 
-  it('informational-only tasks (no intervals) are info with no computed fields', () => {
+  it('recurring tasks with no computable dimension are pending', () => {
     const c = computeTask(baseTask, null, now, cfg);
-    expect(c.status).toBe('info');
+    expect(c.status).toBe('pending');
     expect(c.runtime_status).toBeNull();
     expect(c.time_status).toBeNull();
     expect(c.scheduled_due_date).toBeNull();
@@ -436,5 +441,79 @@ describe('computeTask — combined & edge cases', () => {
       cfg,
     );
     expect(c.runtime_status).toBeNull();
+  });
+});
+
+describe('computeTask — todos (non-recurring)', () => {
+  const todo = { ...baseTask, is_recurring: 0 };
+
+  it('is todo without a due date', () => {
+    const c = computeTask(todo, null, now, cfg);
+    expect(c.status).toBe('todo');
+    expect(c.time_status).toBeNull();
+  });
+
+  it('is todo with a far-off due date (ok maps to todo)', () => {
+    const c = computeTask(
+      { ...todo, due_date: '2026-12-31T00:00:00Z' },
+      null,
+      now,
+      cfg,
+    );
+    expect(c.due_date_status).toBe('ok');
+    expect(c.status).toBe('todo');
+  });
+
+  it('is due_soon inside the due-date lead window', () => {
+    const c = computeTask(
+      { ...todo, due_date: '2026-07-14T12:00:00Z' },
+      null,
+      now,
+      cfg,
+    );
+    expect(c.status).toBe('due_soon');
+  });
+
+  it('is overdue past the due date', () => {
+    const c = computeTask(
+      { ...todo, due_date: '2026-07-01T00:00:00Z' },
+      null,
+      now,
+      cfg,
+    );
+    expect(c.status).toBe('overdue');
+  });
+
+  it('is archived once completed, whatever the due date says', () => {
+    const c = computeTask(
+      { ...todo, due_date: '2026-07-01T00:00:00Z', is_archived: 1 },
+      null,
+      now,
+      cfg,
+    );
+    expect(c.status).toBe('archived');
+  });
+
+  it('todo outranks ok but not due_soon in the default sort', () => {
+    const todoRank = computeTask(todo, null, now, cfg).status_rank;
+    const okRank = computeTask(
+      {
+        ...baseTask,
+        time_interval: 12,
+        time_interval_unit: 'months',
+        last_maintenance: '2026-06-01T00:00:00Z',
+      },
+      null,
+      now,
+      cfg,
+    ).status_rank;
+    const dueSoonRank = computeTask(
+      { ...todo, due_date: '2026-07-14T12:00:00Z' },
+      null,
+      now,
+      cfg,
+    ).status_rank;
+    expect(todoRank).toBeLessThan(okRank);
+    expect(dueSoonRank).toBeLessThan(todoRank);
   });
 });

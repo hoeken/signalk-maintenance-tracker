@@ -119,6 +119,7 @@ export class MaintenanceService {
       last_maintenance: row.last_maintenance,
       last_runtime: row.last_runtime,
       is_archived: row.is_archived !== 0,
+      is_recurring: row.is_recurring !== 0,
       created_at: row.created_at,
       updated_at: row.updated_at,
       consumables: consumables.map((c) => ({
@@ -263,6 +264,17 @@ export class MaintenanceService {
       body.runtime_warning_hours,
       body.time_warning_days,
     );
+    // Omitted is_recurring is inferred from the schedule so pre-v1.5 API
+    // calls keep working: an interval makes it recurring, none makes it a
+    // todo. Explicit values are checked against the schedule instead.
+    const isRecurring =
+      this.validateRecurring(body.is_recurring) ??
+      (body.runtime_interval != null || body.time_interval != null);
+    this.enforceRecurringInvariants(isRecurring, {
+      runtime_interval: body.runtime_interval ?? null,
+      time_interval: body.time_interval ?? null,
+      runtime_path: body.runtime_path?.trim() || null,
+    });
 
     let slug: string;
     if (body.slug != null && body.slug.trim() !== '') {
@@ -294,6 +306,7 @@ export class MaintenanceService {
       seed_last_maintenance: body.last_maintenance ?? null,
       seed_last_runtime: body.last_runtime ?? null,
       is_archived: this.validateArchived(body.is_archived) ? 1 : 0,
+      is_recurring: isRecurring ? 1 : 0,
     };
     const row = this.tasks.create(seed, nowIso);
     if (body.tags) this.tags.setTaskTags(row.id, body.tags);
@@ -313,6 +326,9 @@ export class MaintenanceService {
 
   updateTask(slug: string, body: TaskInput): TaskDTO {
     const row = this.requireTask(slug);
+
+    const isRecurring =
+      this.validateRecurring(body.is_recurring) ?? row.is_recurring !== 0;
 
     const merged: NewTask = {
       slug: row.slug,
@@ -357,6 +373,7 @@ export class MaintenanceService {
             ? 1
             : 0
           : row.is_archived,
+      is_recurring: isRecurring ? 1 : 0,
     };
 
     if (!merged.name)
@@ -370,6 +387,25 @@ export class MaintenanceService {
       merged.runtime_warning_hours,
       merged.time_warning_days,
     );
+    if (isRecurring) {
+      this.enforceRecurringInvariants(true, merged);
+    } else {
+      // Explicitly scheduling a todo in the same request is a contradiction
+      // and rejected; a schedule the task already had (recurring → todo
+      // toggle) is simply cleared.
+      this.enforceRecurringInvariants(false, {
+        runtime_interval: body.runtime_interval ?? null,
+        time_interval: body.time_interval ?? null,
+        runtime_path:
+          body.runtime_path !== undefined
+            ? body.runtime_path?.trim() || null
+            : null,
+      });
+      merged.runtime_interval = null;
+      merged.time_interval = null;
+      merged.time_interval_unit = null;
+      merged.runtime_path = null;
+    }
 
     // Slug change: normalize, uniqueness-check, remember old slug so the
     // notification path can be migrated (§6.4).
@@ -480,6 +516,11 @@ export class MaintenanceService {
       // task is done, the deadline no longer applies. (A recurring renewal's
       // next due date is set again by editing the task.)
       if (task.due_date != null) this.tasks.clearDueDate(task.id);
+      // Completing a one-off todo is what finishes it: archive in the same
+      // transaction so it drops out of the open lists immediately. Unarchive
+      // reopens it.
+      if (task.is_recurring === 0 && task.is_archived === 0)
+        this.tasks.setArchived(task.id, 1);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -786,6 +827,56 @@ export class MaintenanceService {
     };
     check(runtimeWarningHours, 'runtime_warning_hours');
     check(timeWarningDays, 'time_warning_days');
+  }
+
+  /** is_recurring must be a real boolean when present; null/undefined =
+   * "not provided" — the caller infers (create) or keeps the row's value
+   * (update). */
+  private validateRecurring(
+    value: boolean | null | undefined,
+  ): boolean | undefined {
+    if (value == null) return undefined;
+    if (typeof value !== 'boolean')
+      throw new ApiError(
+        400,
+        'invalid_recurring',
+        'is_recurring must be a boolean',
+      );
+    return value;
+  }
+
+  /**
+   * The recurring/todo invariant (§6.3): a recurring task must have at least
+   * one interval to ever come due; a todo has no schedule at all — no
+   * intervals and no runtime path (its only date dimension is the optional
+   * one-time due_date).
+   */
+  private enforceRecurringInvariants(
+    isRecurring: boolean,
+    fields: {
+      runtime_interval: number | null;
+      time_interval: number | null;
+      runtime_path: string | null;
+    },
+  ): void {
+    if (isRecurring) {
+      if (fields.runtime_interval == null && fields.time_interval == null)
+        throw new ApiError(
+          400,
+          'invalid_recurring',
+          'A recurring task needs a runtime or time interval',
+        );
+    } else if (
+      fields.runtime_interval != null ||
+      fields.time_interval != null ||
+      fields.runtime_path != null
+    ) {
+      throw new ApiError(
+        400,
+        'invalid_recurring',
+        'A todo cannot have intervals or a runtime path — set is_recurring to true to schedule it',
+      );
+    }
   }
 
   /** is_archived must be a real boolean when present; null/undefined = false

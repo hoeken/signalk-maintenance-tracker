@@ -3,6 +3,10 @@
  * from the name until the user edits it; on edit the slug is an editable
  * field with a deep-link warning (§6.4). Seed last_maintenance/last_runtime
  * are offered on create only.
+ *
+ * The "Recurring task" toggle gates the schedule fields: a one-off todo has
+ * no intervals, runtime path, or seeds — just the optional due date (plus the
+ * time warning window, which drives the due date's "due soon" state).
  */
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
@@ -24,12 +28,15 @@ import { STOWAGE_APP_BASE } from '../api/stowage.js';
 const TIME_UNITS = ['days', 'weeks', 'months', 'years'];
 
 /**
- * @param {{ task: TaskDTO|null, onClose: () => void, onSaved?: (task: TaskDTO) => void }} props
+ * @param {{ task: TaskDTO|null, defaultRecurring?: boolean, onClose: () => void, onSaved?: (task: TaskDTO) => void }} props
  */
 export function TaskFormModal(props) {
   const task = props.task;
   const isEdit = !!task;
 
+  const [isRecurring, setIsRecurring] = useState(
+    task ? task.is_recurring : props.defaultRecurring !== false,
+  );
   const [name, setName] = useState(task ? task.name : '');
   const [slug, setSlug] = useState(task ? task.slug : '');
   const [slugTouched, setSlugTouched] = useState(isEdit);
@@ -105,7 +112,9 @@ export function TaskFormModal(props) {
       description: description.trim() ? description : null,
       tags: tags,
       consumables: consumables,
-      runtime_path: runtimePath.trim() ? runtimePath.trim() : null,
+      is_recurring: isRecurring,
+      runtime_path:
+        isRecurring && runtimePath.trim() ? runtimePath.trim() : null,
       due_date: dueDate.trim() ? dueDate.trim() : null,
       runtime_interval: null,
       time_interval: null,
@@ -119,7 +128,9 @@ export function TaskFormModal(props) {
       setError('Each linked part needs a quantity greater than 0.');
       return;
     }
-    if (runtimeInterval.trim() !== '') {
+    // Schedule fields only exist on recurring tasks; a todo submits them all
+    // as null no matter what the (hidden) inputs still hold.
+    if (isRecurring && runtimeInterval.trim() !== '') {
       const hours = Number(runtimeInterval);
       if (!isFinite(hours) || hours <= 0) {
         setError('Runtime interval must be a positive number of hours.');
@@ -127,7 +138,7 @@ export function TaskFormModal(props) {
       }
       input.runtime_interval = hours;
     }
-    if (timeInterval.trim() !== '') {
+    if (isRecurring && timeInterval.trim() !== '') {
       const magnitude = Number(timeInterval);
       if (
         !isFinite(magnitude) ||
@@ -140,7 +151,15 @@ export function TaskFormModal(props) {
       input.time_interval = magnitude;
       input.time_interval_unit = /** @type {TimeUnit} */ (timeUnit);
     }
-    if (runtimeWarning.trim() !== '') {
+    if (
+      isRecurring &&
+      input.runtime_interval === null &&
+      input.time_interval === null
+    ) {
+      setError('A recurring task needs a runtime or time interval.');
+      return;
+    }
+    if (isRecurring && runtimeWarning.trim() !== '') {
       const hours = Number(runtimeWarning);
       if (!isFinite(hours) || hours < 0) {
         setError('Runtime warning window must be 0 or a positive number.');
@@ -160,8 +179,9 @@ export function TaskFormModal(props) {
       if (slugChanged) input.slug = effectiveSlug;
     } else {
       if (slugTouched && slug.trim()) input.slug = slug.trim();
-      if (seedMaintenance) input.last_maintenance = seedMaintenance;
-      if (seedRuntime.trim() !== '') {
+      if (isRecurring && seedMaintenance)
+        input.last_maintenance = seedMaintenance;
+      if (isRecurring && seedRuntime.trim() !== '') {
         const seed = Number(seedRuntime);
         if (!isFinite(seed) || seed < 0) {
           setError('Seed runtime must be a non-negative number of hours.');
@@ -177,7 +197,14 @@ export function TaskFormModal(props) {
         isEdit && task
           ? await updateTask(task.slug, input)
           : await createTask(input);
-      toast(isEdit ? 'Task updated.' : 'Task created.', 'success');
+      toast(
+        isEdit
+          ? 'Task updated.'
+          : isRecurring
+            ? 'Task created.'
+            : 'Todo created.',
+        'success',
+      );
       if (props.onSaved) props.onSaved(saved);
       props.onClose();
     } catch (err) {
@@ -196,13 +223,21 @@ export function TaskFormModal(props) {
       class="btn btn-primary"
       disabled=${busy}
     >
-      ${busy ? 'Saving…' : isEdit ? 'Save changes' : 'Create task'}
+      ${
+        busy
+          ? 'Saving…'
+          : isEdit
+            ? 'Save changes'
+            : isRecurring
+              ? 'Create task'
+              : 'Create todo'
+      }
     </button>
   `;
 
   return html`
     <${Modal}
-      title=${isEdit ? 'Edit task' : 'New task'}
+      title=${isEdit ? 'Edit task' : isRecurring ? 'New task' : 'New todo'}
       onClose=${props.onClose}
       footer=${footer}
     >
@@ -287,46 +322,20 @@ export function TaskFormModal(props) {
           </div>
         </div>
 
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="task-runtime-interval"
-              >Runtime interval (hours)</label
-            >
+        <div class="field">
+          <label class="field-label" for="task-recurring">
             <input
-              id="task-runtime-interval"
-              class="input"
-              type="number"
-              min="0"
-              step="any"
-              value=${runtimeInterval}
-              onInput=${(/** @type {any} */ e) => setRuntimeInterval(e.currentTarget.value)}
+              id="task-recurring"
+              type="checkbox"
+              checked=${isRecurring}
+              onInput=${(/** @type {any} */ e) =>
+                setIsRecurring(e.currentTarget.checked)}
             />
-            <div class="field-hint">Empty = no runtime tracking.</div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="task-time-interval"
-              >Time interval</label
-            >
-            <div class="field-row">
-              <input
-                id="task-time-interval"
-                class="input"
-                type="number"
-                min="0"
-                step="1"
-                value=${timeInterval}
-                onInput=${(/** @type {any} */ e) => setTimeInterval(e.currentTarget.value)}
-              />
-              <select
-                class="select"
-                aria-label="Time interval unit"
-                value=${timeUnit}
-                onInput=${(/** @type {any} */ e) => setTimeUnit(e.currentTarget.value)}
-              >
-                ${TIME_UNITS.map((u) => html`<option key=${u} value=${u}>${u}</option>`)}
-              </select>
-            </div>
-            <div class="field-hint">Empty = no calendar tracking.</div>
+            ${' '}Recurring task
+          </label>
+          <div class="field-hint">
+            Recurring tasks come due on an interval. Unchecked = a one-off
+            todo that archives itself when completed.
           </div>
         </div>
 
@@ -345,26 +354,77 @@ export function TaskFormModal(props) {
           </div>
         </div>
 
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="task-runtime-warning"
-              >Runtime warning window (hours)</label
-            >
-            <input
-              id="task-runtime-warning"
-              class="input"
-              type="number"
-              min="0"
-              step="any"
-              placeholder=${runtimeWarningPlaceholder}
-              value=${runtimeWarning}
-              onInput=${(/** @type {any} */ e) => setRuntimeWarning(e.currentTarget.value)}
-            />
-            <div class="field-hint">
-              How early runtime tasks flag "due soon". Empty = plugin
-              default; 0 = no warning.
-            </div>
-          </div>
+        ${
+          isRecurring
+            ? html`<div class="field-row">
+                <div class="field">
+                  <label class="field-label" for="task-runtime-interval"
+                    >Runtime interval (hours)</label
+                  >
+                  <input
+                    id="task-runtime-interval"
+                    class="input"
+                    type="number"
+                    min="0"
+                    step="any"
+                    value=${runtimeInterval}
+                    onInput=${(/** @type {any} */ e) => setRuntimeInterval(e.currentTarget.value)}
+                  />
+                  <div class="field-hint">Empty = no runtime tracking.</div>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="task-time-interval"
+                    >Time interval</label
+                  >
+                  <div class="field-row">
+                    <input
+                      id="task-time-interval"
+                      class="input"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value=${timeInterval}
+                      onInput=${(/** @type {any} */ e) => setTimeInterval(e.currentTarget.value)}
+                    />
+                    <select
+                      class="select"
+                      aria-label="Time interval unit"
+                      value=${timeUnit}
+                      onInput=${(/** @type {any} */ e) => setTimeUnit(e.currentTarget.value)}
+                    >
+                      ${TIME_UNITS.map((u) => html`<option key=${u} value=${u}>${u}</option>`)}
+                    </select>
+                  </div>
+                  <div class="field-hint">Empty = no calendar tracking.</div>
+                </div>
+              </div>`
+            : null
+        }
+
+        <div class=${isRecurring ? 'field-row' : ''}>
+          ${
+            isRecurring
+              ? html`<div class="field">
+                  <label class="field-label" for="task-runtime-warning"
+                    >Runtime warning window (hours)</label
+                  >
+                  <input
+                    id="task-runtime-warning"
+                    class="input"
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder=${runtimeWarningPlaceholder}
+                    value=${runtimeWarning}
+                    onInput=${(/** @type {any} */ e) => setRuntimeWarning(e.currentTarget.value)}
+                  />
+                  <div class="field-hint">
+                    How early runtime tasks flag "due soon". Empty = plugin
+                    default; 0 = no warning.
+                  </div>
+                </div>`
+              : null
+          }
           <div class="field">
             <label class="field-label" for="task-time-warning"
               >Time warning window (days)</label
@@ -380,20 +440,26 @@ export function TaskFormModal(props) {
               onInput=${(/** @type {any} */ e) => setTimeWarning(e.currentTarget.value)}
             />
             <div class="field-hint">
-              How early time & due-date tasks flag "due soon". Empty = plugin
-              default; 0 = no warning.
+              How early ${isRecurring ? 'time & due-date tasks flag' : 'the due date flags'}${' '}
+              "due soon". Empty = plugin default; 0 = no warning.
             </div>
           </div>
         </div>
 
-        <div class="field">
-          <label class="field-label">Runtime path (SignalK)</label>
-          <${PathPicker} value=${runtimePath} onChange=${setRuntimePath} />
-        </div>
+        ${
+          isRecurring
+            ? html`<div class="field">
+                <label class="field-label">Runtime path (SignalK)</label>
+                <${PathPicker} value=${runtimePath} onChange=${setRuntimePath} />
+              </div>`
+            : null
+        }
 
         ${
-          !isEdit
-            ? html`
+          !isRecurring
+            ? null
+            : !isEdit
+              ? html`
                 <div class="field-row">
                   <div class="field">
                     <label class="field-label" for="task-seed-date"
@@ -423,7 +489,7 @@ export function TaskFormModal(props) {
                   </div>
                 </div>
               `
-            : html`
+              : html`
                 <div class="field-row">
                   <div class="field">
                     <label class="field-label">Last maintenance</label>

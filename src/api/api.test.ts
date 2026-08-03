@@ -156,7 +156,7 @@ describe('tasks endpoints', () => {
     expect(res.body.pageSize).toBe(1);
 
     const filtered = await request(app).get(
-      `${base}/tasks?status=info&search=alp`,
+      `${base}/tasks?status=todo&search=alp`,
     );
     expect(filtered.body.data.map((t: any) => t.name)).toEqual(['Alpha']);
   });
@@ -167,8 +167,8 @@ describe('tasks endpoints', () => {
       .post(`${base}/tasks`)
       .send({ name: 'Retired', is_archived: true });
 
-    const info = await request(app).get(`${base}/tasks?status=info`);
-    expect(info.body.data.map((t: any) => t.name)).toEqual(['Active']);
+    const open = await request(app).get(`${base}/tasks?status=todo`);
+    expect(open.body.data.map((t: any) => t.name)).toEqual(['Active']);
 
     const archived = await request(app).get(`${base}/tasks?status=archived`);
     expect(archived.body.data.map((t: any) => t.name)).toEqual(['Retired']);

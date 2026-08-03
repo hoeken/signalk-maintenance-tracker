@@ -210,9 +210,14 @@ as `REAL`.
 
 Constraints/notes:
 
-- Both intervals are optional and independent. A task with neither is a valid
-  **informational-only** task (it still tracks name/description/tags/logs but has
-  no due-date or runtime status). No API-layer enforcement of "at least one".
+- Since v1.5 (migration 7) every task carries an `is_recurring` flag (INTEGER
+  0/1, default 1). A **recurring task** must have at least one interval
+  (runtime or time) — enforced at the service layer. A **todo**
+  (`is_recurring = 0`) is a one-off item: no intervals and no `runtime_path`
+  (also enforced); its only date dimension is the optional one-time `due_date`,
+  and completing it archives it. Omitting `is_recurring` on create infers it
+  from whether an interval is present, which keeps pre-v1.5 API calls working.
+  Toggling a recurring task to todo clears its schedule fields.
 - `time_interval` + `time_interval_unit` are set/cleared together.
 
 ### 5.2 `tags`
@@ -363,12 +368,22 @@ Each active dimension yields a sub-status; the task's overall status is the
 | `overdue`  | `remaining <= 0`                                                                                                                              |
 | `due_soon` | not overdue AND within the lead window (runtime: `remaining_runtime <= runtimeNotifyLeadHours`; time: `remaining_time <= timeNotifyLeadDays`) |
 | `ok`       | otherwise                                                                                                                                     |
-| `info`     | dimension configured but inputs missing (e.g. runtime path set but no value seen yet)                                                         |
+| `pending`  | dimension configured but inputs missing (e.g. runtime path set but no value seen yet, or an interval with no completion ever logged)          |
 
-Overall precedence: `overdue` > `due_soon` > `ok` > `info`. A sort key
-(`status_rank` + soonest `remaining`) is emitted so the UI's default sort =
-"past-due first, then upcoming" is a straightforward server-side ORDER BY on the
-already-computed list.
+Two overall statuses exist beyond the sub-statuses:
+
+- `todo` — an open non-recurring item (v1.5). A todo's only possible dimension
+  is the one-time due date; `overdue`/`due_soon` pass through, while `ok` (due
+  date not close yet) and "no due date at all" both read as `todo` — an open
+  todo is actionable rather than healthy.
+- `archived` — `is_archived` overrides everything; the computed figures survive
+  but the status (what lists filter on, sort by, and notifications publish) is
+  `archived`. A completed todo archives itself; unarchiving reopens it.
+
+Overall precedence (`STATUS_RANK`): `overdue` > `due_soon` > `todo` > `ok` >
+`pending` > `archived`. A sort key (`status_rank` + soonest `remaining`) is
+emitted so the UI's default sort = "past-due first, then upcoming" is a
+straightforward server-side ORDER BY on the already-computed list.
 
 ### 6.4 Slug generation
 
@@ -459,9 +474,9 @@ drives the attribute.
 
 - Hand-rolled `<Table/>` component, columns: status badge, name, tags, remaining
   runtime, remaining time, next due date, action icons. `view` is always shown; the
-  write actions (`edit` / `delete` / `complete`) and the "New task" button are
-  rendered only when logged in (§7.7). Logged-out visitors see the data and the
-  `view` action.
+  write actions (`edit` / `delete` / `complete`) and the "New Task" / "New Todo"
+  buttons are rendered only when logged in (§7.7). Logged-out visitors see the
+  data and the `view` action.
 - Default sort: overdue first, then due_soon, then upcoming — driven by the
   server's `status_rank` + remaining sort.
 - Controls: freeform search box; tag filter (single-select chips); status filter
@@ -478,7 +493,7 @@ drives the attribute.
   `role="group"` labelled by its own text, so the single-select-per-row rule is
   legible from the layout. The labels share a min-width so both rows' chips line
   up. The tag row is omitted entirely when no tags exist; the status row always
-  renders all four.
+  renders every status.
 - Chips carry no count. Status counts would have to come from the filtered list
   response, so every keystroke and every chip click blanked and re-drew them —
   a flicker in the toolbar that cost more than the number was worth. `GET /tags`
@@ -512,12 +527,17 @@ Escape-to-close, focus trap, `role="dialog"`) — no modal library.
   preview derived from name but editable; on edit, an editable field that warns
   the change breaks existing deep links, §6.4); markdown description (textarea
   with a preview toggle), tags (creatable
-  multi-select fed by `GET /tags`), runtime interval (hours), time interval
+  multi-select fed by `GET /tags`), a "Recurring task" toggle (v1.5) gating the
+  schedule fields, due date, runtime interval (hours), time interval
   (number + unit select), runtime path (a tree / autocomplete picker built
   client-side from SignalK's `/signalk/v1/api/vessels/self` snapshot — fetched
   once and cached, §8.4 — the user selects a path string; free-text entry is also
   allowed), and — on create only — optional seed `last_maintenance` /
-  `last_runtime`.
+  `last_runtime`. With the toggle off (a todo) the intervals, runtime warning,
+  runtime path, and seed fields are hidden; the due date and the time warning
+  window (which drives the due date's "due soon" state) remain. "New Task"
+  opens the form with the toggle on, "New Todo" with it off; a recurring task
+  won't save without at least one interval.
 - **Complete** — maintenance datetime (default now), runtime hours (prefilled from
   the task's `current_runtime` from the `/tasks` API when a runtime path is set,
   §8.1/§8.4), notes (markdown). Submits a new log entry (§8,
@@ -689,7 +709,7 @@ assume authorization has already passed and never re-check it (§9).
 
 | Method | Path           | Description                                                                                                                                                                                                                                                                                     |
 | ------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/ok/info), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
+| GET    | `/tasks`       | List tasks (paginated). Query: `search`, `tags` (csv), `status` (csv of overdue/due_soon/todo/ok/pending/archived), `sort` (name\|remaining_runtime\|remaining_time\|status), `order` (asc\|desc), `page`, `pageSize`. Each item includes stored + computed fields (§6.2/6.3). Default sort = status urgency. |
 | POST   | `/tasks`       | Create. Body below. Server generates slug.                                                                                                                                                                                                                                                      |
 | GET    | `/tasks/:slug` | Task detail incl. computed fields, tags, and recent log entries (or a link + `GET /tasks/:slug/logs`).                                                                                                                                                                                          |
 | PUT    | `/tasks/:slug` | Update editable fields (name, description, intervals, runtime_path, tags, consumables, seed last_* on tasks with no logs). May also change `slug` (normalized + uniqueness-checked; triggers notification-path migration, §6.4).                                                                |
@@ -736,6 +756,7 @@ Task response object (list item / detail):
   "consumables": [
     { "item_id": "abc123", "item_name": "Oil filter", "qty_per_service": 1 }
   ],
+  "is_recurring": true,
   "runtime_interval": 200,
   "time_interval": 12,
   "time_interval_unit": "months",
@@ -761,7 +782,7 @@ Task response object (list item / detail):
   "time_fraction": 0.55,
   "time_status": "ok",
   "status": "ok",
-  "status_rank": 2,
+  "status_rank": 3,
   "created_at": "…",
   "updated_at": "…"
 }
@@ -773,7 +794,7 @@ Task response object (list item / detail):
 | ------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | GET    | `/logs`             | Master log, paginated. Query: `search`, `sort` (maintenance_date\|task\|runtime_hours), `order`, `page`, `pageSize`. Each item includes `task_slug` + `task_name`.                                                                                                                                                                                                                         |
 | GET    | `/tasks/:slug/logs` | Log entries for one task.                                                                                                                                                                                                                                                                                                                                                                  |
-| POST   | `/tasks/:slug/logs` | **Mark complete** — create a log entry. Recomputes task denormalized fields (§5.6), clears any one-time `due_date` (the deadline was for this completion), and refreshes the task's notification. `logged_by` is filled server-side from the request principal (§9), not the body. If the task has linked consumables (§8.1) and stowage-mgmt integration is configured, also decrements their stock — best-effort; see below and `docs/inventory-interaction.md`. |
+| POST   | `/tasks/:slug/logs` | **Mark complete** — create a log entry. Recomputes task denormalized fields (§5.6), clears any one-time `due_date` (the deadline was for this completion), archives the task if it is a non-recurring todo (§6.3), and refreshes the task's notification. `logged_by` is filled server-side from the request principal (§9), not the body. If the task has linked consumables (§8.1) and stowage-mgmt integration is configured, also decrements their stock — best-effort; see below and `docs/inventory-interaction.md`. |
 | PUT    | `/logs/:id`         | Edit a log entry. Recomputes task fields if it was/becomes the latest.                                                                                                                                                                                                                                                                                                                     |
 | DELETE | `/logs/:id`         | Delete a log entry. Recomputes task fields.                                                                                                                                                                                                                                                                                                                                                |
 
@@ -951,8 +972,10 @@ app.handleMessage(plugin.id, {
 The alarm state for each task status is configurable (`alarmState*` options),
 choosing from SignalK's states `none | normal | alert | warn | alarm | emergency`.
 Defaults: `overdue → alarm`, `due_soon → warn`, `ok → none`. A `none` state
-publishes a `null` value, which clears the notification. `info` publishes
-nothing (or clears a prior notification). Notifications are only published when
+publishes a `null` value, which clears the notification. `todo`, `pending`, and
+`archived` publish nothing (or clear a prior notification) — an overdue or
+due-soon todo notifies through those statuses like any other task.
+Notifications are only published when
 `enableNotifications` is true and when a task's state changes (to avoid delta
 spam); a task with both dimensions publishes one notification reflecting the more
 urgent dimension, with the message naming which dimension triggered it.
@@ -985,9 +1008,12 @@ subscription set is derived from the DB.)
 
 These were open during drafting and are now settled:
 
-- **Tasks with neither interval:** allowed. Both intervals are optional; a task
-  with neither is a valid informational-only task. No "≥1 interval" enforcement.
-  (§5.1)
+- **Tasks with neither interval:** originally allowed as "informational-only"
+  tasks; superseded in v1.5. A task without an interval is now a one-off
+  **todo** (`is_recurring = 0`) that archives itself when completed, and a
+  recurring task must keep at least one interval — both enforced at the
+  service layer. Migration 7 backfills the flag from interval presence. (§5.1,
+  §6.3)
 - **Runtime path units:** SignalK runtime paths are in **seconds**. The runtime
   subscriber converts to hours (`/3600`) on read; everything above that boundary
   is hours. (§10.2)

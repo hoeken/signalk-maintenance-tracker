@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(6);
+    expect(schemaVersion(db)).toBe(7);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -81,7 +81,7 @@ describe('task CRUD', () => {
     const cleared = service.updateTask(task.slug, { due_date: null });
     expect(cleared.due_date).toBeNull();
     expect(cleared.due_date_status).toBeNull();
-    expect(cleared.status).toBe('info');
+    expect(cleared.status).toBe('todo'); // no interval → inferred one-off todo
   });
 
   it('rejects an invalid due_date', () => {
@@ -122,7 +122,7 @@ describe('task CRUD', () => {
     expect(task.time_warning_days).toBe(0);
     expect(task.runtime_warning_hours).toBe(25);
     expect(task.due_date_status).toBe('ok');
-    expect(task.status).toBe('ok');
+    expect(task.status).toBe('todo'); // inferred todo: 'ok' reads as 'todo'
 
     // null clears the override, falling back to the 7-day default → due_soon
     const reset = service.updateTask(task.slug, { time_warning_days: null });
@@ -183,10 +183,84 @@ describe('task CRUD', () => {
     ).toThrow(ApiError);
   });
 
-  it('allows informational-only tasks with no intervals', () => {
+  it('infers a todo when created without intervals or is_recurring', () => {
     const { service } = makeService();
     const t = service.createTask({ name: 'Registration paperwork' });
-    expect(t.status).toBe('info');
+    expect(t.is_recurring).toBe(false);
+    expect(t.status).toBe('todo');
+  });
+
+  it('enforces the recurring/todo invariants', () => {
+    const { service } = makeService();
+    // recurring without any interval
+    expect(() =>
+      service.createTask({ name: 'Bad', is_recurring: true }),
+    ).toThrowError(
+      expect.objectContaining({ status: 400, code: 'invalid_recurring' }),
+    );
+    // todo with a schedule
+    expect(() =>
+      service.createTask({
+        name: 'Bad',
+        is_recurring: false,
+        time_interval: 6,
+        time_interval_unit: 'months',
+      }),
+    ).toThrowError(
+      expect.objectContaining({ status: 400, code: 'invalid_recurring' }),
+    );
+    expect(() =>
+      service.createTask({
+        name: 'Bad',
+        is_recurring: false,
+        runtime_path: 'propulsion.port.runTime',
+      }),
+    ).toThrow(ApiError);
+    // non-boolean flag
+    expect(() =>
+      service.createTask({ name: 'Bad', is_recurring: 'yes' as never }),
+    ).toThrow(ApiError);
+  });
+
+  it('toggling a recurring task to todo clears its schedule', () => {
+    const { service } = makeService();
+    service.createTask({
+      name: 'Engine oil',
+      runtime_interval: 200,
+      runtime_path: 'propulsion.port.runTime',
+      time_interval: 12,
+      time_interval_unit: 'months',
+    });
+    const t = service.updateTask('engine-oil', { is_recurring: false });
+    expect(t.is_recurring).toBe(false);
+    expect(t.runtime_interval).toBeNull();
+    expect(t.time_interval).toBeNull();
+    expect(t.time_interval_unit).toBeNull();
+    expect(t.runtime_path).toBeNull();
+    expect(t.status).toBe('todo');
+
+    // scheduling a todo requires flipping is_recurring in the same request
+    expect(() =>
+      service.updateTask('engine-oil', { runtime_interval: 100 }),
+    ).toThrowError(
+      expect.objectContaining({ status: 400, code: 'invalid_recurring' }),
+    );
+    const back = service.updateTask('engine-oil', {
+      is_recurring: true,
+      time_interval: 6,
+      time_interval_unit: 'months',
+    });
+    expect(back.is_recurring).toBe(true);
+
+    // and a recurring task can't drop its last interval
+    expect(() =>
+      service.updateTask('engine-oil', {
+        time_interval: null,
+        time_interval_unit: null,
+      }),
+    ).toThrowError(
+      expect.objectContaining({ status: 400, code: 'invalid_recurring' }),
+    );
   });
 
   it('updates fields without touching the slug on rename', () => {
@@ -426,9 +500,9 @@ describe('denormalization invariant (§5.6)', () => {
     expect(service.getTask('oil').last_runtime).toBe(99);
   });
 
-  it('informational tasks (no intervals) can be completed and still track last_*', async () => {
+  it('todos (no intervals) can be completed and still track last_*', async () => {
     const { service } = makeService({ 'propulsion.port.runTime': 1500 });
-    service.createTask({ name: 'Check bilge pump' }); // no intervals at all
+    service.createTask({ name: 'Check bilge pump' }); // no intervals → todo
     const entry = await service.addLog(
       'check-bilge-pump',
       { maintenance_date: '2026-07-01T00:00:00Z', runtime_hours: 1234.5 },
@@ -439,7 +513,7 @@ describe('denormalization invariant (§5.6)', () => {
     const t = service.getTask('check-bilge-pump');
     expect(t.last_maintenance).toBe('2026-07-01T00:00:00.000Z');
     expect(t.last_runtime).toBe(1234.5);
-    expect(t.status).toBe('info'); // still no due-date/status without an interval
+    expect(t.status).toBe('archived'); // a completed todo archives itself
     expect(t.scheduled_due_date).toBeNull();
   });
 
@@ -503,7 +577,7 @@ describe('task list query (§8.1)', () => {
       last_maintenance: '2026-07-01T00:00:00Z',
       tags: ['Water', 'Engines'],
     });
-    // informational => info
+    // no intervals => one-off todo
     service.createTask({ name: 'Unknown paperwork' });
   }
 
@@ -514,8 +588,8 @@ describe('task list query (§8.1)', () => {
     expect(page.data.map((t) => t.status)).toEqual([
       'overdue',
       'due_soon',
+      'todo',
       'ok',
-      'info',
     ]);
     expect(page.total).toBe(4);
   });
@@ -535,11 +609,11 @@ describe('task list query (§8.1)', () => {
     const { service } = makeService({ 'propulsion.port.runTime': 150 });
     seed(service);
     expect(
-      service.listTasks({ search: 'info' }).data.map((t) => t.name),
+      service.listTasks({ search: 'todo' }).data.map((t) => t.name),
     ).toEqual(['Unknown paperwork']);
-    // a couple of characters is enough — no name or tag here holds "inf"
+    // a couple of characters is enough — no name or tag here holds "tod"
     expect(
-      service.listTasks({ search: 'inf' }).data.map((t) => t.name),
+      service.listTasks({ search: 'tod' }).data.map((t) => t.name),
     ).toEqual(['Unknown paperwork']);
     // the displayed label and the raw value both work, case-insensitively
     expect(
@@ -659,14 +733,14 @@ describe('archiving', () => {
     service.createTask({ name: 'Old paperwork', is_archived: true });
 
     expect(
-      service.listTasks({ status: ['info'] }).data.map((t) => t.name),
+      service.listTasks({ status: ['todo'] }).data.map((t) => t.name),
     ).toEqual(['Paperwork']);
     expect(
       service.listTasks({ status: ['archived'] }).data.map((t) => t.name),
     ).toEqual(['Old paperwork']);
   });
 
-  it('archived tasks sort at the very end of the default order, after info', () => {
+  it('archived tasks sort at the very end of the default order', () => {
     const { service } = makeService({ 'propulsion.port.runTime': 150 });
     service.createTask({
       name: 'Overdue engine',
@@ -678,9 +752,49 @@ describe('archiving', () => {
     service.createTask({ name: 'Old paperwork', is_archived: true });
     expect(service.listTasks({}).data.map((t) => t.status)).toEqual([
       'overdue',
-      'info',
+      'todo',
       'archived',
     ]);
+  });
+
+  it('completing a todo archives it; unarchive reopens it', async () => {
+    const { service } = makeService();
+    const todo = service.createTask({
+      name: 'Fix bimini zipper',
+      due_date: '2026-07-14',
+    });
+    expect(todo.is_recurring).toBe(false);
+    expect(todo.status).toBe('due_soon');
+
+    await service.addLog(
+      todo.slug,
+      { maintenance_date: '2026-07-10T00:00:00Z' },
+      null,
+    );
+    const done = service.getTask(todo.slug);
+    expect(done.is_archived).toBe(true);
+    expect(done.status).toBe('archived');
+    expect(done.due_date).toBeNull();
+
+    const reopened = service.updateTask(todo.slug, { is_archived: false });
+    expect(reopened.status).toBe('todo');
+  });
+
+  it('completing a recurring task does not archive it', async () => {
+    const { service } = makeService();
+    service.createTask({
+      name: 'Oil',
+      time_interval: 6,
+      time_interval_unit: 'months',
+    });
+    await service.addLog(
+      'oil',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      null,
+    );
+    const t = service.getTask('oil');
+    expect(t.is_archived).toBe(false);
+    expect(t.status).toBe('ok');
   });
 });
 
