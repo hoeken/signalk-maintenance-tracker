@@ -20,6 +20,18 @@ do once: one-off **todo** items now live alongside recurring tasks.
   with no completion ever logged, or a runtime path with no reading seen).
   Sort order is `overdue → due_soon → todo → ok → pending → archived`.
 
+## Smaller changes and fixes
+
+- Modals grow to 800px wide on displays 900px and up, so long forms like the
+  task editor stop feeling cramped; narrow displays keep the 400px layout.
+- Form errors now scroll into view when they appear. On a long form the error
+  banner could sit above the fold, making a failed save look like a dead
+  button. All five modals share the new error component, which also announces
+  itself to screen readers.
+- Paired form fields (interval, warning window, seed values) stack into a
+  single column on displays 640px and narrower instead of squeezing
+  side by side.
+
 ## Migration notes
 
 - Migration 7 backfills the flag: tasks with a runtime or time interval stay
