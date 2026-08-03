@@ -11,6 +11,7 @@
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
+import { FormError } from './FormError.js';
 import { MarkdownView } from './MarkdownView.js';
 import { TagInput } from './TagInput.js';
 import { ConsumablesPicker } from './ConsumablesPicker.js';
@@ -242,7 +243,7 @@ export function TaskFormModal(props) {
       footer=${footer}
     >
       <form id="task-form" onSubmit=${onSubmit}>
-        ${error ? html`<div class="form-error">${error}</div>` : null}
+        <${FormError} message=${error} />
 
         <div class="field">
           <label class="field-label" for="task-name">Name</label>

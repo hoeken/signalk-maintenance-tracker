@@ -1,6 +1,7 @@
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
+import { FormError } from './FormError.js';
 
 /**
  * Simple confirmation modal (§7.5, delete flows).
@@ -48,7 +49,7 @@ export function ConfirmModal(props) {
       onClose=${props.onClose}
       footer=${footer}
     >
-      ${error ? html`<div class="form-error">${error}</div>` : null}
+      <${FormError} message=${error} />
       <p style="margin:0">${props.message}</p>
     <//>
   `;

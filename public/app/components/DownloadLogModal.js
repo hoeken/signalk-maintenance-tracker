@@ -7,6 +7,7 @@
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
+import { FormError } from './FormError.js';
 import {
   EXPORT_FORMATS,
   buildLogExport,
@@ -71,7 +72,7 @@ export function DownloadLogModal(props) {
       narrow=${true}
     >
       <form id="download-log-form" onSubmit=${onSubmit}>
-        ${error ? html`<div class="form-error">${error}</div>` : null}
+        <${FormError} message=${error} />
         <div class="field">
           <span class="field-label">Format</span>
           <div class="radio-group">

@@ -392,6 +392,8 @@ pre {
   padding: 8px 12px;
   margin-bottom: 12px;
   font-size: 15px;
+  /* breathing room when FormError scrolls itself into view */
+  scroll-margin: 24px;
 }
 
 .search-box {
@@ -738,6 +740,12 @@ pre {
   box-shadow: var(--shadow);
   width: 100%;
   max-width: 560px;
+}
+/* give the big edit forms room on larger displays */
+@media (min-width: 900px) {
+  .modal {
+    max-width: 800px;
+  }
 }
 .modal.narrow {
   max-width: 400px;

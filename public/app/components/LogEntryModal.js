@@ -8,6 +8,7 @@
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
+import { FormError } from './FormError.js';
 import { PlacementAllocator } from './PlacementAllocator.js';
 import { addLog, addStandaloneLog, updateLog } from '../api/hooks.js';
 import { useStowageItems } from '../api/stowage.js';
@@ -189,7 +190,7 @@ export function LogEntryModal(props) {
   return html`
     <${Modal} title=${modalTitle} onClose=${props.onClose} footer=${footer}>
       <form id="log-form" onSubmit=${onSubmit}>
-        ${error ? html`<div class="form-error">${error}</div>` : null}
+        <${FormError} message=${error} />
         ${
           isStandalone && !isEdit
             ? html`<p class="field-hint" style="margin:0 0 12px">

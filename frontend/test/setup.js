@@ -1,5 +1,8 @@
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/preact';
+
+// jsdom has no layout, so scrollIntoView (used by FormError) is missing.
+Element.prototype.scrollIntoView = () => {};
 import { resetResources } from '../../public/app/api/resource.js';
 import { authState, loginModalOpen } from '../../public/app/auth/auth.js';
 import { toasts } from '../../public/app/lib/toasts.js';
