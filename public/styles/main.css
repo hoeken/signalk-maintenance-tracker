@@ -371,6 +371,16 @@ pre {
   grid-template-columns: 1fr 1fr;
   grid-gap: 12px;
 }
+/* stack paired fields on small displays; composite controls nested inside a
+   field (e.g. time interval + unit) keep their side-by-side layout */
+@media (max-width: 640px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+  .field .field-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 
 .radio-group {
   display: flex;
