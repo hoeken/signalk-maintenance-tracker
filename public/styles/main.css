@@ -9,6 +9,10 @@ html,
 body {
   margin: 0;
   padding: 0;
+  /* iOS WebKit inflates some text blocks in landscape ("text autosizing"),
+     giving rendered notes mismatched font sizes. Keep sizes as authored. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
