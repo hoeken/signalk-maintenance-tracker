@@ -1,3 +1,16 @@
+# v1.5.1
+
+Phone-sized polish for the task list and modals.
+
+- The status column no longer crowds out task names on narrow displays: badges
+  stack below 640px, and the name column keeps a minimum width instead of the
+  status column claiming a fixed 220px.
+- Notes keep their font size when an iPhone rotates to landscape — iOS text
+  autosizing was inflating them.
+- Task rows drop their edit and delete buttons; both live on the task detail
+  page, so tapping a row goes there instead of hitting a stray button.
+- The mark-complete modal loses some redundant explanatory text.
+
 # v1.5.0
 
 The tracker learns the difference between maintenance you repeat and jobs you
