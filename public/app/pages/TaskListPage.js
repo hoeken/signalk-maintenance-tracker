@@ -4,7 +4,7 @@
  */
 import { html } from '../lib/html.js';
 import { useState, useEffect } from '../../vendor/preact-hooks.js';
-import { useTasks, useTags, deleteTask } from '../api/hooks.js';
+import { useTasks, useTags } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import { useListParams } from '../lib/useListParams.js';
 import {
@@ -13,14 +13,12 @@ import {
   formatRemainingTime,
   statusLabel,
 } from '../lib/format.js';
-import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { StockBadge } from '../components/StockBadge.js';
 import { TaskFormModal } from '../components/TaskFormModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
-import { ConfirmModal } from '../components/ConfirmModal.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 
@@ -62,17 +60,16 @@ export function TaskListPage() {
   });
   const tagsRes = useTags();
 
-  /** @type {[TaskDTO|null|undefined, any]} editor: undefined=closed, null=create, TaskDTO=edit */
+  /** @type {[null|undefined, any]} editor: undefined=closed, null=create (edit lives on task detail) */
   const [editorTask, setEditorTask] = useState(
-    /** @type {TaskDTO|null|undefined} */ (undefined),
+    /** @type {null|undefined} */ (undefined),
   );
-  // What the editor's "Recurring task" toggle defaults to on create: true
-  // from "New task", false from "New todo". Ignored when editing.
+  // What the editor's "Recurring task" toggle defaults to: true from
+  // "New task", false from "New todo".
   const [editorRecurring, setEditorRecurring] = useState(true);
   const [completing, setCompleting] = useState(
     /** @type {TaskDTO|null} */ (null),
   );
-  const [deleting, setDeleting] = useState(/** @type {TaskDTO|null} */ (null));
 
   // Tags and status are single-select, so search, tag and status simply AND
   // together. A task has exactly one status, and tags are used as categories,
@@ -159,24 +156,6 @@ export function TaskListPage() {
                   onClick=${() => setCompleting(t)}
                 >
                   <i class="bi bi-check2-circle" />
-                </button>
-                <button
-                  type="button"
-                  class="btn-icon primary"
-                  aria-label=${'Edit ' + t.name}
-                  title="Edit"
-                  onClick=${() => setEditorTask(t)}
-                >
-                  <i class="bi bi-pencil" />
-                </button>
-                <button
-                  type="button"
-                  class="btn-icon danger"
-                  aria-label=${'Delete ' + t.name}
-                  title="Delete"
-                  onClick=${() => setDeleting(t)}
-                >
-                  <i class="bi bi-trash" />
                 </button>
               `
             : null
@@ -307,20 +286,6 @@ export function TaskListPage() {
           : null
       }
       ${completing ? html`<${LogEntryModal} task=${completing} onClose=${() => setCompleting(null)} />` : null}
-      ${
-        deleting
-          ? html`<${ConfirmModal}
-              title="Delete task"
-              message=${'Delete "' + deleting.name + '" and its entire maintenance log? This cannot be undone.'}
-              onConfirm=${async () => {
-                await deleteTask(deleting.slug);
-                toast('Task deleted.', 'success');
-                setDeleting(null);
-              }}
-              onClose=${() => setDeleting(null)}
-            />`
-          : null
-      }
     </div>
   `;
 }

@@ -16,8 +16,6 @@ describe('auth gating (§7.7)', () => {
     );
     expect(screen.queryByText('New Task')).toBeNull();
     expect(screen.queryByText('New Todo')).toBeNull();
-    expect(screen.queryByLabelText('Edit Engine oil change')).toBeNull();
-    expect(screen.queryByLabelText('Delete Engine oil change')).toBeNull();
     expect(screen.queryByLabelText('Complete Engine oil change')).toBeNull();
     // read affordance stays: task name links to the detail page
     expect(
@@ -34,9 +32,10 @@ describe('auth gating (§7.7)', () => {
     );
     expect(screen.getByText('New Task')).toBeTruthy();
     expect(screen.getByText('New Todo')).toBeTruthy();
-    expect(screen.getByLabelText('Edit Engine oil change')).toBeTruthy();
-    expect(screen.getByLabelText('Delete Engine oil change')).toBeTruthy();
     expect(screen.getByLabelText('Complete Engine oil change')).toBeTruthy();
+    // edit/delete live on the task detail page, not the list
+    expect(screen.queryByLabelText('Edit Engine oil change')).toBeNull();
+    expect(screen.queryByLabelText('Delete Engine oil change')).toBeNull();
   });
 
   it('AuthControl shows Log in when anonymous, Log out when authenticated', () => {
