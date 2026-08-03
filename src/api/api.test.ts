@@ -307,6 +307,32 @@ describe('log endpoints', () => {
       400,
     );
   });
+
+  it('POST /logs creates a standalone (non-task) entry with the principal as logged_by', async () => {
+    const res = await request(app)
+      .post(`${base}/logs`)
+      .send({ title: 'Haul out', maintenance_date: '2026-07-08T14:30:00Z' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      title: 'Haul out',
+      task_id: null,
+      logged_by: 'admin',
+    });
+
+    const master = await request(app).get(`${base}/logs`);
+    expect(master.body.total).toBe(1);
+    expect(master.body.data[0]).toMatchObject({
+      title: 'Haul out',
+      task_slug: null,
+      task_name: null,
+    });
+
+    const missingTitle = await request(app)
+      .post(`${base}/logs`)
+      .send({ maintenance_date: '2026-07-08T14:30:00Z' });
+    expect(missingTitle.status).toBe(400);
+    expect(missingTitle.body.error.code).toBe('invalid_title');
+  });
 });
 
 describe('tags & health endpoints', () => {

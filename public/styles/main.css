@@ -422,10 +422,14 @@ pre {
 .toolbar .search-box {
   width: 260px;
 }
-/* page action button gets its own column at the far end */
+/* page action buttons get their own column at the far end; only the first
+   takes the auto margin so several actions sit together against the edge */
 .toolbar-action {
   flex: 0 0 auto;
   margin-left: auto;
+}
+.toolbar-action + .toolbar-action {
+  margin-left: 0;
 }
 
 /* ---- tag chips ---- */

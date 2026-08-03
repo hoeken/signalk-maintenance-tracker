@@ -81,7 +81,7 @@ describe('TaskListPage (§7.4)', () => {
       Array.from(document.querySelectorAll('.chips-label')).map(
         (el) => el.textContent,
       ),
-    ).toEqual(['Status:']);
+    ).toEqual(['STATUS:']);
   });
 
   it('tag chips single-select: a second tag replaces the first, and the selected one clears', async () => {
@@ -126,7 +126,7 @@ describe('TaskListPage (§7.4)', () => {
     const rows = Array.from(document.querySelectorAll('.chip-filters .chips'));
     expect(
       rows.map((r) => r.querySelector('.chips-label').textContent),
-    ).toEqual(['Tags:', 'Status:']);
+    ).toEqual(['TAGS:', 'STATUS:']);
     expect(
       rows.map((r) =>
         Array.from(r.querySelectorAll('.chip')).map((el) =>

@@ -92,6 +92,101 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     expect(JSON.parse(call[1].body).notes).toBe('corrected');
   });
 
+  it('without a task or entry it creates a standalone entry via POST /logs', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) => m === 'POST' && u.indexOf('/api/logs') !== -1,
+        status: 201,
+        body: { id: 12, task_id: null, title: 'Haul out' },
+      },
+    ]);
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} onClose=${onClose} />`);
+    expect(screen.getByText('New log entry')).toBeTruthy();
+    // no task: nothing with a runtime meter, so no runtime field at all
+    expect(screen.queryByLabelText('Runtime hours')).toBeNull();
+    // steers people toward Mark complete on a task for better records
+    expect(screen.getByText(/quick log entries not tied/)).toBeTruthy();
+    fireEvent.input(screen.getByLabelText('Title'), {
+      target: { value: 'Haul out' },
+    });
+    fireEvent.input(screen.getByLabelText('Notes (markdown)'), {
+      target: { value: 'Bottom paint.' },
+    });
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    const body = JSON.parse(call[1].body);
+    expect(body.title).toBe('Haul out');
+    expect(body.notes).toBe('Bottom paint.');
+    expect(body.maintenance_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('blocks a standalone entry without a title', async () => {
+    const fn = mockFetch([]);
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} onClose=${onClose} />`);
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() =>
+      expect(screen.getByText('Title is required.')).toBeTruthy(),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(fn.mock.calls.find((c) => c[1] && c[1].method === 'POST')).toBe(
+      undefined,
+    );
+  });
+
+  it('editing a standalone entry shows its title and PUTs the change', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) => m === 'PUT' && u.indexOf('/api/logs/12') !== -1,
+        body: { id: 12, task_id: null, title: 'Haul out 2026' },
+      },
+    ]);
+    const onClose = vi.fn();
+    const entry = {
+      id: 12,
+      task_id: null,
+      title: 'Haul out',
+      maintenance_date: '2026-07-01T10:00:00.000Z',
+      runtime_hours: null,
+      notes: null,
+      logged_by: 'admin',
+      created_at: '2026-07-01T10:00:00.000Z',
+      task_slug: null,
+      task_name: null,
+    };
+    render(html`<${LogEntryModal} entry=${entry} onClose=${onClose} />`);
+    expect(screen.getByLabelText('Title').value).toBe('Haul out');
+    // the create-time guidance note has no business on an edit
+    expect(screen.queryByText(/quick log entries not tied/)).toBeNull();
+    fireEvent.input(screen.getByLabelText('Title'), {
+      target: { value: 'Haul out 2026' },
+    });
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'PUT');
+    expect(JSON.parse(call[1].body).title).toBe('Haul out 2026');
+  });
+
+  it('does not show a title field when editing a task-linked entry', () => {
+    mockFetch([]);
+    const entry = {
+      id: 7,
+      task_id: 1,
+      title: null,
+      maintenance_date: '2026-07-01T10:00:00.000Z',
+      runtime_hours: 1300,
+      notes: null,
+      logged_by: 'admin',
+      created_at: '2026-07-01T10:00:00.000Z',
+      task_slug: 'engine-oil-change',
+      task_name: 'Engine oil change',
+    };
+    render(html`<${LogEntryModal} entry=${entry} onClose=${() => {}} />`);
+    expect(screen.queryByLabelText('Title')).toBeNull();
+  });
+
   it('does not show the stock checkbox for a task with no linked consumables', () => {
     mockFetch([]);
     render(html`<${LogEntryModal} task=${makeTask()} onClose=${() => {}} />`);

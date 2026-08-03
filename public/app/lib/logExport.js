@@ -14,10 +14,11 @@ export const EXPORT_FORMATS = [
 
 const HEADERS = ['Task', 'Date', 'Runtime Hours', 'Logged By', 'Notes'];
 
-/** @param {LogDTO} e @returns {(string|number|null)[]} */
+/** @param {LogDTO} e @returns {(string|number|null|undefined)[]} */
 function row(e) {
   return [
-    e.task_name,
+    // standalone (non-task) entries carry a title in place of a task name
+    e.task_name ?? e.title,
     e.maintenance_date,
     e.runtime_hours,
     e.logged_by,
@@ -61,7 +62,7 @@ export function buildMarkdown(entries) {
 /** @param {LogDTO[]} entries */
 export function buildJson(entries) {
   const records = entries.map((e) => ({
-    task: e.task_name,
+    task: e.task_name ?? e.title,
     task_slug: e.task_slug,
     maintenance_date: e.maintenance_date,
     runtime_hours: e.runtime_hours,

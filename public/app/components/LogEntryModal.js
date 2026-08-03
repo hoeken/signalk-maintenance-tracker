@@ -1,14 +1,15 @@
 /**
- * Log-entry modal (§7.5): "Mark complete" (creates a log entry for a task)
- * and editing an existing entry share this form. On create the runtime hours
- * are prefilled from the task's current_runtime — which comes from the plugin
- * /tasks API, never from SignalK directly (§8.4).
+ * Log-entry modal (§7.5): "Mark complete" (creates a log entry for a task),
+ * "New log entry" (a standalone entry with a title in place of a task), and
+ * editing an existing entry all share this form. On mark-complete the runtime
+ * hours are prefilled from the task's current_runtime — which comes from the
+ * plugin /tasks API, never from SignalK directly (§8.4).
  */
 import { html } from '../lib/html.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
 import { PlacementAllocator } from './PlacementAllocator.js';
-import { addLog, updateLog } from '../api/hooks.js';
+import { addLog, addStandaloneLog, updateLog } from '../api/hooks.js';
 import { useStowageItems } from '../api/stowage.js';
 import { toDateInput } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
@@ -17,13 +18,15 @@ import { toast } from '../lib/toasts.js';
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 
 /**
- * Exactly one of `task` (mark complete) or `entry` (edit) drives the mode.
+ * `task` (mark complete) or `entry` (edit) drives the mode; with neither the
+ * form creates a standalone (non-task) log entry, which carries a title.
  * @param {{ task?: TaskDTO|null, entry?: LogDTO|null, onClose: () => void }} props
  */
 export function LogEntryModal(props) {
   const entry = props.entry || null;
   const task = props.task || null;
   const isEdit = !!entry;
+  const isStandalone = entry ? entry.task_id === null : !task;
 
   const initialRuntime = isEdit
     ? entry && entry.runtime_hours !== null
@@ -35,6 +38,9 @@ export function LogEntryModal(props) {
       ? String(Math.round(task.current_runtime * 10) / 10)
       : '';
 
+  const [title, setTitle] = useState(
+    isEdit && entry && entry.title ? entry.title : '',
+  );
   const [date, setDate] = useState(
     isEdit && entry ? toDateInput(entry.maintenance_date) : toDateInput(),
   );
@@ -73,6 +79,10 @@ export function LogEntryModal(props) {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (isStandalone && !title.trim()) {
+      setError('Title is required.');
+      return;
+    }
     if (!date) {
       setError('Maintenance date is required.');
       return;
@@ -96,6 +106,7 @@ export function LogEntryModal(props) {
       notes: notes.trim() ? notes : null,
       runtime_hours: null,
     };
+    if (isStandalone) input.title = title.trim();
     if (runtime.trim() !== '') {
       const hours = Number(runtime);
       if (!isFinite(hours) || hours < 0) {
@@ -128,6 +139,9 @@ export function LogEntryModal(props) {
             'error',
           );
         }
+      } else {
+        await addStandaloneLog(input);
+        toast('Log entry added.', 'success');
       }
       props.onClose();
     } catch (err) {
@@ -146,18 +160,37 @@ export function LogEntryModal(props) {
       class="btn btn-primary"
       disabled=${busy}
     >
-      ${busy ? 'Saving…' : isEdit ? 'Save changes' : 'Mark complete'}
+      ${
+        busy
+          ? 'Saving…'
+          : isEdit
+            ? 'Save changes'
+            : task
+              ? 'Mark complete'
+              : 'Add entry'
+      }
     </button>
   `;
 
-  const title = isEdit
+  const modalTitle = isEdit
     ? 'Edit log entry'
-    : 'Mark complete' + (task ? ' — ' + task.name : '');
+    : task
+      ? 'Mark complete — ' + task.name
+      : 'New log entry';
 
   return html`
-    <${Modal} title=${title} onClose=${props.onClose} footer=${footer}>
+    <${Modal} title=${modalTitle} onClose=${props.onClose} footer=${footer}>
       <form id="log-form" onSubmit=${onSubmit}>
         ${error ? html`<div class="form-error">${error}</div>` : null}
+        ${
+          isStandalone && !isEdit
+            ? html`<p class="field-hint" style="margin:0 0 12px">
+                For quick log entries not tied to any task. For better
+                record-keeping, use${' '}
+                <strong>Mark complete</strong> on an existing task.
+              </p>`
+            : null
+        }
 
         <div class="field">
           <label class="field-label" for="log-date">Maintenance date</label>
@@ -170,25 +203,48 @@ export function LogEntryModal(props) {
           />
         </div>
 
-        <div class="field">
-          <label class="field-label" for="log-runtime">Runtime hours</label>
-          <input
-            id="log-runtime"
-            class="input"
-            type="number"
-            min="0"
-            step="any"
-            value=${runtime}
-            onInput=${(/** @type {any} */ e) => setRuntime(e.currentTarget.value)}
-          />
-          ${
-            !isEdit
-              ? html`<div class="field-hint">
-                  Prefilled with the current runtime reading when available.
-                </div>`
-              : null
-          }
-        </div>
+        ${
+          isStandalone
+            ? html`<div class="field">
+                <label class="field-label" for="log-title">Title</label>
+                <input
+                  id="log-title"
+                  class="input"
+                  type="text"
+                  value=${title}
+                  onInput=${(/** @type {any} */ e) => setTitle(e.currentTarget.value)}
+                />
+              </div>`
+            : null
+        }
+
+        ${
+          // Standalone entries aren't tied to anything with a runtime meter.
+          !isStandalone
+            ? html`<div class="field">
+                <label class="field-label" for="log-runtime">
+                  Runtime hours
+                </label>
+                <input
+                  id="log-runtime"
+                  class="input"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value=${runtime}
+                  onInput=${(/** @type {any} */ e) => setRuntime(e.currentTarget.value)}
+                />
+                ${
+                  !isEdit
+                    ? html`<div class="field-hint">
+                        Prefilled with the current runtime reading when
+                        available.
+                      </div>`
+                    : null
+                }
+              </div>`
+            : null
+        }
 
         <div class="field">
           <label class="field-label" for="log-notes">Notes (markdown)</label>

@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(5);
+    expect(schemaVersion(db)).toBe(6);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -723,6 +723,128 @@ describe('master log (§8.2)', () => {
 
     const paged = service.listMasterLog({ page: 2, pageSize: 2 });
     expect(paged.data).toHaveLength(1);
+  });
+});
+
+describe('standalone (non-task) log entries', () => {
+  it('creates an entry with a trimmed title and lists it in the master log', () => {
+    const { service } = makeService();
+    const entry = service.addStandaloneLog(
+      {
+        title: '  Haul out  ',
+        maintenance_date: '2026-07-01T00:00:00Z',
+        runtime_hours: 1500,
+        notes: 'Bottom paint.',
+      },
+      'admin',
+    );
+    expect(entry.task_id).toBeNull();
+    expect(entry.title).toBe('Haul out');
+    expect(entry.logged_by).toBe('admin');
+
+    const master = service.listMasterLog({});
+    expect(master.total).toBe(1);
+    expect(master.data[0]).toMatchObject({
+      title: 'Haul out',
+      task_id: null,
+      task_slug: null,
+      task_name: null,
+      runtime_hours: 1500,
+    });
+  });
+
+  it('requires a non-empty title and a valid date', () => {
+    const { service } = makeService();
+    expect(() =>
+      service.addStandaloneLog(
+        { maintenance_date: '2026-07-01T00:00:00Z' },
+        null,
+      ),
+    ).toThrow(ApiError);
+    expect(() =>
+      service.addStandaloneLog(
+        { title: '   ', maintenance_date: '2026-07-01T00:00:00Z' },
+        null,
+      ),
+    ).toThrow(ApiError);
+    expect(() =>
+      service.addStandaloneLog(
+        { title: 'Haul out', maintenance_date: 'not-a-date' },
+        null,
+      ),
+    ).toThrow(ApiError);
+  });
+
+  it('searches and sorts titles alongside task names', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Bravo' });
+    await service.addLog(
+      'bravo',
+      { maintenance_date: '2026-01-01T00:00:00Z' },
+      null,
+    );
+    service.addStandaloneLog(
+      { title: 'Alpha haul out', maintenance_date: '2026-02-01T00:00:00Z' },
+      null,
+    );
+
+    expect(service.listMasterLog({ search: 'haul' }).total).toBe(1);
+
+    const byTask = service.listMasterLog({ sort: 'task', order: 'asc' });
+    expect(byTask.data.map((l) => l.task_name ?? l.title)).toEqual([
+      'Alpha haul out',
+      'Bravo',
+    ]);
+  });
+
+  it('edits the title and deletes without any task to recompute', () => {
+    const { service } = makeService();
+    const entry = service.addStandaloneLog(
+      { title: 'Old name', maintenance_date: '2026-03-01T00:00:00Z' },
+      null,
+    );
+
+    const updated = service.updateLog(entry.id, {
+      title: 'New name',
+      notes: 'now with notes',
+    });
+    expect(updated.title).toBe('New name');
+    expect(updated.notes).toBe('now with notes');
+    expect(updated.task_id).toBeNull();
+
+    expect(() => service.updateLog(entry.id, { title: '' })).toThrow(ApiError);
+
+    service.deleteLog(entry.id);
+    expect(service.listMasterLog({}).total).toBe(0);
+  });
+
+  it('ignores a title sent for a task-linked entry', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Oil' });
+    const entry = await service.addLog(
+      'oil',
+      { maintenance_date: '2026-01-01T00:00:00Z' },
+      null,
+    );
+    const updated = service.updateLog(entry.id, { title: 'nope' });
+    expect(updated.title).toBeNull();
+  });
+
+  it('does not touch task denormalization (last_maintenance stays put)', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Oil' });
+    await service.addLog(
+      'oil',
+      { maintenance_date: '2026-01-01T00:00:00Z' },
+      null,
+    );
+    service.addStandaloneLog(
+      { title: 'Haul out', maintenance_date: '2026-06-01T00:00:00Z' },
+      null,
+    );
+    expect(service.getTask('oil').last_maintenance).toBe(
+      '2026-01-01T00:00:00.000Z',
+    );
   });
 });
 

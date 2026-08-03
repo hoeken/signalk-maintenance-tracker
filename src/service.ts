@@ -467,6 +467,7 @@ export class MaintenanceService {
       entry = this.logs.insert(
         {
           task_id: task.id,
+          title: null,
           maintenance_date: date,
           runtime_hours: body.runtime_hours ?? null,
           notes: body.notes ?? null,
@@ -563,6 +564,30 @@ export class MaintenanceService {
     return warnings;
   }
 
+  /**
+   * Standalone (non-task) log entry: work worth recording that isn't tied to
+   * any maintenance task. It carries a title in place of a task, so there is
+   * no denormalization to recompute, no due date to clear, and no stock to
+   * consume.
+   */
+  addStandaloneLog(body: LogInput, loggedBy: string | null): LogRow {
+    const title = this.validateTitle(body.title);
+    const date = this.validateDate(body.maintenance_date, 'maintenance_date');
+    const entry = this.logs.insert(
+      {
+        task_id: null,
+        title,
+        maintenance_date: date,
+        runtime_hours: body.runtime_hours ?? null,
+        notes: body.notes ?? null,
+        logged_by: loggedBy,
+      },
+      this.now().toISOString(),
+    );
+    this.emit();
+    return this.redactLog(entry);
+  }
+
   updateLog(id: number, body: LogInput): LogRow {
     const existing = this.logs.get(id);
     if (!existing)
@@ -571,10 +596,17 @@ export class MaintenanceService {
       body.maintenance_date !== undefined
         ? this.validateDate(body.maintenance_date, 'maintenance_date')
         : existing.maintenance_date;
+    // Only standalone entries own a title — on a task-linked entry the field
+    // stays null (CHECK constraint) and any title in the body is ignored.
+    const title =
+      existing.task_id === null && body.title !== undefined
+        ? this.validateTitle(body.title)
+        : existing.title;
 
     this.db.exec('BEGIN');
     try {
       this.logs.update(id, {
+        title,
         maintenance_date: date,
         runtime_hours:
           body.runtime_hours !== undefined
@@ -582,7 +614,7 @@ export class MaintenanceService {
             : existing.runtime_hours,
         notes: body.notes !== undefined ? body.notes : existing.notes,
       });
-      this.recomputeDenorm(existing.task_id);
+      if (existing.task_id !== null) this.recomputeDenorm(existing.task_id);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -599,7 +631,7 @@ export class MaintenanceService {
     this.db.exec('BEGIN');
     try {
       this.logs.delete(id);
-      this.recomputeDenorm(existing.task_id);
+      if (existing.task_id !== null) this.recomputeDenorm(existing.task_id);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
@@ -777,6 +809,18 @@ export class MaintenanceService {
   private normalizeDueDate(value: string | null | undefined): string | null {
     if (value == null || value.trim() === '') return null;
     return this.validateDate(value, 'due_date');
+  }
+
+  /** A standalone log entry's title is its whole identity — required. */
+  private validateTitle(value: string | null | undefined): string {
+    const title = typeof value === 'string' ? value.trim() : '';
+    if (!title)
+      throw new ApiError(
+        400,
+        'invalid_title',
+        'title is required for a non-task log entry',
+      );
+    return title;
   }
 
   private validateDate(value: string | undefined, field: string): string {

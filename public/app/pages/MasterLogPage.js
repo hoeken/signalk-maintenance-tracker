@@ -1,11 +1,14 @@
 /**
- * Master log (§7.4): one row per log entry across all tasks. Server-side
- * search/sort/pagination, truncated-but-expandable notes.
+ * Master log (§7.4): one row per log entry across all tasks, plus standalone
+ * (non-task) entries listed under their own title. Server-side
+ * search/sort/pagination, truncated-but-expandable notes, and — when logged
+ * in — creating standalone entries and editing/deleting any entry.
  */
 import { html } from '../lib/html.js';
 import { useState, useEffect } from '../../vendor/preact-hooks.js';
-import { useLogs } from '../api/hooks.js';
+import { useLogs, deleteLog } from '../api/hooks.js';
 import { apiFetch, buildQuery } from '../api/client.js';
+import { useAuth } from '../auth/auth.js';
 import { useListParams } from '../lib/useListParams.js';
 import {
   formatDate,
@@ -13,10 +16,13 @@ import {
   formatUser,
   truncate,
 } from '../lib/format.js';
+import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { MarkdownView } from '../components/MarkdownView.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
+import { LogEntryModal } from '../components/LogEntryModal.js';
+import { ConfirmModal } from '../components/ConfirmModal.js';
 
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 
@@ -41,6 +47,7 @@ async function fetchAllLogs() {
 }
 
 export function MasterLogPage() {
+  const auth = useAuth();
   const { params, update } = useListParams();
 
   const page = parseInt(params.page || '1', 10) || 1;
@@ -70,6 +77,13 @@ export function MasterLogPage() {
   });
 
   const [showDownload, setShowDownload] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(
+    /** @type {LogDTO|null} */ (null),
+  );
+  const [deletingEntry, setDeletingEntry] = useState(
+    /** @type {LogDTO|null} */ (null),
+  );
 
   const [expanded, setExpanded] = useState(
     /** @type {Record<string, boolean>} */ ({}),
@@ -96,10 +110,13 @@ export function MasterLogPage() {
       key: 'task',
       label: 'Task',
       sortable: true,
+      // Standalone entries have no task to link to — their title stands in.
       render: (/** @type {LogDTO} */ e) =>
-        html`<a href=${'#/tasks/' + encodeURIComponent(e.task_slug)}
-          >${e.task_name}</a
-        >`,
+        e.task_slug !== null
+          ? html`<a href=${'#/tasks/' + encodeURIComponent(e.task_slug)}
+              >${e.task_name}</a
+            >`
+          : e.title,
     },
     {
       key: 'maintenance_date',
@@ -124,6 +141,33 @@ export function MasterLogPage() {
           : html`<span class="muted">—</span>`,
     },
   ];
+  if (auth.isLoggedIn) {
+    columns.push({
+      key: 'actions',
+      label: '',
+      className: 'actions',
+      render: (/** @type {LogDTO} */ e) => html`
+        <button
+          type="button"
+          class="btn-icon primary"
+          aria-label="Edit log entry"
+          title="Edit"
+          onClick=${() => setEditingEntry(e)}
+        >
+          <i class="bi bi-pencil" />
+        </button>
+        <button
+          type="button"
+          class="btn-icon danger"
+          aria-label="Delete log entry"
+          title="Delete"
+          onClick=${() => setDeletingEntry(e)}
+        >
+          <i class="bi bi-trash" />
+        </button>
+      `,
+    });
+  }
 
   /** Notes render on their own full-width row under the entry. @param {LogDTO} e */
   const renderNotes = (e) => {
@@ -175,6 +219,19 @@ export function MasterLogPage() {
             onInput=${(/** @type {any} */ e) => setSearchText(e.currentTarget.value)}
           />
         </div>
+        ${
+          auth.isLoggedIn
+            ? html`
+                <button
+                  type="button"
+                  class="btn btn-success toolbar-action"
+                  onClick=${() => setCreating(true)}
+                >
+                  <i class="bi bi-plus-lg" />New Entry
+                </button>
+              `
+            : null
+        }
         <button
           type="button"
           class="btn btn-primary toolbar-action"
@@ -191,6 +248,29 @@ export function MasterLogPage() {
               filenameBase="signalk-maintenance-log"
               fetchEntries=${fetchAllLogs}
               onClose=${() => setShowDownload(false)}
+            />`
+          : null
+      }
+      ${creating ? html`<${LogEntryModal} onClose=${() => setCreating(false)} />` : null}
+      ${editingEntry ? html`<${LogEntryModal} entry=${editingEntry} onClose=${() => setEditingEntry(null)} />` : null}
+      ${
+        deletingEntry
+          ? html`<${ConfirmModal}
+              title="Delete log entry"
+              message=${
+                deletingEntry.task_id !== null
+                  ? "Delete this log entry? The task's last-maintenance data will be recomputed."
+                  : 'Delete this log entry? This cannot be undone.'
+              }
+              onConfirm=${async () => {
+                await deleteLog(
+                  deletingEntry.id,
+                  deletingEntry.task_slug || undefined,
+                );
+                toast('Log entry deleted.', 'success');
+                setDeletingEntry(null);
+              }}
+              onClose=${() => setDeletingEntry(null)}
             />`
           : null
       }

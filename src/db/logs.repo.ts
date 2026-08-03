@@ -2,7 +2,9 @@ import type { DatabaseSync } from 'node:sqlite';
 import { LogDTO, LogRow } from '../types';
 
 export interface NewLog {
-  task_id: number;
+  /** null for a standalone (non-task) entry, which must carry a title. */
+  task_id: number | null;
+  title: string | null;
   maintenance_date: string;
   runtime_hours: number | null;
   notes: string | null;
@@ -17,7 +19,7 @@ export interface MasterLogQuery {
   pageSize: number;
 }
 
-const LOG_COLUMNS = `l.id, l.task_id, l.maintenance_date, l.runtime_hours, l.notes,
+const LOG_COLUMNS = `l.id, l.task_id, l.title, l.maintenance_date, l.runtime_hours, l.notes,
   l.logged_by, l.created_at`;
 
 export class LogsRepo {
@@ -26,11 +28,12 @@ export class LogsRepo {
   insert(entry: NewLog, nowIso: string): LogRow {
     const result = this.db
       .prepare(
-        `INSERT INTO log_entries (task_id, maintenance_date, runtime_hours, notes, logged_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO log_entries (task_id, title, maintenance_date, runtime_hours, notes, logged_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         entry.task_id,
+        entry.title,
         entry.maintenance_date,
         entry.runtime_hours,
         entry.notes,
@@ -49,6 +52,7 @@ export class LogsRepo {
   update(
     id: number,
     fields: {
+      title: string | null;
       maintenance_date: string;
       runtime_hours: number | null;
       notes: string | null;
@@ -56,9 +60,15 @@ export class LogsRepo {
   ): void {
     this.db
       .prepare(
-        `UPDATE log_entries SET maintenance_date = ?, runtime_hours = ?, notes = ? WHERE id = ?`,
+        `UPDATE log_entries SET title = ?, maintenance_date = ?, runtime_hours = ?, notes = ? WHERE id = ?`,
       )
-      .run(fields.maintenance_date, fields.runtime_hours, fields.notes, id);
+      .run(
+        fields.title,
+        fields.maintenance_date,
+        fields.runtime_hours,
+        fields.notes,
+        id,
+      );
   }
 
   delete(id: number): void {
@@ -87,7 +97,8 @@ export class LogsRepo {
   taskIdsWithNotesLike(pattern: string): Set<number> {
     const rows = this.db
       .prepare(
-        `SELECT DISTINCT task_id AS id FROM log_entries WHERE notes LIKE ?`,
+        `SELECT DISTINCT task_id AS id FROM log_entries
+         WHERE task_id IS NOT NULL AND notes LIKE ?`,
       )
       .all(pattern) as unknown as { id: number }[];
     return new Set(rows.map((r) => r.id));
@@ -108,18 +119,22 @@ export class LogsRepo {
   }
 
   listMaster(q: MasterLogQuery): { data: LogDTO[]; total: number } {
+    // LEFT JOIN: standalone entries have no task row — they list under their
+    // own title, which stands in for the task name in search and sort too.
     const where: string[] = [];
     const params: (string | number)[] = [];
     if (q.search) {
       const like = `%${q.search}%`;
-      where.push(`(l.notes LIKE ? OR t.name LIKE ? OR l.logged_by LIKE ?)`);
-      params.push(like, like, like);
+      where.push(
+        `(l.notes LIKE ? OR t.name LIKE ? OR l.title LIKE ? OR l.logged_by LIKE ?)`,
+      );
+      params.push(like, like, like, like);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const sortCol =
       q.sort === 'task'
-        ? 't.name COLLATE NOCASE'
+        ? 'COALESCE(t.name, l.title) COLLATE NOCASE'
         : q.sort === 'runtime_hours'
           ? 'l.runtime_hours'
           : 'l.maintenance_date';
@@ -127,14 +142,14 @@ export class LogsRepo {
 
     const totalRow = this.db
       .prepare(
-        `SELECT COUNT(*) AS n FROM log_entries l JOIN tasks t ON t.id = l.task_id ${whereSql}`,
+        `SELECT COUNT(*) AS n FROM log_entries l LEFT JOIN tasks t ON t.id = l.task_id ${whereSql}`,
       )
       .get(...params) as { n: number };
 
     const data = this.db
       .prepare(
         `SELECT ${LOG_COLUMNS}, t.slug AS task_slug, t.name AS task_name
-         FROM log_entries l JOIN tasks t ON t.id = l.task_id
+         FROM log_entries l LEFT JOIN tasks t ON t.id = l.task_id
          ${whereSql}
          ORDER BY ${sortCol} ${orderSql}, l.id DESC
          LIMIT ? OFFSET ?`,

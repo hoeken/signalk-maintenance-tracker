@@ -23,7 +23,8 @@
   - when a todo item (eg. non-recurring) is marked completed, it should transition into the 'archived' state
 
   - add support for non-task based log entries
-    - add a 'New Log Entry' page
+    - add a 'New Log Entry' button to master log page
+      - btn-success
     - add title field + show this instead of task name in log
     - keep date + runtime + notes field
     - non-task based entries do not have a task id, only a static name

@@ -12,6 +12,7 @@ const entries = [
   {
     id: 1,
     task_id: 1,
+    title: null,
     maintenance_date: '2026-01-02',
     runtime_hours: 12.5,
     notes: 'Changed oil, filter',
@@ -23,6 +24,7 @@ const entries = [
   {
     id: 2,
     task_id: 1,
+    title: null,
     maintenance_date: '2026-02-03',
     runtime_hours: null,
     notes: 'Line one\nLine | two',
@@ -30,6 +32,19 @@ const entries = [
     created_at: '2026-02-03T00:00:00Z',
     task_slug: 'engine-oil',
     task_name: 'Engine oil',
+  },
+  // standalone (non-task) entry: title stands in for the task name
+  {
+    id: 3,
+    task_id: null,
+    title: 'Haul out',
+    maintenance_date: '2026-03-04',
+    runtime_hours: null,
+    notes: null,
+    logged_by: 'zach',
+    created_at: '2026-03-04T00:00:00Z',
+    task_slug: null,
+    task_name: null,
   },
 ];
 
@@ -43,6 +58,8 @@ describe('log export', () => {
     );
     // null runtime/logged_by render as empty; newline forces quoting.
     expect(lines[2]).toBe('Engine oil,2026-02-03,,,"Line one\nLine | two"');
+    // standalone entry: its title fills the Task column
+    expect(lines[3]).toBe('Haul out,2026-03-04,,zach,');
   });
 
   it('builds a Markdown table, escaping pipes and newlines', () => {
@@ -73,6 +90,14 @@ describe('log export', () => {
         runtime_hours: null,
         logged_by: null,
         notes: 'Line one\nLine | two',
+      },
+      {
+        task: 'Haul out',
+        task_slug: null,
+        maintenance_date: '2026-03-04',
+        runtime_hours: null,
+        logged_by: 'zach',
+        notes: null,
       },
     ]);
   });

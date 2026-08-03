@@ -135,6 +135,16 @@ export function mountApi(
     }),
   );
 
+  router.post(
+    '/api/logs',
+    withServices((s, req, res) => {
+      // standalone (non-task) entry; logged_by from the principal (§9.1)
+      res
+        .status(201)
+        .json(s.service.addStandaloneLog(req.body ?? {}, getRequestUser(req)));
+    }),
+  );
+
   router.get(
     '/api/logs',
     withServices((s, req, res) => {

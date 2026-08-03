@@ -137,6 +137,18 @@ export async function addLog(slug, input) {
 }
 
 /**
+ * Standalone (non-task) log entry (§7.4): work worth recording that isn't
+ * tied to any maintenance task — a title stands in for the task name.
+ * @param {LogInput} input
+ * @returns {Promise<LogDTO>}
+ */
+export async function addStandaloneLog(input) {
+  const entry = await apiFetch('/logs', { method: 'POST', body: input });
+  invalidate('logs');
+  return entry;
+}
+
+/**
  * @param {number} id
  * @param {LogInput} input
  * @returns {Promise<LogDTO>}

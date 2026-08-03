@@ -42,7 +42,11 @@ export interface TaskRow {
 
 export interface LogRow {
   id: number;
-  task_id: number;
+  /** null on standalone (non-task) entries, which carry `title` instead —
+   * exactly one of the two is set (CHECK constraint, migration 6). */
+  task_id: number | null;
+  /** Display name of a standalone entry; null on task-linked entries. */
+  title: string | null;
   maintenance_date: string;
   runtime_hours: number | null;
   notes: string | null;
@@ -51,8 +55,9 @@ export interface LogRow {
 }
 
 export interface LogDTO extends LogRow {
-  task_slug: string;
-  task_name: string;
+  /** null on standalone entries — the UI shows `title` instead. */
+  task_slug: string | null;
+  task_name: string | null;
 }
 
 export interface ComputedFields {
@@ -162,6 +167,9 @@ export interface LogInput {
   maintenance_date?: string;
   runtime_hours?: number | null;
   notes?: string | null;
+  /** Standalone (non-task) entries only: their display name. Required on
+   * create; ignored on task-linked entries. */
+  title?: string | null;
   /** Opt-in per completion, defaults to true when the task has linked
    * consumables — set false to log the work without touching stowage-mgmt
    * stock (docs/inventory-interaction.md). */

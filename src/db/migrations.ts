@@ -114,4 +114,34 @@ export const migrations: Migration[] = [
       );
     },
   },
+  {
+    version: 6,
+    up(db) {
+      // Non-task ("standalone") log entries: work worth recording that isn't
+      // tied to any maintenance task. They carry a display title instead of a
+      // task_id — exactly one of the two is set, per the CHECK. SQLite can't
+      // drop NOT NULL in place, so rebuild the table; ids are preserved and
+      // the rename carries the AUTOINCREMENT sequence along.
+      db.exec(`
+        CREATE TABLE log_entries_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+          title TEXT,
+          maintenance_date TEXT NOT NULL,
+          runtime_hours REAL,
+          notes TEXT,
+          logged_by TEXT,
+          created_at TEXT NOT NULL,
+          CHECK ((task_id IS NULL) <> (title IS NULL))
+        );
+        INSERT INTO log_entries_new
+          (id, task_id, maintenance_date, runtime_hours, notes, logged_by, created_at)
+          SELECT id, task_id, maintenance_date, runtime_hours, notes, logged_by, created_at
+          FROM log_entries;
+        DROP TABLE log_entries;
+        ALTER TABLE log_entries_new RENAME TO log_entries;
+        CREATE INDEX idx_log_task_date ON log_entries (task_id, maintenance_date DESC);
+      `);
+    },
+  },
 ];

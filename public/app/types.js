@@ -59,14 +59,15 @@
 /**
  * @typedef {Object} LogDTO
  * @property {number} id
- * @property {number} task_id
+ * @property {number|null} task_id null on standalone (non-task) entries
+ * @property {string|null} title standalone entries' display name; null on task-linked entries
  * @property {string} maintenance_date
  * @property {number|null} runtime_hours
  * @property {string|null} notes
  * @property {string|null} logged_by
  * @property {string} created_at
- * @property {string} task_slug
- * @property {string} task_name
+ * @property {string|null} task_slug null on standalone entries
+ * @property {string|null} task_name null on standalone entries — show `title` instead
  * @property {string[]} [consumable_warnings]
  */
 
@@ -110,6 +111,7 @@
  * @property {string} [maintenance_date]
  * @property {number|null} [runtime_hours]
  * @property {string|null} [notes]
+ * @property {string|null} [title] standalone (non-task) entries only
  * @property {boolean} [consume_stock]
  * @property {{ item_id: string, placements: { placement_id: string, quantity: number }[] }[]} [consumable_allocations]
  */
