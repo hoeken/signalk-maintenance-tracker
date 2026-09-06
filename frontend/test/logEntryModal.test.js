@@ -77,6 +77,81 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     expect(body.maintenance_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it('adds typed tags and sends them in the log body', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change', tags: ['Winter'] },
+      },
+    ]);
+    const onClose = vi.fn();
+    render(html`<${LogEntryModal} task=${makeTask()} onClose=${onClose} />`);
+    const tagInput = screen.getByPlaceholderText('Add tag and press Enter');
+    fireEvent.input(tagInput, { target: { value: 'Winter' } });
+    fireEvent.keyDown(tagInput, { key: 'Enter' });
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    expect(JSON.parse(call[1].body).tags).toEqual(['Winter']);
+  });
+
+  it("defaults Mark complete tags to the task's tags and sends them", async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) =>
+          m === 'POST' && u.indexOf('/api/tasks/engine-oil-change/logs') !== -1,
+        status: 201,
+        body: { id: 9, task_slug: 'engine-oil-change', tags: ['Engines'] },
+      },
+    ]);
+    const onClose = vi.fn();
+    render(
+      html`<${LogEntryModal}
+        task=${makeTask({ tags: ['Engines', 'Port'] })}
+        onClose=${onClose}
+      />`,
+    );
+    // the task's tags show as removable chips in the input
+    expect(screen.getByText('Engines')).toBeTruthy();
+    expect(screen.getByText('Port')).toBeTruthy();
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'POST');
+    expect(JSON.parse(call[1].body).tags).toEqual(['Engines', 'Port']);
+  });
+
+  it('prefills tags when editing an existing entry', async () => {
+    const fn = mockFetch([
+      {
+        match: (m, u) => m === 'PUT' && u.indexOf('/api/logs/7') !== -1,
+        body: { id: 7, task_slug: 'engine-oil-change', tags: ['Engines'] },
+      },
+    ]);
+    const onClose = vi.fn();
+    const entry = {
+      id: 7,
+      task_id: 1,
+      title: null,
+      maintenance_date: '2026-07-01T10:00:00.000Z',
+      runtime_hours: 1300,
+      notes: null,
+      logged_by: 'admin',
+      created_at: '2026-07-01T10:00:00.000Z',
+      task_slug: 'engine-oil-change',
+      task_name: 'Engine oil change',
+      tags: ['Engines', 'Filter'],
+    };
+    render(html`<${LogEntryModal} entry=${entry} onClose=${onClose} />`);
+    expect(screen.getByText('Engines')).toBeTruthy();
+    expect(screen.getByText('Filter')).toBeTruthy();
+    fireEvent.submit(document.getElementById('log-form'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const call = fn.mock.calls.find((c) => c[1] && c[1].method === 'PUT');
+    expect(JSON.parse(call[1].body).tags).toEqual(['Engines', 'Filter']);
+  });
+
   it('edits an existing entry via PUT /logs/:id', async () => {
     const fn = mockFetch([
       {

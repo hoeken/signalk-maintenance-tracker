@@ -30,6 +30,7 @@ const logs = [
     created_at: '2026-03-04T00:00:00.000Z',
     task_slug: null,
     task_name: null,
+    tags: ['Winter', 'Yard'],
   },
 ];
 
@@ -41,6 +42,27 @@ describe('master log page (§7.4)', () => {
     await waitFor(() => expect(screen.getByText('Haul out')).toBeTruthy());
     expect(screen.getByRole('link', { name: 'Engine oil' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Haul out' })).toBeNull();
+  });
+
+  it("renders an entry's tags as chips in a column before Runtime", async () => {
+    mockFetch(apiRoutes({ logs }));
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${MasterLogPage} />`);
+    await waitFor(() => expect(screen.getByText('Haul out')).toBeTruthy());
+
+    const headers = Array.from(document.querySelectorAll('.table th')).map(
+      (h) => h.textContent.trim(),
+    );
+    expect(headers).toEqual(['Task', 'Date', 'Tags', 'Runtime', 'By']);
+
+    const chips = Array.from(
+      document.querySelectorAll('.table td.cell-tags .tag'),
+    ).map((el) => el.textContent);
+    expect(chips).toEqual(['Winter', 'Yard']);
+    // the task-linked entry has no tags → dash
+    expect(
+      document.querySelectorAll('.table td.cell-tags')[0].textContent.trim(),
+    ).toBe('—');
   });
 
   it('logged out: no New Entry button or per-entry edit/delete', async () => {

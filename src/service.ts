@@ -61,7 +61,7 @@ export interface ServiceDeps {
  * decrementing linked stowage-mgmt stock. A completion always succeeds even
  * if stock consumption partially or fully fails — warnings are informational
  * (docs/inventory-interaction.md: "toast, don't block the task view"). */
-export interface LogResult extends LogRow {
+export interface LogResult extends LogDTO {
   consumable_warnings?: string[];
 }
 
@@ -466,9 +466,12 @@ export class MaintenanceService {
 
   // ---- logs ----
 
-  listTaskLogs(slug: string): LogRow[] {
+  listTaskLogs(slug: string): LogDTO[] {
     const row = this.requireTask(slug);
-    return this.logs.listForTask(row.id).map((r) => this.redactLog(r));
+    const tagsByLog = this.tags.tagsByLog();
+    return this.logs
+      .listForTask(row.id)
+      .map((r) => this.toLogDTO(r, row, tagsByLog.get(r.id) ?? []));
   }
 
   listMasterLog(
@@ -483,7 +486,21 @@ export class MaintenanceService {
       Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE),
     );
     const { data, total } = this.logs.listMaster({ ...q, page, pageSize });
-    return { data: data.map((r) => this.redactLog(r)), total, page, pageSize };
+    const tagsByLog = this.tags.tagsByLog();
+    return {
+      data: data.map((r) =>
+        this.toLogDTO(
+          r,
+          r.task_slug != null
+            ? { slug: r.task_slug, name: r.task_name ?? '' }
+            : null,
+          tagsByLog.get(r.id) ?? [],
+        ),
+      ),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async addLog(
@@ -511,6 +528,11 @@ export class MaintenanceService {
         },
         nowIso,
       );
+      // An omitted `tags` inherits the task's tags; an explicit list (including
+      // []) is taken as given.
+      const logTags =
+        body.tags !== undefined ? body.tags : this.tags.tagsForTask(task.id);
+      if (logTags.length) this.tags.setLogTags(entry.id, logTags);
       this.recomputeDenorm(task.id);
       // A one-time due date is a deadline for a single completion — once the
       // task is done, the deadline no longer applies. (A recurring renewal's
@@ -542,7 +564,7 @@ export class MaintenanceService {
     );
 
     return {
-      ...this.redactLog(entry),
+      ...this.toLogDTO(entry, task, this.tags.tagsForLog(entry.id)),
       ...(warnings.length ? { consumable_warnings: warnings } : {}),
     };
   }
@@ -611,25 +633,34 @@ export class MaintenanceService {
    * no denormalization to recompute, no due date to clear, and no stock to
    * consume.
    */
-  addStandaloneLog(body: LogInput, loggedBy: string | null): LogRow {
+  addStandaloneLog(body: LogInput, loggedBy: string | null): LogDTO {
     const title = this.validateTitle(body.title);
     const date = this.validateDate(body.maintenance_date, 'maintenance_date');
-    const entry = this.logs.insert(
-      {
-        task_id: null,
-        title,
-        maintenance_date: date,
-        runtime_hours: body.runtime_hours ?? null,
-        notes: body.notes ?? null,
-        logged_by: loggedBy,
-      },
-      this.now().toISOString(),
-    );
+    this.db.exec('BEGIN');
+    let entry: LogRow;
+    try {
+      entry = this.logs.insert(
+        {
+          task_id: null,
+          title,
+          maintenance_date: date,
+          runtime_hours: body.runtime_hours ?? null,
+          notes: body.notes ?? null,
+          logged_by: loggedBy,
+        },
+        this.now().toISOString(),
+      );
+      if (body.tags) this.tags.setLogTags(entry.id, body.tags);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
     this.emit();
-    return this.redactLog(entry);
+    return this.toLogDTO(entry, null, this.tags.tagsForLog(entry.id));
   }
 
-  updateLog(id: number, body: LogInput): LogRow {
+  updateLog(id: number, body: LogInput): LogDTO {
     const existing = this.logs.get(id);
     if (!existing)
       throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
@@ -655,6 +686,7 @@ export class MaintenanceService {
             : existing.runtime_hours,
         notes: body.notes !== undefined ? body.notes : existing.notes,
       });
+      if (body.tags !== undefined) this.tags.setLogTags(id, body.tags ?? []);
       if (existing.task_id !== null) this.recomputeDenorm(existing.task_id);
       this.db.exec('COMMIT');
     } catch (err) {
@@ -662,7 +694,11 @@ export class MaintenanceService {
       throw err;
     }
     this.emit();
-    return this.redactLog(this.logs.get(id)!);
+    const task =
+      existing.task_id !== null
+        ? (this.tasks.getById(existing.task_id) ?? null)
+        : null;
+    return this.toLogDTO(this.logs.get(id)!, task, this.tags.tagsForLog(id));
   }
 
   deleteLog(id: number): void {
@@ -671,7 +707,8 @@ export class MaintenanceService {
       throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
     this.db.exec('BEGIN');
     try {
-      this.logs.delete(id);
+      this.logs.delete(id); // cascades to log_tags
+      this.tags.pruneOrphans();
       if (existing.task_id !== null) this.recomputeDenorm(existing.task_id);
       this.db.exec('COMMIT');
     } catch (err) {
@@ -716,11 +753,22 @@ export class MaintenanceService {
   // ---- internals ----
 
   /**
-   * Copy of a log row safe to serialize over the (possibly public) API:
-   * device-token principals are shortened so the full identifier never leaks.
+   * The log entry as the (possibly public) API serves it: device-token
+   * principals shortened so the full identifier never leaks, task identity
+   * and tags attached. `task` is null for standalone entries.
    */
-  private redactLog<T extends LogRow>(row: T): T {
-    return { ...row, logged_by: publicUser(row.logged_by) };
+  private toLogDTO(
+    row: LogRow,
+    task: Pick<TaskRow, 'slug' | 'name'> | null,
+    tags: string[],
+  ): LogDTO {
+    return {
+      ...row,
+      logged_by: publicUser(row.logged_by),
+      task_slug: task ? task.slug : null,
+      task_name: task ? task.name : null,
+      tags,
+    };
   }
 
   /**

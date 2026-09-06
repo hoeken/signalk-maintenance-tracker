@@ -20,6 +20,7 @@ const entries = [
     created_at: '2026-01-02T00:00:00Z',
     task_slug: 'engine-oil',
     task_name: 'Engine oil',
+    tags: ['Engines', 'Winter'],
   },
   {
     id: 2,
@@ -32,6 +33,7 @@ const entries = [
     created_at: '2026-02-03T00:00:00Z',
     task_slug: 'engine-oil',
     task_name: 'Engine oil',
+    tags: [],
   },
   // standalone (non-task) entry: title stands in for the task name
   {
@@ -45,6 +47,7 @@ const entries = [
     created_at: '2026-03-04T00:00:00Z',
     task_slug: null,
     task_name: null,
+    tags: ['Admin'],
   },
 ];
 
@@ -52,22 +55,24 @@ describe('log export', () => {
   it('builds CSV with header row and quotes fields containing commas', () => {
     const csv = buildCsv(entries);
     const lines = csv.trimEnd().split('\r\n');
-    expect(lines[0]).toBe('Task,Date,Runtime Hours,Logged By,Notes');
+    expect(lines[0]).toBe('Task,Date,Runtime Hours,Logged By,Tags,Notes');
     expect(lines[1]).toBe(
-      'Engine oil,2026-01-02,12.5,zach,"Changed oil, filter"',
+      'Engine oil,2026-01-02,12.5,zach,Engines; Winter,"Changed oil, filter"',
     );
-    // null runtime/logged_by render as empty; newline forces quoting.
-    expect(lines[2]).toBe('Engine oil,2026-02-03,,,"Line one\nLine | two"');
+    // null runtime/logged_by and no tags render as empty; newline forces quoting.
+    expect(lines[2]).toBe('Engine oil,2026-02-03,,,,"Line one\nLine | two"');
     // standalone entry: its title fills the Task column
-    expect(lines[3]).toBe('Haul out,2026-03-04,,zach,');
+    expect(lines[3]).toBe('Haul out,2026-03-04,,zach,Admin,');
   });
 
   it('builds a Markdown table, escaping pipes and newlines', () => {
     const md = buildMarkdown(entries);
     expect(md).toContain('# SignalK Maintenance Log');
-    expect(md).toContain('| Task | Date | Runtime Hours | Logged By | Notes |');
     expect(md).toContain(
-      '| Engine oil | 2026-01-02 | 12.5 | zach | Changed oil, filter |',
+      '| Task | Date | Runtime Hours | Logged By | Tags | Notes |',
+    );
+    expect(md).toContain(
+      '| Engine oil | 2026-01-02 | 12.5 | zach | Engines; Winter | Changed oil, filter |',
     );
     expect(md).toContain('Line one<br>Line \\| two');
   });
@@ -81,6 +86,7 @@ describe('log export', () => {
         maintenance_date: '2026-01-02',
         runtime_hours: 12.5,
         logged_by: 'zach',
+        tags: ['Engines', 'Winter'],
         notes: 'Changed oil, filter',
       },
       {
@@ -89,6 +95,7 @@ describe('log export', () => {
         maintenance_date: '2026-02-03',
         runtime_hours: null,
         logged_by: null,
+        tags: [],
         notes: 'Line one\nLine | two',
       },
       {
@@ -97,6 +104,7 @@ describe('log export', () => {
         maintenance_date: '2026-03-04',
         runtime_hours: null,
         logged_by: 'zach',
+        tags: ['Admin'],
         notes: null,
       },
     ]);

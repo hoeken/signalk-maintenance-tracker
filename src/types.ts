@@ -68,6 +68,9 @@ export interface LogDTO extends LogRow {
   /** null on standalone entries — the UI shows `title` instead. */
   task_slug: string | null;
   task_name: string | null;
+  /** Freeform tags on the entry (§5.2), assembled by the service layer — not a
+   * stored column. Wholesale-replaced by `LogInput.tags` on write. */
+  tags: string[];
 }
 
 export interface ComputedFields {
@@ -185,6 +188,9 @@ export interface LogInput {
   /** Standalone (non-task) entries only: their display name. Required on
    * create; ignored on task-linked entries. */
   title?: string | null;
+  /** Wholesale-replaces the entry's tags when present, same semantics as
+   * `TaskInput.tags`. */
+  tags?: string[];
   /** Opt-in per completion, defaults to true when the task has linked
    * consumables — set false to log the work without touching stowage-mgmt
    * stock (docs/inventory-interaction.md). */

@@ -12,7 +12,7 @@ export const EXPORT_FORMATS = [
   { value: 'json', label: 'JSON', ext: 'json', mime: 'application/json' },
 ];
 
-const HEADERS = ['Task', 'Date', 'Runtime Hours', 'Logged By', 'Notes'];
+const HEADERS = ['Task', 'Date', 'Runtime Hours', 'Logged By', 'Tags', 'Notes'];
 
 /** @param {LogDTO} e @returns {(string|number|null|undefined)[]} */
 function row(e) {
@@ -22,6 +22,7 @@ function row(e) {
     e.maintenance_date,
     e.runtime_hours,
     e.logged_by,
+    e.tags ? e.tags.join('; ') : '',
     e.notes,
   ];
 }
@@ -67,6 +68,7 @@ export function buildJson(entries) {
     maintenance_date: e.maintenance_date,
     runtime_hours: e.runtime_hours,
     logged_by: e.logged_by,
+    tags: e.tags || [],
     notes: e.notes,
   }));
   return JSON.stringify(records, null, 2) + '\n';

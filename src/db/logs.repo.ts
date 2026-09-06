@@ -126,9 +126,11 @@ export class LogsRepo {
     if (q.search) {
       const like = `%${q.search}%`;
       where.push(
-        `(l.notes LIKE ? OR t.name LIKE ? OR l.title LIKE ? OR l.logged_by LIKE ?)`,
+        `(l.notes LIKE ? OR t.name LIKE ? OR l.title LIKE ? OR l.logged_by LIKE ?
+          OR l.id IN (SELECT lt.log_id FROM log_tags lt
+                      JOIN tags tg ON tg.id = lt.tag_id WHERE tg.name LIKE ?))`,
       );
-      params.push(like, like, like, like);
+      params.push(like, like, like, like, like);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 

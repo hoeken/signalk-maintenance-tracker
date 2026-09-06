@@ -600,6 +600,14 @@ pre {
   gap: 6px 8px;
 }
 
+/* tags column: chips wrap within a bounded width instead of stretching the row */
+.table td.cell-tags {
+  max-width: 16em;
+}
+.table td.cell-tags .chips {
+  margin: -2px 0;
+}
+
 /* full-width detail row (log notes) rendered under its entry row */
 .table tr.has-detail td {
   border-bottom: none;

@@ -121,6 +121,17 @@ export function TaskListPage() {
         html`<a href=${'#/tasks/' + encodeURIComponent(t.slug)}>${t.name}</a>`,
     },
     {
+      key: 'tags',
+      label: 'Tags',
+      className: 'hide-sm cell-tags',
+      render: (/** @type {TaskDTO} */ t) =>
+        t.tags.length
+          ? html`<div class="chips">
+              ${t.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}
+            </div>`
+          : html`<span class="muted">—</span>`,
+    },
+    {
       key: 'remaining_runtime',
       label: 'Runtime Left',
       sortable: true,

@@ -36,8 +36,8 @@ describe('migration 7 — is_recurring backfill (v1.5)', () => {
     insert.run('bilge', 'Bilge check', null, null, null, 'p.runTime', 10);
     insert.run('paperwork', 'Paperwork', null, null, null, null, null);
 
-    migrate(db); // applies migration 7
-    expect(schemaVersion(db)).toBe(7);
+    migrate(db); // applies migrations 7+
+    expect(schemaVersion(db)).toBe(8);
 
     const rows = db
       .prepare(
@@ -78,5 +78,37 @@ describe('migration 7 — is_recurring backfill (v1.5)', () => {
         runtime_warning_hours: null,
       },
     ]);
+  });
+});
+
+describe('migration 8 — log_tags link table', () => {
+  it('creates log_tags and cascades on log and tag deletion', () => {
+    const db = openAt(8);
+    db.prepare(
+      `INSERT INTO tasks (slug, name, created_at, updated_at)
+       VALUES ('t', 'T', '2026-01-01', '2026-01-01')`,
+    ).run();
+    db.prepare(
+      `INSERT INTO log_entries (task_id, maintenance_date, created_at)
+       VALUES (1, '2026-01-01', '2026-01-01')`,
+    ).run();
+    db.prepare(`INSERT INTO tags (name) VALUES ('winter')`).run();
+    db.prepare(`INSERT INTO log_tags (log_id, tag_id) VALUES (1, 1)`).run();
+
+    const count = () =>
+      (db.prepare(`SELECT COUNT(*) AS n FROM log_tags`).get() as { n: number })
+        .n;
+    expect(count()).toBe(1);
+
+    // deleting the tag cascades
+    db.prepare(`DELETE FROM tags WHERE id = 1`).run();
+    expect(count()).toBe(0);
+
+    // re-link, then delete the log entry — also cascades
+    db.prepare(`INSERT INTO tags (name) VALUES ('spring')`).run();
+    db.prepare(`INSERT INTO log_tags (log_id, tag_id) VALUES (1, 2)`).run();
+    expect(count()).toBe(1);
+    db.prepare(`DELETE FROM log_entries WHERE id = 1`).run();
+    expect(count()).toBe(0);
   });
 });

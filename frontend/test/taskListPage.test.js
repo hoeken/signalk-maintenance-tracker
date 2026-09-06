@@ -43,6 +43,24 @@ describe('TaskListPage (§7.4)', () => {
     expect(screen.getByText('Engine oil change').getAttribute('href')).toBe(
       '#/tasks/engine-oil-change',
     );
+    // tags column: the tag renders as a chip in the row, before "Runtime Left"
+    const headers = Array.from(document.querySelectorAll('.table th')).map(
+      (h) => h.textContent.trim(),
+    );
+    expect(headers).toEqual([
+      'Status',
+      'Name',
+      'Tags',
+      'Runtime Left',
+      'Time left',
+      '',
+    ]);
+    expect(document.querySelector('.table td.cell-tags .tag').textContent).toBe(
+      'Engines',
+    );
+    // a task with no tags shows a dash
+    const tagCells = document.querySelectorAll('.table td.cell-tags');
+    expect(tagCells[1].textContent.trim()).toBe('—');
   });
 
   it('sends filters from the URL hash to the API', async () => {

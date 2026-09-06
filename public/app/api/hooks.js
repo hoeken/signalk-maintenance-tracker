@@ -132,7 +132,7 @@ export async function addLog(slug, input) {
     method: 'POST',
     body: input,
   });
-  invalidate('tasks', 'task/' + slug, 'logs');
+  invalidate('tasks', 'task/' + slug, 'logs', 'tags');
   return entry;
 }
 
@@ -144,7 +144,7 @@ export async function addLog(slug, input) {
  */
 export async function addStandaloneLog(input) {
   const entry = await apiFetch('/logs', { method: 'POST', body: input });
-  invalidate('logs');
+  invalidate('logs', 'tags');
   return entry;
 }
 
@@ -155,7 +155,7 @@ export async function addStandaloneLog(input) {
  */
 export async function updateLog(id, input) {
   const entry = await apiFetch('/logs/' + id, { method: 'PUT', body: input });
-  invalidate('tasks', 'logs');
+  invalidate('tasks', 'logs', 'tags');
   if (entry && entry.task_slug) invalidate('task/' + entry.task_slug);
   return entry;
 }
@@ -166,6 +166,6 @@ export async function updateLog(id, input) {
  */
 export async function deleteLog(id, taskSlug) {
   await apiFetch('/logs/' + id, { method: 'DELETE' });
-  invalidate('tasks', 'logs');
+  invalidate('tasks', 'logs', 'tags');
   if (taskSlug) invalidate('task/' + taskSlug);
 }

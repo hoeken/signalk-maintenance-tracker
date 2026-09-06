@@ -333,6 +333,61 @@ describe('log endpoints', () => {
     expect(missingTitle.status).toBe(400);
     expect(missingTitle.body.error.code).toBe('invalid_title');
   });
+
+  it('round-trips tags on log entries and reflects them in /tags counts', async () => {
+    await request(app).post(`${base}/tasks`).send({ name: 'Oil' });
+    const created = await request(app)
+      .post(`${base}/tasks/oil/logs`)
+      .send({
+        maintenance_date: '2026-07-08T14:30:00Z',
+        tags: ['Engines', 'Winter'],
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.tags).toEqual(['Engines', 'Winter']);
+
+    const list = await request(app).get(`${base}/tasks/oil/logs`);
+    expect(list.body.data[0].tags).toEqual(['Engines', 'Winter']);
+
+    const master = await request(app).get(`${base}/logs`);
+    expect(master.body.data[0].tags).toEqual(['Engines', 'Winter']);
+
+    // search matches on tag name
+    const search = await request(app).get(`${base}/logs?search=winter`);
+    expect(search.body.total).toBe(1);
+
+    const tags = await request(app).get(`${base}/tags`);
+    expect(tags.body.data).toContainEqual({
+      id: expect.any(Number),
+      name: 'Winter',
+      count: 1,
+    });
+
+    // editing drops a tag; the now-orphaned one is pruned
+    const put = await request(app)
+      .put(`${base}/logs/${created.body.id}`)
+      .send({ tags: ['Engines'] });
+    expect(put.body.tags).toEqual(['Engines']);
+    const after = await request(app).get(`${base}/tags`);
+    expect(after.body.data.map((t: { name: string }) => t.name)).toEqual([
+      'Engines',
+    ]);
+  });
+
+  it('a task log inherits the task tags when the body omits `tags`', async () => {
+    await request(app)
+      .post(`${base}/tasks`)
+      .send({ name: 'Oil', tags: ['Engines', 'Port'] });
+
+    const inherited = await request(app)
+      .post(`${base}/tasks/oil/logs`)
+      .send({ maintenance_date: '2026-07-08T14:30:00Z' });
+    expect(inherited.body.tags).toEqual(['Engines', 'Port']);
+
+    const explicit = await request(app)
+      .post(`${base}/tasks/oil/logs`)
+      .send({ maintenance_date: '2026-07-09T14:30:00Z', tags: [] });
+    expect(explicit.body.tags).toEqual([]);
+  });
 });
 
 describe('tags & health endpoints', () => {

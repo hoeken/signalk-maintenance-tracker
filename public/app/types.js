@@ -69,6 +69,7 @@
  * @property {string} created_at
  * @property {string|null} task_slug null on standalone entries
  * @property {string|null} task_name null on standalone entries — show `title` instead
+ * @property {string[]} tags freeform tags on the entry
  * @property {string[]} [consumable_warnings]
  */
 
@@ -114,6 +115,7 @@
  * @property {number|null} [runtime_hours]
  * @property {string|null} [notes]
  * @property {string|null} [title] standalone (non-task) entries only
+ * @property {string[]} [tags] wholesale-replaces the entry's tags when present
  * @property {boolean} [consume_stock]
  * @property {{ item_id: string, placements: { placement_id: string, quantity: number }[] }[]} [consumable_allocations]
  */

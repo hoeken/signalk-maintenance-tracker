@@ -76,6 +76,17 @@ export function TaskDetailPage(props) {
       render: (/** @type {LogDTO} */ e) => formatDate(e.maintenance_date),
     },
     {
+      key: 'tags',
+      label: 'Tags',
+      className: 'cell-tags',
+      render: (/** @type {LogDTO} */ e) =>
+        e.tags && e.tags.length
+          ? html`<div class="chips">
+              ${e.tags.map((/** @type {string} */ tag) => html`<span key=${tag} class="tag">${tag}</span>`)}
+            </div>`
+          : html`<span class="muted">—</span>`,
+    },
+    {
       key: 'runtime_hours',
       label: 'Runtime',
       className: 'num',

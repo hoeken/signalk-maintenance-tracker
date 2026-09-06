@@ -162,4 +162,20 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 8,
+    up(db) {
+      // Log entries can carry tags too, drawing on the same freeform `tags`
+      // vocabulary as tasks. Mirrors task_tags (§5.3): composite PK, cascade
+      // on both sides. A tag is now an orphan only when neither a task nor a
+      // log references it (see TagsRepo.pruneOrphans).
+      db.exec(`
+        CREATE TABLE log_tags (
+          log_id INTEGER NOT NULL REFERENCES log_entries(id) ON DELETE CASCADE,
+          tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+          PRIMARY KEY (log_id, tag_id)
+        );
+      `);
+    },
+  },
 ];

@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(7);
+    expect(schemaVersion(db)).toBe(8);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -34,6 +34,7 @@ describe('migrations', () => {
       'tasks',
       'tags',
       'task_tags',
+      'log_tags',
       'log_entries',
       'runtime_cache',
       'task_consumables',
@@ -331,6 +332,108 @@ describe('tags', () => {
     const { service } = makeService();
     service.createTask({ name: 'A', tags: ['Solo'] });
     service.deleteTask('a');
+    expect(service.listTags()).toEqual([]);
+  });
+});
+
+describe('log tags', () => {
+  it('attaches tags on addLog and returns them, and counts span tasks + logs', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Engine', tags: ['Engines'] });
+
+    const entry = await service.addLog(
+      'engine',
+      { maintenance_date: '2026-07-01T00:00:00Z', tags: ['Engines', 'Winter'] },
+      'admin',
+    );
+    expect(entry.tags).toEqual(['Engines', 'Winter']);
+
+    // Engines: 1 task + 1 log = 2; Winter: 1 log = 1
+    const counts = Object.fromEntries(
+      service.listTags().map((t) => [t.name, t.count]),
+    );
+    expect(counts).toEqual({ Engines: 2, Winter: 1 });
+
+    const [log] = service.listTaskLogs('engine');
+    expect(log.tags).toEqual(['Engines', 'Winter']);
+    expect(service.listMasterLog({}).data[0].tags).toEqual([
+      'Engines',
+      'Winter',
+    ]);
+  });
+
+  it('inherits the task tags when addLog omits tags, but honours an explicit list', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Engine', tags: ['Engines', 'Port'] });
+
+    // omitted → inherits
+    const inherited = await service.addLog(
+      'engine',
+      { maintenance_date: '2026-07-01T00:00:00Z' },
+      'admin',
+    );
+    expect(inherited.tags).toEqual(['Engines', 'Port']);
+
+    // explicit [] → no tags
+    const cleared = await service.addLog(
+      'engine',
+      { maintenance_date: '2026-07-02T00:00:00Z', tags: [] },
+      'admin',
+    );
+    expect(cleared.tags).toEqual([]);
+
+    // explicit list → taken as given
+    const explicit = await service.addLog(
+      'engine',
+      { maintenance_date: '2026-07-03T00:00:00Z', tags: ['Winter'] },
+      'admin',
+    );
+    expect(explicit.tags).toEqual(['Winter']);
+  });
+
+  it('replaces tags on updateLog and prunes now-orphaned tags', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Engine' });
+    const entry = await service.addLog(
+      'engine',
+      { maintenance_date: '2026-07-01T00:00:00Z', tags: ['Winter', 'Filter'] },
+      'admin',
+    );
+    const updated = service.updateLog(entry.id, { tags: ['Winter'] });
+    expect(updated.tags).toEqual(['Winter']);
+    expect(service.listTags().map((t) => t.name)).toEqual(['Winter']); // Filter pruned
+  });
+
+  it('tags a standalone entry and prunes on delete', async () => {
+    const { service } = makeService();
+    const entry = service.addStandaloneLog(
+      {
+        title: 'Bought charts',
+        maintenance_date: '2026-07-01T00:00:00Z',
+        tags: ['Admin'],
+      },
+      'admin',
+    );
+    expect(entry.tags).toEqual(['Admin']);
+    expect(service.listTags().map((t) => t.name)).toEqual(['Admin']);
+
+    service.deleteLog(entry.id);
+    expect(service.listTags()).toEqual([]);
+  });
+
+  it('keeps a tag shared by a task and a log until both drop it', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Engine', tags: ['Shared'] });
+    const entry = await service.addLog(
+      'engine',
+      { maintenance_date: '2026-07-01T00:00:00Z', tags: ['Shared'] },
+      'admin',
+    );
+
+    service.deleteLog(entry.id);
+    expect(service.listTags().map((t) => t.name)).toEqual(['Shared']); // task still has it
+
+    service.deleteTask('engine');
     expect(service.listTags()).toEqual([]);
   });
 });
