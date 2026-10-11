@@ -537,6 +537,76 @@ pre {
   color: var(--danger);
 }
 
+/* ---- task attachments (edit form + detail page) ---- */
+
+.files-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.files-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.files-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+.files-name .bi {
+  margin-right: 4px;
+}
+.files-size {
+  flex: none;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.files-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.files-upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* the real input stays focusable for keyboards/screen readers; the label
+   draws the button */
+.files-upload input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.files-upload input[type='file']:focus-visible + label.btn {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.files-upload label.btn.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.files-progress {
+  flex: 1;
+  min-width: 80px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+.files-progress > div {
+  height: 100%;
+  background: var(--accent);
+}
+
 .tag {
   display: inline-block;
   padding: 1px 8px;

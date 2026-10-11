@@ -15,6 +15,7 @@ import { FormError } from './FormError.js';
 import { MarkdownView } from './MarkdownView.js';
 import { TagInput } from './TagInput.js';
 import { ConsumablesPicker } from './ConsumablesPicker.js';
+import { FilesField } from './FilesField.js';
 import { PathPicker } from './PathPicker.js';
 import { createTask, updateTask, useTags, useHealth } from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
@@ -302,6 +303,17 @@ export function TaskFormModal(props) {
                   value=${description}
                   onInput=${(/** @type {any} */ e) => setDescription(e.currentTarget.value)}
                 />`
+          }
+        </div>
+
+        <div class="field">
+          <label class="field-label">Files</label>
+          ${
+            isEdit && task
+              ? html`<${FilesField} slug=${task.slug} files=${task.files || []} />`
+              : html`<div class="field-hint">
+                  Save the task first, then edit it to attach files.
+                </div>`
           }
         </div>
 

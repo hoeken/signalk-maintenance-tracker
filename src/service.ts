@@ -1,11 +1,14 @@
 import type { DatabaseSync } from 'node:sqlite';
+import type { Readable } from 'node:stream';
 import { publicUser } from './auth';
 import { ConsumableRow, ConsumablesRepo } from './db/consumables.repo';
+import { FileRow, FilesRepo } from './db/files.repo';
 import { LogsRepo, MasterLogQuery } from './db/logs.repo';
 import { TagsRepo, TagCount } from './db/tags.repo';
 import { TasksRepo, NewTask } from './db/tasks.repo';
 import { slugify, uniqueSlug } from './domain/slug';
 import { computeTask, StatusConfig } from './domain/status';
+import { FileStore, FileTooLargeError, MAX_FILE_BYTES } from './files/store';
 import { StowageClient, StowageUnavailableError } from './stowage/client';
 import {
   LogDTO,
@@ -14,6 +17,7 @@ import {
   Page,
   Status,
   TaskDTO,
+  TaskFileDTO,
   TaskInput,
   TaskRow,
   TIME_UNITS,
@@ -55,6 +59,18 @@ export interface ServiceDeps {
    * (stowageMgmtUrl left blank) — addLog then skips stock consumption
    * entirely, same as if the task had no linked consumables. */
   stowageClient?: StowageClient;
+  /** Where task attachments live on disk (the plugin data directory).
+   * Without one the file endpoints refuse uploads. */
+  fileStore?: FileStore;
+}
+
+/** What the upload route knows about an incoming file before its bytes. */
+export interface FileUpload {
+  name: string;
+  mime: string | null;
+  /** Content-Length, when the client sent one — lets an oversize upload be
+   * refused before a byte is read. */
+  declaredSize: number | null;
 }
 
 /** addLog's result: the log entry, plus any non-fatal problems hit while
@@ -73,6 +89,7 @@ export class MaintenanceService {
   readonly logs: LogsRepo;
   readonly tags: TagsRepo;
   readonly consumables: ConsumablesRepo;
+  readonly files: FilesRepo;
 
   constructor(
     private db: DatabaseSync,
@@ -82,6 +99,7 @@ export class MaintenanceService {
     this.logs = new LogsRepo(db);
     this.tags = new TagsRepo(db);
     this.consumables = new ConsumablesRepo(db);
+    this.files = new FilesRepo(db);
   }
 
   private now(): Date {
@@ -98,6 +116,7 @@ export class MaintenanceService {
     row: TaskRow,
     tags: string[],
     consumables: ConsumableRow[],
+    files: FileRow[],
   ): TaskDTO {
     const current = row.runtime_path
       ? this.deps.getRuntime(row.runtime_path)
@@ -127,8 +146,29 @@ export class MaintenanceService {
         item_name: c.item_name,
         qty_per_service: c.qty_per_service,
       })),
+      files: files.map((f) => this.toFileDTO(f)),
       ...computed,
     };
+  }
+
+  private toFileDTO(f: FileRow): TaskFileDTO {
+    return {
+      id: f.id,
+      name: f.name,
+      size: f.size,
+      mime: f.mime,
+      created_at: f.created_at,
+    };
+  }
+
+  /** The three per-task collections a DTO carries, loaded for one task. */
+  private dtoFor(row: TaskRow): TaskDTO {
+    return this.toDTO(
+      row,
+      this.tags.tagsForTask(row.id),
+      this.consumables.forTask(row.id),
+      this.files.forTask(row.id),
+    );
   }
 
   // ---- tasks ----
@@ -140,17 +180,7 @@ export class MaintenanceService {
       Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE),
     );
 
-    const tagsByTask = this.tags.tagsByTask();
-    const consumablesByTask = this.consumables.byTask();
-    let items = this.tasks
-      .listAll()
-      .map((row) =>
-        this.toDTO(
-          row,
-          tagsByTask.get(row.id) ?? [],
-          consumablesByTask.get(row.id) ?? [],
-        ),
-      );
+    let items = this.listAllComputed();
 
     if (q.search) {
       const needle = q.search.toLowerCase();
@@ -232,6 +262,7 @@ export class MaintenanceService {
   listAllComputed(): TaskDTO[] {
     const tagsByTask = this.tags.tagsByTask();
     const consumablesByTask = this.consumables.byTask();
+    const filesByTask = this.files.byTask();
     return this.tasks
       .listAll()
       .map((row) =>
@@ -239,17 +270,13 @@ export class MaintenanceService {
           row,
           tagsByTask.get(row.id) ?? [],
           consumablesByTask.get(row.id) ?? [],
+          filesByTask.get(row.id) ?? [],
         ),
       );
   }
 
   getTask(slug: string): TaskDTO {
-    const row = this.requireTask(slug);
-    return this.toDTO(
-      row,
-      this.tags.tagsForTask(row.id),
-      this.consumables.forTask(row.id),
-    );
+    return this.dtoFor(this.requireTask(slug));
   }
 
   createTask(body: TaskInput): TaskDTO {
@@ -317,11 +344,7 @@ export class MaintenanceService {
         nowIso,
       );
     this.emit();
-    return this.toDTO(
-      this.tasks.getById(row.id)!,
-      this.tags.tagsForTask(row.id),
-      this.consumables.forTask(row.id),
-    );
+    return this.dtoFor(this.tasks.getById(row.id)!);
   }
 
   updateTask(slug: string, body: TaskInput): TaskDTO {
@@ -450,18 +473,90 @@ export class MaintenanceService {
         this.now().toISOString(),
       );
     this.emit({ clearedSlug });
-    return this.toDTO(
-      this.tasks.getById(row.id)!,
-      this.tags.tagsForTask(row.id),
-      this.consumables.forTask(row.id),
-    );
+    return this.dtoFor(this.tasks.getById(row.id)!);
   }
 
   deleteTask(slug: string): void {
     const row = this.requireTask(slug);
-    this.tasks.delete(row.id); // cascades to log_entries + task_tags
+    this.tasks.delete(row.id); // cascades to log_entries, task_tags, task_files
     this.tags.pruneOrphans();
+    // The rows are gone; the bytes follow. Nothing to roll back if this
+    // fails — an orphaned directory is harmless and nothing references it.
+    this.deps.fileStore?.removeTask(row.id);
     this.emit({ clearedSlug: row.slug });
+  }
+
+  // ---- files ----
+
+  listFiles(slug: string): TaskFileDTO[] {
+    const row = this.requireTask(slug);
+    return this.files.forTask(row.id).map((f) => this.toFileDTO(f));
+  }
+
+  /**
+   * Attach an upload to a task. The bytes stream to a temp file first and
+   * are only moved under the task once complete and within the size limit,
+   * so an interrupted or oversize upload leaves nothing behind.
+   */
+  async addFile(
+    slug: string,
+    upload: FileUpload,
+    body: Readable,
+  ): Promise<TaskFileDTO> {
+    const store = this.requireFileStore();
+    const task = this.requireTask(slug);
+    const name = this.validateFileName(upload.name);
+    if (upload.declaredSize !== null && upload.declaredSize > MAX_FILE_BYTES)
+      throw this.fileTooLarge();
+
+    let written: { tmpPath: string; size: number };
+    try {
+      written = await store.writeTemp(body, MAX_FILE_BYTES);
+    } catch (err) {
+      if (err instanceof FileTooLargeError) throw this.fileTooLarge();
+      throw err;
+    }
+
+    let relPath: string;
+    try {
+      relPath = store.commit(written.tmpPath, task.id, name);
+    } catch (err) {
+      store.discard(written.tmpPath);
+      throw err;
+    }
+    let row: FileRow;
+    try {
+      row = this.files.insert(
+        {
+          task_id: task.id,
+          name,
+          size: written.size,
+          mime: upload.mime,
+          path: relPath,
+        },
+        this.now().toISOString(),
+      );
+    } catch (err) {
+      store.remove(relPath);
+      throw err;
+    }
+    this.emit();
+    return this.toFileDTO(row);
+  }
+
+  /** A file's row plus where its bytes are, for the download route. */
+  getFile(slug: string, id: number): { file: TaskFileDTO; absPath: string } {
+    const store = this.requireFileStore();
+    const row = this.requireFile(slug, id);
+    return { file: this.toFileDTO(row), absPath: store.absolute(row.path) };
+  }
+
+  deleteFile(slug: string, id: number): void {
+    const store = this.requireFileStore();
+    const row = this.requireFile(slug, id);
+    this.files.delete(row.id);
+    store.remove(row.path);
+    this.emit();
   }
 
   // ---- logs ----
@@ -746,6 +841,44 @@ export class MaintenanceService {
     const row = this.tasks.getBySlug(slug);
     if (!row) throw new ApiError(404, 'not_found', `Task "${slug}" not found`);
     return row;
+  }
+
+  /** A file is only reachable through its own task's URL. */
+  private requireFile(slug: string, id: number): FileRow {
+    const task = this.requireTask(slug);
+    const row = this.files.get(id);
+    if (!row || row.task_id !== task.id)
+      throw new ApiError(404, 'not_found', `File ${id} not found`);
+    return row;
+  }
+
+  private requireFileStore(): FileStore {
+    if (!this.deps.fileStore)
+      throw new ApiError(
+        503,
+        'files_unavailable',
+        'File storage is not configured',
+      );
+    return this.deps.fileStore;
+  }
+
+  private fileTooLarge(): ApiError {
+    return new ApiError(
+      413,
+      'file_too_large',
+      `Files are limited to ${MAX_FILE_BYTES / (1024 * 1024 * 1024)} GB`,
+    );
+  }
+
+  /** The display name is whatever the uploader called the file, minus any
+   * directory part — keeps a stray path from a scripted client out of the
+   * UI. */
+  private validateFileName(value: string | null | undefined): string {
+    const base = (value ?? '').split(/[\\/]/).pop() ?? '';
+    const name = base.trim();
+    if (!name)
+      throw new ApiError(400, 'invalid_file', 'A file name is required');
+    return name;
   }
 
   private validateConsumables(

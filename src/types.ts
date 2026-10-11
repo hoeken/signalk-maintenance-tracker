@@ -116,6 +116,15 @@ export interface TaskConsumableDTO {
   qty_per_service: number;
 }
 
+export interface TaskFileDTO {
+  id: number;
+  name: string;
+  /** bytes */
+  size: number;
+  mime: string | null;
+  created_at: string;
+}
+
 export interface TaskDTO extends ComputedFields {
   id: number;
   slug: string;
@@ -139,6 +148,9 @@ export interface TaskDTO extends ComputedFields {
    * docs/inventory-interaction.md. Empty when the integration isn't
    * configured (stowageMgmtUrl unset) or none are linked. */
   consumables: TaskConsumableDTO[];
+  /** Attachments (manuals, receipts, photos) — uploaded and deleted through
+   * the /tasks/:slug/files endpoints, never through the task body. */
+  files: TaskFileDTO[];
 }
 
 export interface Page<T> {

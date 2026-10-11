@@ -36,8 +36,8 @@ describe('migration 7 — is_recurring backfill (v1.5)', () => {
     insert.run('bilge', 'Bilge check', null, null, null, 'p.runTime', 10);
     insert.run('paperwork', 'Paperwork', null, null, null, null, null);
 
-    migrate(db); // applies migration 7
-    expect(schemaVersion(db)).toBe(7);
+    migrate(db); // applies migration 7 (and whatever follows it)
+    expect(schemaVersion(db)).toBeGreaterThanOrEqual(7);
 
     const rows = db
       .prepare(

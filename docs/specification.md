@@ -858,7 +858,24 @@ conversion boundary; the frontend never reads runtime _values_ from SignalK.
 | ------ | --------- | ------------------------------------------------------------------------------------------------- |
 | GET    | `/health` | Plugin status: db task/log counts, subscribed runtime paths, last recompute tick, plugin version. |
 
-### 8.6 Auth
+### 8.6 Task files (attachments)
+
+| Method | Path                     | Description                                                                                                                                                                                                                                                                          |
+| ------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/tasks/:slug/files`     | A task's attachments: `{ data: [{ id, name, size, mime, created_at }] }`. The same list rides on the task DTO as `files`.                                                                                                                                                             |
+| POST   | `/tasks/:slug/files`     | Upload one file. The request body **is** the file (streamed to disk, never buffered); the original filename comes percent-encoded in `X-File-Name`, the client's content type in `X-File-Type`. `Content-Length` is required (411 without it) and `Content-Type` must not be JSON — `application/octet-stream` is conventional. Any type is accepted; 413 `file_too_large` above 1 GiB. Returns 201 with the file record. |
+| GET    | `/tasks/:slug/files/:id` | Download. Always `Content-Disposition: attachment` under the original name, with `X-Content-Type-Options: nosniff`, so nothing uploaded is ever rendered inline on the server's origin.                                                                                               |
+| DELETE | `/tasks/:slug/files/:id` | Remove the record and the bytes. 204.                                                                                                                                                                                                                                                 |
+
+Bytes live under the plugin data directory at `files/<task_id>/<token>-<name>`
+and are indexed by the `task_files` table (migration 8: id, task_id, name,
+size, mime, path, created_at). Uploads land in `files/tmp` first and are
+renamed into place only once complete and within the limit, so an interrupted
+or oversize upload leaves nothing behind. Deleting a task removes its whole
+directory. A file is only addressable through its own task's URL — a matching
+id under another slug is a 404.
+
+### 8.7 Auth
 
 The plugin exposes **no** auth endpoints. The webapp authenticates directly
 against the SignalK server's native endpoints (same origin):
@@ -1032,7 +1049,7 @@ These were open during drafting and are now settled:
   Today all plugin routes are admin-only; a future SignalK release adds per-route
   permission levels. The webapp does login/logout/loginStatus against SignalK's
   native `/signalk/v1/auth/*` endpoints and gates its editing UI on the logged-in
-  state. (§7.7, §8.6, §9)
+  state. (§7.7, §8.7, §9)
 - **Principal accessor:** a build-time detail only, used solely to stamp
   `logged_by`. The exact `req` field is confirmed against the running server and
   isolated behind `getRequestUser(req)`. (§9.1)

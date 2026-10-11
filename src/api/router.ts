@@ -112,6 +112,75 @@ export function mountApi(
     }),
   );
 
+  // ---- files (§8.6) ----
+
+  router.get(
+    '/api/tasks/:slug/files',
+    withServices((s, req, res) => {
+      res.json({ data: s.service.listFiles(req.params.slug) });
+    }),
+  );
+
+  // Raw body upload: the bytes are the request body (any content type), the
+  // original filename rides in X-File-Name (percent-encoded, since header
+  // values are ASCII) and the client's content type in X-File-Type. No
+  // multipart parsing, no buffering — the body streams straight to disk.
+  router.post(
+    '/api/tasks/:slug/files',
+    withServices(async (s, req, res) => {
+      // A JSON content type gets the body parsed (by SignalK or jsonBody)
+      // before it reaches here, leaving nothing to stream to disk. Checked
+      // by stream state, not req.body: body-parser 1.x sets req.body = {}
+      // even on requests it skips.
+      if (req.readableEnded || (req as { _body?: boolean })._body)
+        throw new ApiError(
+          400,
+          'invalid_upload',
+          'Send the file bytes as the raw request body with a non-JSON content type (e.g. application/octet-stream)',
+        );
+      const length = req.headers['content-length'];
+      if (length === undefined)
+        throw new ApiError(
+          411,
+          'length_required',
+          'Uploads must send a Content-Length header',
+        );
+      const file = await s.service.addFile(
+        req.params.slug,
+        {
+          name: decodeHeader(req.headers['x-file-name']),
+          mime: str(req.headers['x-file-type']) ?? null,
+          declaredSize: Number.parseInt(String(length), 10) || 0,
+        },
+        req,
+      );
+      res.status(201).json(file);
+    }),
+  );
+
+  router.get(
+    '/api/tasks/:slug/files/:id',
+    withServices((s, req, res) => {
+      const { file, absPath } = s.service.getFile(
+        req.params.slug,
+        intParam(req.params.id),
+      );
+      // Always an attachment: a file is never rendered inline on the server's
+      // origin, whatever the uploader called it.
+      res.download(absPath, file.name, {
+        headers: { 'X-Content-Type-Options': 'nosniff' },
+      });
+    }),
+  );
+
+  router.delete(
+    '/api/tasks/:slug/files/:id',
+    withServices((s, req, res) => {
+      s.service.deleteFile(req.params.slug, intParam(req.params.id));
+      res.status(204).end();
+    }),
+  );
+
   // ---- logs (§8.2) ----
 
   router.get(
@@ -209,12 +278,15 @@ export function mountApi(
 /**
  * Minimal JSON body reader. SignalK versions differ on whether plugin routers
  * get body-parsing middleware, so parse only if req.body is still unset.
+ * File uploads post their bytes as the body and must reach the upload route
+ * unread, so a non-JSON content type passes straight through.
  */
 function jsonBody(req: Request, res: Response, next: NextFunction): void {
   if (
     req.body !== undefined ||
     req.method === 'GET' ||
-    req.method === 'DELETE'
+    req.method === 'DELETE' ||
+    isRawUpload(req)
   ) {
     next();
     return;
@@ -242,6 +314,26 @@ function jsonBody(req: Request, res: Response, next: NextFunction): void {
       });
     }
   });
+}
+
+/** True for a body that is a file, not JSON (see the upload route). */
+function isRawUpload(req: Request): boolean {
+  const type = req.headers['content-type'];
+  return (
+    req.path.endsWith('/files') &&
+    !(typeof type === 'string' && /^\s*application\/json\b/i.test(type))
+  );
+}
+
+/** A percent-encoded header value (filenames can be any Unicode). */
+function decodeHeader(v: unknown): string {
+  const s = str(Array.isArray(v) ? v[0] : v);
+  if (s === undefined) return '';
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }
 
 function parseTaskListQuery(req: Request): TaskListQuery {

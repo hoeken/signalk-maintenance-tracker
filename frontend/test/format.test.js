@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  formatBytes,
   formatDate,
   formatElapsedTime,
   formatHours,
@@ -15,6 +16,16 @@ import {
 const DAY = 24 * 3600 * 1000;
 
 describe('format helpers', () => {
+  it('formats file sizes in binary units', () => {
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(1024)).toBe('1.0 KB');
+    expect(formatBytes(1536)).toBe('1.5 KB');
+    expect(formatBytes(3.4 * 1024 * 1024)).toBe('3.4 MB');
+    expect(formatBytes(1024 * 1024 * 1024)).toBe('1.0 GB');
+    expect(formatBytes(null)).toBe('—');
+  });
+
   it('formats hours with null fallback', () => {
     expect(formatHours(1240.55)).toBe('1240.6 h');
     expect(formatHours(null)).toBe('—');

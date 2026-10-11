@@ -162,4 +162,26 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 8,
+    up(db) {
+      // Files attached to a task (manuals, receipts, photos). The bytes live
+      // on disk under the plugin data directory (files/<task_id>/...); this
+      // table is the index: original name, size, and the on-disk path
+      // relative to that files root. Rows cascade with the task; the
+      // service removes the bytes alongside.
+      db.exec(`
+        CREATE TABLE task_files (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          size INTEGER NOT NULL,
+          mime TEXT,
+          path TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_task_files_task ON task_files (task_id);
+      `);
+    },
+  },
 ];

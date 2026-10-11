@@ -3,10 +3,12 @@
  * Mutations invalidate the affected keys on success so the UI updates
  * immediately instead of waiting for the next poll.
  */
-import { apiFetch, buildQuery } from './client.js';
+import { apiFetch, buildQuery, API_BASE, ApiError } from './client.js';
+import { onUnauthorized } from '../auth/auth.js';
 import { useResource, invalidate } from './resource.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
+/** @typedef {import('../types.js').TaskFileDTO} TaskFileDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 /** @typedef {import('../types.js').TagDTO} TagDTO */
 /** @typedef {import('../types.js').TaskInput} TaskInput */
@@ -168,4 +170,79 @@ export async function deleteLog(id, taskSlug) {
   await apiFetch('/logs/' + id, { method: 'DELETE' });
   invalidate('tasks', 'logs');
   if (taskSlug) invalidate('task/' + taskSlug);
+}
+
+// ---- task files (§8.6) ----
+
+/**
+ * Download URL for an attachment — served as an attachment under the
+ * original filename by the plugin API.
+ * @param {string} slug
+ * @param {number} fileId
+ */
+export function taskFileUrl(slug, fileId) {
+  return API_BASE + '/tasks/' + encodeSlug(slug) + '/files/' + fileId;
+}
+
+/**
+ * Upload one attachment. The bytes go as the raw request body (always
+ * octet-stream — a JSON content type would get the body parsed server-side)
+ * with the name and real type in headers. XMLHttpRequest rather than fetch
+ * so a multi-hundred-megabyte upload can report progress.
+ * @param {string} slug
+ * @param {File} file
+ * @param {(fraction: number) => void} [onProgress] 0..1
+ * @returns {Promise<TaskFileDTO>}
+ */
+export function uploadTaskFile(slug, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API_BASE + '/tasks/' + encodeSlug(slug) + '/files');
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
+    if (file.type) xhr.setRequestHeader('X-File-Type', file.type);
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total);
+      };
+    }
+    xhr.onerror = () => reject(new Error('Upload failed (network error)'));
+    xhr.onabort = () => reject(new Error('Upload cancelled'));
+    xhr.onload = () => {
+      if (xhr.status === 401 || xhr.status === 403) onUnauthorized();
+      /** @type {any} */
+      let body;
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        body = null;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        invalidate('tasks', 'task/' + slug);
+        resolve(body);
+        return;
+      }
+      const errInfo = body && body.error ? body.error : {};
+      reject(
+        new ApiError(
+          xhr.status,
+          errInfo.code || 'http_' + xhr.status,
+          errInfo.message || 'Upload failed (' + xhr.status + ')',
+        ),
+      );
+    };
+    xhr.send(file);
+  });
+}
+
+/**
+ * @param {string} slug
+ * @param {number} fileId
+ */
+export async function deleteTaskFile(slug, fileId) {
+  await apiFetch('/tasks/' + encodeSlug(slug) + '/files/' + fileId, {
+    method: 'DELETE',
+  });
+  invalidate('tasks', 'task/' + slug);
 }

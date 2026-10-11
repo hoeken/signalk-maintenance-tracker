@@ -85,6 +85,24 @@ export function toDateInput(iso) {
 }
 
 /**
+ * File size for display: "512 B", "1.2 KB", "3.4 MB", "1.1 GB". One decimal
+ * from KB up, none for bytes.
+ * @param {number|null|undefined} bytes
+ */
+export function formatBytes(bytes) {
+  if (bytes === null || bytes === undefined || !isFinite(bytes)) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return (Math.round(value * 10) / 10).toFixed(1) + ' ' + units[i];
+}
+
+/**
  * @param {string|null|undefined} s
  * @param {number} max
  */

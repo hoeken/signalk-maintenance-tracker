@@ -9,6 +9,7 @@ import { PathPublisher } from './signalk/paths';
 import { RuntimeManager } from './signalk/runtime';
 import { mountApi, Services } from './api/router';
 import { StowageClient } from './stowage/client';
+import { FileStore } from './files/store';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { version: PLUGIN_VERSION } = require('../package.json');
@@ -72,6 +73,7 @@ export = function (app: any) {
           stowageClient: opts.stowageMgmtUrl
             ? new StowageClient({ baseUrl: opts.stowageMgmtUrl })
             : undefined,
+          fileStore: new FileStore(path.join(app.getDataDirPath(), 'files')),
         });
         runtime.onUpdate(() => recomputeNotifications());
         services = { service, runtime, version: PLUGIN_VERSION };

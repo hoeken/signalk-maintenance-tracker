@@ -279,9 +279,10 @@ describe('TaskDetailPage — title bar and description card', () => {
     expect(tags).toEqual(['Engines', 'Fluids']);
   });
 
-  it('drops the description card when there is no description and no parts', async () => {
-    await renderTask({ description: null, consumables: [] });
+  it('drops the description card when there is no description, files, or parts', async () => {
+    await renderTask({ description: null, consumables: [], files: [] });
     expect(screen.queryByText('Description')).toBeNull();
+    expect(screen.queryByText('Files')).toBeNull();
   });
 
   it('keeps the description card for parts alone', async () => {
@@ -383,6 +384,58 @@ describe('TaskDetailPage — title bar and description card', () => {
     // An item stowage-mgmt no longer knows: just the required qty, uncolored.
     expect(rowOf('Old gasket').textContent).toMatch(/× 1$/);
     expect(rowOf('Old gasket').querySelector('.consumables-stock')).toBeNull();
+  });
+
+  it('lists attachments under the description with their sizes', async () => {
+    await renderTask({
+      description: 'Drain the sump.',
+      files: [
+        {
+          id: 3,
+          name: 'Yanmar manual.pdf',
+          size: 2.5 * 1024 * 1024,
+          mime: 'application/pdf',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 4,
+          name: 'receipt.jpg',
+          size: 800,
+          mime: 'image/jpeg',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const headings = Array.from(card('Description').querySelectorAll('h3')).map(
+      (h) => h.textContent,
+    );
+    expect(headings).toEqual(['Description', 'Files']);
+    const rows = Array.from(document.querySelectorAll('.files-row')).map((li) =>
+      li.textContent.trim(),
+    );
+    expect(rows).toEqual(['Yanmar manual.pdf2.5 MB', 'receipt.jpg800 B']);
+    const link = screen.getByText('Yanmar manual.pdf').closest('a');
+    expect(link.getAttribute('href')).toBe(
+      '/plugins/signalk-maintenance-tracker/api/tasks/engine-oil-change/files/3',
+    );
+    expect(link.getAttribute('download')).toBe('Yanmar manual.pdf');
+  });
+
+  it('keeps the card for files alone and skips the Files section without any', async () => {
+    await renderTask({
+      description: null,
+      files: [
+        {
+          id: 3,
+          name: 'notes.txt',
+          size: 10,
+          mime: 'text/plain',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    expect(card('Files')).toBeTruthy();
+    expect(screen.queryByText('Description')).toBeNull();
   });
 
   it('keeps the description card for a description alone', async () => {

@@ -10,9 +10,11 @@ import {
   updateTask,
   deleteTask,
   deleteLog,
+  taskFileUrl,
 } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import {
+  formatBytes,
   formatDate,
   formatElapsedTime,
   formatHours,
@@ -135,6 +137,7 @@ export function TaskDetailPage(props) {
     task.last_runtime !== null;
 
   const consumables = task.consumables || [];
+  const files = task.files || [];
 
   // Live stock levels for the "required / in stock" figures. Shared with the
   // StockBadge subscription, so this adds no extra polling. Stays undefined
@@ -240,8 +243,8 @@ export function TaskDetailPage(props) {
 
       <div class="detail-grid">
         ${
-          // Nothing to say without a description or parts: drop the card.
-          task.description || consumables.length
+          // Nothing to say without a description, files or parts: drop the card.
+          task.description || files.length || consumables.length
             ? html`<div class="card">
                 ${
                   task.description
@@ -250,9 +253,36 @@ export function TaskDetailPage(props) {
                     : null
                 }
                 ${
-                  consumables.length
+                  files.length
                     ? html`<div
                         style=${task.description ? 'margin-top:16px' : ''}
+                      >
+                        <h3>Files</h3>
+                        <ul class="files-list">
+                          ${files.map(
+                            (f) => html`<li key=${f.id} class="files-row">
+                              <span class="files-name"
+                                ><a
+                                  href=${taskFileUrl(task.slug, f.id)}
+                                  download=${f.name}
+                                  ><i class="bi bi-paperclip" />${f.name}</a
+                                ></span
+                              >
+                              <span class="files-size">${formatBytes(f.size)}</span>
+                            </li>`,
+                          )}
+                        </ul>
+                      </div>`
+                    : null
+                }
+                ${
+                  consumables.length
+                    ? html`<div
+                        style=${
+                          task.description || files.length
+                            ? 'margin-top:16px'
+                            : ''
+                        }
                       >
                         <h3>Consumables</h3>
                         <ul class="consumables-list">

@@ -15,6 +15,15 @@
  */
 
 /**
+ * @typedef {Object} TaskFileDTO
+ * @property {number} id
+ * @property {string} name
+ * @property {number} size bytes
+ * @property {string|null} mime
+ * @property {string} created_at
+ */
+
+/**
  * @typedef {Object} TaskDTO
  * @property {number} id
  * @property {string} slug
@@ -55,6 +64,7 @@
  * @property {string} created_at
  * @property {string} updated_at
  * @property {TaskConsumableDTO[]} consumables
+ * @property {TaskFileDTO[]} files attachments; managed via the /files endpoints
  */
 
 /**
