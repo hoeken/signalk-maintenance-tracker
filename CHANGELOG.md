@@ -1,3 +1,34 @@
+# v1.6.0
+
+Tasks can now carry files, and the detail page shows whether the parts for a
+job are actually on board.
+
+## Highlights
+
+- **File attachments.** Each task can hold attachments — manuals, receipts,
+  photos — of any type up to 1 GB. The Edit Task modal gains a **Files**
+  field under the description with upload (progress bar) and delete; the
+  task detail page lists them under a **Files** header with sizes, each a
+  download link. Bytes live under the plugin data directory at
+  `files/<task_id>/`, indexed by a new `task_files` table (migration 8).
+  Uploads stream to a temp file and are only moved into place once complete
+  and within the limit, so an interrupted or oversize upload leaves nothing
+  behind. Deleting a task removes its files. Downloads are always served as
+  an attachment with `nosniff`, so nothing uploaded can render inline on the
+  SignalK origin.
+- **In-stock quantities on the task detail page.** Each consumable now reads
+  "Item × required / on hand", pulling live quantities from the
+  stowage-mgmt items resource already polled by the stock badge. The figure
+  is green when stock covers the job and meets the item's target, orange when
+  it covers the job but is below target, and red when there isn't enough.
+  Falls back to the plain required qty when stowage is unavailable or the
+  item is no longer known.
+
+## API
+
+- New endpoints: `GET`/`POST /tasks/:slug/files` and `GET`/`DELETE
+  /tasks/:slug/files/:id`.
+
 # v1.5.1
 
 Phone-sized polish for the task list and modals.
