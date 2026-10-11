@@ -6,6 +6,35 @@ import type { Readable } from 'node:stream';
 /** Largest single upload accepted: 1 GiB. */
 export const MAX_FILE_BYTES = 1024 * 1024 * 1024;
 
+/**
+ * Whether a file of this (uploader-declared) type may be served inline, i.e.
+ * rendered by the browser on the server's origin rather than saved. Only
+ * what browsers display natively and that carries no script: raster images,
+ * PDF, plain text, audio and video. SVG and anything XML/HTML-shaped are
+ * documents that can run script, so they stay downloads whatever the label.
+ * Anything else (Word, spreadsheets, archives…) the browser would download
+ * anyway.
+ */
+export function isInlineType(mime: string | null | undefined): boolean {
+  const t = normalizeMime(mime);
+  if (t === null || /xml|html/.test(t)) return false;
+  if (t === 'application/pdf' || t === 'text/plain') return true;
+  return /^(image|audio|video)\//.test(t);
+}
+
+/** Whether a file of this type is a raster image: inline, and a picture. */
+export function isInlineImage(mime: string | null | undefined): boolean {
+  const t = normalizeMime(mime);
+  return t !== null && t.startsWith('image/') && isInlineType(t);
+}
+
+/** The bare `type/subtype`, lowercased, or null when absent. */
+function normalizeMime(mime: string | null | undefined): string | null {
+  if (!mime) return null;
+  const t = mime.split(';')[0].trim().toLowerCase();
+  return t.includes('/') ? t : null;
+}
+
 /** Thrown by write() when the stream runs past `maxBytes`. */
 export class FileTooLargeError extends Error {
   constructor(public maxBytes: number) {

@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response, Router } from 'express';
 import { getRequestUser } from '../auth';
+import { isInlineType } from '../files/store';
 import { ApiError, MaintenanceService, TaskListQuery } from '../service';
 import { RuntimeManager } from '../signalk/runtime';
 import { Status } from '../types';
@@ -165,8 +166,21 @@ export function mountApi(
         req.params.slug,
         intParam(req.params.id),
       );
-      // Always an attachment: a file is never rendered inline on the server's
-      // origin, whatever the uploader called it.
+      // What a browser can show on its own (images, PDF, text, media) is
+      // served inline so links open in a tab; everything else is an
+      // attachment, whatever the uploader called it, so no uploaded document
+      // ever runs on the server's origin. nosniff in both cases: the declared
+      // type is the only type.
+      if (isInlineType(file.mime)) {
+        res.type(file.mime as string);
+        res.sendFile(absPath, {
+          headers: {
+            'Content-Disposition': inlineDisposition(file.name),
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
+        return;
+      }
       res.download(absPath, file.name, {
         headers: { 'X-Content-Type-Options': 'nosniff' },
       });
@@ -358,6 +372,18 @@ function parseTaskListQuery(req: Request): TaskListQuery {
 
 function parsePaging(req: Request): { page?: number; pageSize?: number } {
   return { page: int(req.query.page), pageSize: int(req.query.pageSize) };
+}
+
+/**
+ * `Content-Disposition: inline` carrying the original name for "save as"
+ * (RFC 6266): an ASCII fallback plus the UTF-8 form for non-ASCII names.
+ */
+function inlineDisposition(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  let header = 'inline; filename="' + ascii + '"';
+  if (ascii !== name)
+    header += "; filename*=UTF-8''" + encodeURIComponent(name);
+  return header;
 }
 
 function str(v: unknown): string | undefined {

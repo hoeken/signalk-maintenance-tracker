@@ -109,7 +109,9 @@ describe('task file endpoints', () => {
         r.on('end', () => cb(null, Buffer.concat(chunks)));
       });
     expect(dl.status).toBe(200);
-    expect(dl.headers['content-disposition']).toMatch(/^attachment;/);
+    // a PDF: the browser shows it, so inline, under the original name
+    expect(dl.headers['content-type']).toBe('application/pdf');
+    expect(dl.headers['content-disposition']).toMatch(/^inline;/);
     expect(dl.headers['content-disposition']).toContain('Yanmar');
     expect(dl.headers['x-content-type-options']).toBe('nosniff');
     expect((dl.body as Buffer).toString()).toBe('%PDF-1.4 hello');
@@ -119,6 +121,58 @@ describe('task file endpoints', () => {
     expect(onDisk).toHaveLength(1);
     expect(onDisk[0]).toContain(path.join('files', '1'));
     expect(onDisk[0]).toMatch(/Manual_Yanmar_3YM30\.pdf$/);
+  });
+
+  it('serves what a browser can show inline under its declared type, the rest as an attachment', async () => {
+    const png = await request(app)
+      .post(`${base}/tasks/engine-oil-change/files`)
+      .set('Content-Type', 'application/octet-stream')
+      .set('X-File-Name', encodeURIComponent('Pumpe Ölfilter.png'))
+      .set('X-File-Type', 'image/png')
+      .send(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    expect(png.status).toBe(201);
+    const dl = await request(app).get(
+      `${base}/tasks/engine-oil-change/files/${png.body.id}`,
+    );
+    expect(dl.status).toBe(200);
+    expect(dl.headers['content-type']).toBe('image/png');
+    expect(dl.headers['content-disposition']).toBe(
+      `inline; filename="Pumpe _lfilter.png"; filename*=UTF-8''Pumpe%20%C3%96lfilter.png`,
+    );
+    expect(dl.headers['x-content-type-options']).toBe('nosniff');
+
+    const disposition = async (name: string, type: string) => {
+      const up = await request(app)
+        .post(`${base}/tasks/engine-oil-change/files`)
+        .set('Content-Type', 'application/octet-stream')
+        .set('X-File-Name', name)
+        .set('X-File-Type', type)
+        .send('x');
+      const r = await request(app).get(
+        `${base}/tasks/engine-oil-change/files/${up.body.id}`,
+      );
+      expect(r.headers['x-content-type-options']).toBe('nosniff');
+      return r.headers['content-disposition'].split(';')[0];
+    };
+    // PDFs, text and media: shown by the browser, so inline.
+    expect(await disposition('manual.pdf', 'application/pdf')).toBe('inline');
+    expect(await disposition('notes.txt', 'text/plain; charset=utf-8')).toBe(
+      'inline',
+    );
+    expect(await disposition('clip.mp4', 'video/mp4')).toBe('inline');
+    expect(await disposition('noise.mp3', 'audio/mpeg')).toBe('inline');
+    // SVG and HTML can carry script: never inline, however labelled. Word
+    // and friends the browser can't show anyway.
+    expect(await disposition('diagram.svg', 'image/svg+xml')).toBe(
+      'attachment',
+    );
+    expect(await disposition('page.html', 'text/html')).toBe('attachment');
+    expect(
+      await disposition(
+        'spec.docx',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ),
+    ).toBe('attachment');
   });
 
   it('accepts any content type and keeps the uploader name out of the path', async () => {

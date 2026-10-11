@@ -409,16 +409,80 @@ describe('TaskDetailPage — title bar and description card', () => {
     const headings = Array.from(card('Description').querySelectorAll('h3')).map(
       (h) => h.textContent,
     );
-    expect(headings).toEqual(['Description', 'Files']);
+    expect(headings).toEqual(['Description', 'Files', 'Gallery']);
+    // images live in the gallery, not the list
     const rows = Array.from(document.querySelectorAll('.files-row')).map((li) =>
       li.textContent.trim(),
     );
-    expect(rows).toEqual(['Yanmar manual.pdf2.5 MB', 'receipt.jpg800 B']);
+    expect(rows).toEqual(['Yanmar manual.pdf2.5 MB']);
     const link = screen.getByText('Yanmar manual.pdf').closest('a');
     expect(link.getAttribute('href')).toBe(
       '/plugins/signalk-maintenance-tracker/api/tasks/engine-oil-change/files/3',
     );
-    expect(link.getAttribute('download')).toBe('Yanmar manual.pdf');
+    // Browsers show PDFs themselves: open in a tab rather than download.
+    expect(link.getAttribute('download')).toBeNull();
+    expect(link.getAttribute('target')).toBe('_blank');
+
+    // Images are thumbnails that open in a tab.
+    const thumbs = Array.from(document.querySelectorAll('.files-thumb'));
+    expect(thumbs[0].getAttribute('target')).toBe('_blank');
+    expect(thumbs[0].getAttribute('rel')).toBe('noopener');
+    expect(thumbs[0].getAttribute('download')).toBeNull();
+    expect(thumbs.map((a) => a.getAttribute('href'))).toEqual([
+      '/plugins/signalk-maintenance-tracker/api/tasks/engine-oil-change/files/4',
+    ]);
+    expect(thumbs[0].querySelector('img').getAttribute('src')).toBe(
+      '/plugins/signalk-maintenance-tracker/api/tasks/engine-oil-change/files/4',
+    );
+    expect(thumbs[0].querySelector('img').getAttribute('alt')).toBe(
+      'receipt.jpg',
+    );
+  });
+
+  it('shows only the gallery when every attachment is an image', async () => {
+    await renderTask({
+      description: null,
+      files: [
+        {
+          id: 4,
+          name: 'receipt.jpg',
+          size: 800,
+          mime: 'image/jpeg',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    expect(card('Gallery')).toBeTruthy();
+    expect(screen.queryByText('Files')).toBeNull();
+    expect(document.querySelector('.files-list')).toBeNull();
+    expect(document.querySelectorAll('.files-thumb')).toHaveLength(1);
+  });
+
+  it('downloads what the browser cannot show, with no gallery without images', async () => {
+    await renderTask({
+      files: [
+        {
+          id: 3,
+          name: 'diagram.svg',
+          size: 10,
+          mime: 'image/svg+xml',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 5,
+          name: 'spec.docx',
+          size: 10,
+          mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    expect(document.querySelector('.files-gallery')).toBeNull();
+    for (const name of ['diagram.svg', 'spec.docx']) {
+      const a = screen.getByText(name).closest('a');
+      expect(a.getAttribute('download')).toBe(name);
+      expect(a.getAttribute('target')).toBeNull();
+    }
   });
 
   it('keeps the card for files alone and skips the Files section without any', async () => {

@@ -23,6 +23,7 @@ import {
   formatUser,
   toDateInput,
 } from '../lib/format.js';
+import { isInlineImage, isInlineType } from '../lib/files.js';
 import { navigate } from '../lib/router.js';
 import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
@@ -138,6 +139,11 @@ export function TaskDetailPage(props) {
 
   const consumables = task.consumables || [];
   const files = task.files || [];
+  // Images are a thumbnail gallery of their own; the rest are listed by
+  // name. Of those, what the browser can show (PDFs, text, media) opens in a
+  // tab; everything else is a plain download.
+  const images = files.filter((f) => isInlineImage(f.mime));
+  const documents = files.filter((f) => !isInlineImage(f.mime));
 
   // Live stock levels for the "required / in stock" figures. Shared with the
   // StockBadge subscription, so this adds no extra polling. Stays undefined
@@ -253,18 +259,22 @@ export function TaskDetailPage(props) {
                     : null
                 }
                 ${
-                  files.length
+                  documents.length
                     ? html`<div
                         style=${task.description ? 'margin-top:16px' : ''}
                       >
                         <h3>Files</h3>
                         <ul class="files-list">
-                          ${files.map(
+                          ${documents.map(
                             (f) => html`<li key=${f.id} class="files-row">
                               <span class="files-name"
                                 ><a
                                   href=${taskFileUrl(task.slug, f.id)}
-                                  download=${f.name}
+                                  ...${
+                                    isInlineType(f.mime)
+                                      ? { target: '_blank', rel: 'noopener' }
+                                      : { download: f.name }
+                                  }
                                   ><i class="bi bi-paperclip" />${f.name}</a
                                 ></span
                               >
@@ -272,6 +282,35 @@ export function TaskDetailPage(props) {
                             </li>`,
                           )}
                         </ul>
+                      </div>`
+                    : null
+                }
+                ${
+                  images.length
+                    ? html`<div
+                        style=${
+                          task.description || documents.length
+                            ? 'margin-top:16px'
+                            : ''
+                        }
+                      >
+                        <h3>Gallery</h3>
+                        <div class="files-gallery">
+                          ${images.map(
+                            (f) => html`<a
+                              key=${f.id}
+                              class="files-thumb"
+                              href=${taskFileUrl(task.slug, f.id)}
+                              target="_blank"
+                              rel="noopener"
+                              title=${f.name}
+                              ><img
+                                src=${taskFileUrl(task.slug, f.id)}
+                                alt=${f.name}
+                                loading="lazy"
+                            /></a>`,
+                          )}
+                        </div>
                       </div>`
                     : null
                 }

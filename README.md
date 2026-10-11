@@ -96,7 +96,9 @@ the SignalK server — currently admin):
 - `GET/POST /tasks/:slug/logs` (POST = mark complete)
 - `GET/POST /tasks/:slug/files`, `GET/DELETE /tasks/:slug/files/:id`
   (attachments: POST streams the raw request body to disk, any type up to
-  1 GB, with the filename in an `X-File-Name` header)
+  1 GB, with the filename in an `X-File-Name` header; images, PDFs, text
+  and media are served inline and open in the browser, images also as a
+  gallery on the task page; everything else downloads)
 - `GET /logs`, `PUT/DELETE /logs/:id`
 - `GET /tags`
 - `GET /health`
