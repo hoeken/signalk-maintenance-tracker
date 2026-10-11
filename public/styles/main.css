@@ -523,6 +523,19 @@ pre {
   width: 80px;
   flex: none;
 }
+/* "× required / in stock" on the task detail page */
+.consumables-stock {
+  font-weight: 600;
+}
+.consumables-stock.ok {
+  color: var(--ok);
+}
+.consumables-stock.low {
+  color: var(--warn);
+}
+.consumables-stock.short {
+  color: var(--danger);
+}
 
 .tag {
   display: inline-block;

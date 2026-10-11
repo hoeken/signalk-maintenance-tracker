@@ -320,6 +320,71 @@ describe('TaskDetailPage — title bar and description card', () => {
     );
   });
 
+  it('shows "required / in stock" per part, colored by availability', async () => {
+    const task = makeTask({
+      description: null,
+      consumables: [
+        { item_id: 'item-filter', item_name: 'Oil filter', qty_per_service: 1 },
+        { item_id: 'item-oil', item_name: 'Engine oil', qty_per_service: 4 },
+        { item_id: 'item-belt', item_name: 'Drive belt', qty_per_service: 1 },
+        { item_id: 'item-gone', item_name: 'Old gasket', qty_per_service: 1 },
+      ],
+    });
+    mockFetch([
+      {
+        match: (m, u) =>
+          m === 'GET' && u.indexOf('/signalk-stowage-mgmt/items') !== -1,
+        body: [
+          {
+            id: 'item-filter',
+            name: 'Oil filter',
+            actual_quantity: 3,
+            target_quantity: 2,
+            placements: [],
+          },
+          {
+            id: 'item-oil',
+            name: 'Engine oil',
+            actual_quantity: 2,
+            target_quantity: 4,
+            placements: [],
+          },
+          {
+            id: 'item-belt',
+            name: 'Drive belt',
+            actual_quantity: 1,
+            target_quantity: 2,
+            placements: [],
+          },
+        ],
+      },
+      ...detailRoutes(task),
+    ]);
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${TaskDetailPage} slug=${task.slug} />`);
+    await waitFor(() =>
+      expect(screen.getByText('Oil filter').closest('li').textContent).toMatch(
+        /× 1 \/ 3/,
+      ),
+    );
+    const rowOf = (name) => screen.getByText(name).closest('li');
+    expect(
+      rowOf('Oil filter').querySelector('.consumables-stock.ok'),
+    ).toBeTruthy();
+    expect(rowOf('Engine oil').textContent).toMatch(/× 4 \/ 2/);
+    expect(
+      rowOf('Engine oil').querySelector('.consumables-stock.short'),
+    ).toBeTruthy();
+    // Enough for this job, but below the restock target: orange.
+    expect(rowOf('Drive belt').textContent).toMatch(/× 1 \/ 1/);
+    expect(
+      rowOf('Drive belt').querySelector('.consumables-stock.low'),
+    ).toBeTruthy();
+    // An item stowage-mgmt no longer knows: just the required qty, uncolored.
+    expect(rowOf('Old gasket').textContent).toMatch(/× 1$/);
+    expect(rowOf('Old gasket').querySelector('.consumables-stock')).toBeNull();
+  });
+
   it('keeps the description card for a description alone', async () => {
     await renderTask({ description: 'Drain the sump.', consumables: [] });
     expect(screen.getByText('Drain the sump.')).toBeTruthy();

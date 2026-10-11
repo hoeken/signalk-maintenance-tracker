@@ -34,7 +34,7 @@ import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
 import { apiFetch } from '../api/client.js';
-import { stowageItemUrl } from '../api/stowage.js';
+import { stowageItemUrl, useStowageItems } from '../api/stowage.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
@@ -44,7 +44,7 @@ export function TaskDetailPage(props) {
   const auth = useAuth();
   const taskRes = useTask(props.slug);
   const logsRes = useTaskLogs(props.slug);
-
+  const stowageItems = useStowageItems();
   const [editing, setEditing] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [deletingTask, setDeletingTask] = useState(false);
@@ -135,6 +135,11 @@ export function TaskDetailPage(props) {
     task.last_runtime !== null;
 
   const consumables = task.consumables || [];
+
+  // Live stock levels for the "required / in stock" figures. Shared with the
+  // StockBadge subscription, so this adds no extra polling. Stays undefined
+  // (figure hidden) while loading or when stowage-mgmt isn't reachable.
+  const stockById = new Map((stowageItems.data || []).map((i) => [i.id, i]));
 
   // With both a recurring interval and a one-time deadline set, the deadline
   // takes a row of its own; on its own it simply is the next thing due.
@@ -251,8 +256,25 @@ export function TaskDetailPage(props) {
                       >
                         <h3>Consumables</h3>
                         <ul class="consumables-list">
-                          ${consumables.map(
-                            (c) => html`<li
+                          ${consumables.map((c) => {
+                            const item = stockById.get(c.item_id);
+                            // Enough for this job: green, or orange when that
+                            // still leaves the item below its restock target.
+                            const stock = !item
+                              ? null
+                              : {
+                                  onHand: item.actual_quantity,
+                                  cls:
+                                    item.actual_quantity < c.qty_per_service
+                                      ? 'short'
+                                      : item.target_quantity !== null &&
+                                          item.actual_quantity <
+                                            item.target_quantity
+                                        ? 'low'
+                                        : 'ok',
+                                  target: item.target_quantity,
+                                };
+                            return html`<li
                               key=${c.item_id}
                               class="consumables-row"
                             >
@@ -260,12 +282,36 @@ export function TaskDetailPage(props) {
                                 ><a href=${stowageItemUrl(c.item_id)}
                                   >${c.item_name}</a
                                 >${' '}
-                                <span class="muted"
-                                  >× ${c.qty_per_service}</span
-                                ></span
+                                ${
+                                  stock
+                                    ? html`<span
+                                        class=${'consumables-stock ' + stock.cls}
+                                        title=${
+                                          'Need ' +
+                                          c.qty_per_service +
+                                          ', ' +
+                                          stock.onHand +
+                                          ' in stock' +
+                                          (stock.cls === 'low'
+                                            ? ' (below target of ' +
+                                              stock.target +
+                                              ')'
+                                            : '')
+                                        }
+                                        >${
+                                          '× ' +
+                                          c.qty_per_service +
+                                          ' / ' +
+                                          stock.onHand
+                                        }</span
+                                      >`
+                                    : html`<span class="muted"
+                                        >× ${c.qty_per_service}</span
+                                      >`
+                                }</span
                               >
-                            </li>`,
-                          )}
+                            </li>`;
+                          })}
                         </ul>
                       </div>`
                     : null
