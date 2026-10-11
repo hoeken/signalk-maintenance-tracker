@@ -1,3 +1,17 @@
+# v1.6.1
+
+Attachments open in the browser when the browser can show them.
+
+- Images, PDFs, plain text, audio and video are now served inline under
+  their declared type, so clicking one opens it in a new tab instead of
+  forcing a download. Anything XML- or HTML-shaped (SVG included) stays an
+  attachment, since it can carry script, and so does anything the browser
+  can't render anyway. `nosniff` is kept in both cases, so the declared type
+  is the only type and nothing uploaded runs on the SignalK origin.
+- The task detail page gains a **Gallery** section: image attachments move
+  out of the Files list into a grid of thumbnails that open the full image
+  in a new tab. Either section is dropped when empty.
+
 # v1.6.0
 
 Tasks can now carry files, and the detail page shows whether the parts for a
