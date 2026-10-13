@@ -12,7 +12,12 @@ import { MarkdownView } from './MarkdownView.js';
 import { FileList, ImageGallery } from './AttachmentList.js';
 import { logFileUrl } from '../api/hooks.js';
 import { splitAttachments } from '../lib/files.js';
-import { formatDate, formatHours, formatUser } from '../lib/format.js';
+import {
+  formatDate,
+  formatHours,
+  formatTimestampDate,
+  formatUser,
+} from '../lib/format.js';
 
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 
@@ -46,7 +51,7 @@ export function LogDetailsModal(props) {
             },
             { label: 'Title', value: entry.title },
             { label: 'Log Date', value: when },
-            { label: 'Updated', value: formatDate(entry.created_at) },
+            { label: 'Updated', value: formatTimestampDate(entry.created_at) },
             { label: 'Runtime', value: formatHours(entry.runtime_hours) },
             {
               label: 'Logged by',

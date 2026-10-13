@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/preact';
 import { html } from '../../public/app/lib/html.js';
+import dayjs from '../../public/vendor/dayjs/index.js';
 import { MasterLogPage } from '../../public/app/pages/MasterLogPage.js';
 import { authState } from '../../public/app/auth/auth.js';
 import { mockFetch, apiRoutes } from './helpers.js';
@@ -161,7 +162,8 @@ describe('master log page — details modal', () => {
     expect(stats).toEqual([
       ['Task', 'Engine oil'],
       ['Log Date', '2026-01-02'],
-      ['Updated', '2026-01-02'],
+      // created_at is an instant, shown as the local date.
+      ['Updated', dayjs(logs[0].created_at).format('YYYY-MM-DD')],
       ['Runtime', '12.5 h'],
       ['Logged by', 'zach'],
     ]);

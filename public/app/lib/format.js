@@ -17,6 +17,16 @@ export function formatDate(iso) {
 }
 
 /**
+ * Local-date display for a real instant (e.g. a record's created_at), as
+ * opposed to formatDate's calendar dates: slicing the UTC string would show
+ * the wrong day whenever local and UTC dates differ.
+ * @param {string|null|undefined} iso
+ */
+export function formatTimestampDate(iso) {
+  return iso ? dayjs(iso).format('YYYY-MM-DD') : '—';
+}
+
+/**
  * Runtime hours for display: "1240.5 h". Null-safe.
  * @param {number|null|undefined} hours
  */

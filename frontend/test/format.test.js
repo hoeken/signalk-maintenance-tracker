@@ -6,6 +6,7 @@ import {
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
+  formatTimestampDate,
   formatUser,
   humanizeMs,
   isTokenUser,
@@ -56,6 +57,19 @@ describe('format helpers', () => {
   it('formats dates from the stored UTC date part, never local time', () => {
     expect(formatDate('2026-07-08T00:00:00.000Z')).toBe('2026-07-08');
     expect(formatDate(null)).toBe('—');
+  });
+
+  it('formats instants as the local calendar date, not the UTC one', () => {
+    // 23:30 UTC is already the next day east of UTC.
+    const iso = '2026-07-08T23:30:00.000Z';
+    const d = new Date(iso);
+    const local = [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0'),
+    ].join('-');
+    expect(formatTimestampDate(iso)).toBe(local);
+    expect(formatTimestampDate(null)).toBe('—');
   });
 
   it('date input values round-trip the stored UTC date part', () => {
