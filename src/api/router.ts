@@ -1,9 +1,14 @@
 import type { NextFunction, Request, Response, Router } from 'express';
 import { getRequestUser } from '../auth';
 import { isInlineType } from '../files/store';
-import { ApiError, MaintenanceService, TaskListQuery } from '../service';
+import {
+  ApiError,
+  FileUpload,
+  MaintenanceService,
+  TaskListQuery,
+} from '../service';
 import { RuntimeManager } from '../signalk/runtime';
-import { Status } from '../types';
+import { FileDTO, Status } from '../types';
 
 export interface Services {
   service: MaintenanceService;
@@ -129,30 +134,9 @@ export function mountApi(
   router.post(
     '/api/tasks/:slug/files',
     withServices(async (s, req, res) => {
-      // A JSON content type gets the body parsed (by SignalK or jsonBody)
-      // before it reaches here, leaving nothing to stream to disk. Checked
-      // by stream state, not req.body: body-parser 1.x sets req.body = {}
-      // even on requests it skips.
-      if (req.readableEnded || (req as { _body?: boolean })._body)
-        throw new ApiError(
-          400,
-          'invalid_upload',
-          'Send the file bytes as the raw request body with a non-JSON content type (e.g. application/octet-stream)',
-        );
-      const length = req.headers['content-length'];
-      if (length === undefined)
-        throw new ApiError(
-          411,
-          'length_required',
-          'Uploads must send a Content-Length header',
-        );
       const file = await s.service.addFile(
         req.params.slug,
-        {
-          name: decodeHeader(req.headers['x-file-name']),
-          mime: str(req.headers['x-file-type']) ?? null,
-          declaredSize: Number.parseInt(String(length), 10) || 0,
-        },
+        uploadFromRequest(req),
         req,
       );
       res.status(201).json(file);
@@ -166,24 +150,7 @@ export function mountApi(
         req.params.slug,
         intParam(req.params.id),
       );
-      // What a browser can show on its own (images, PDF, text, media) is
-      // served inline so links open in a tab; everything else is an
-      // attachment, whatever the uploader called it, so no uploaded document
-      // ever runs on the server's origin. nosniff in both cases: the declared
-      // type is the only type.
-      if (isInlineType(file.mime)) {
-        res.type(file.mime as string);
-        res.sendFile(absPath, {
-          headers: {
-            'Content-Disposition': inlineDisposition(file.name),
-            'X-Content-Type-Options': 'nosniff',
-          },
-        });
-        return;
-      }
-      res.download(absPath, file.name, {
-        headers: { 'X-Content-Type-Options': 'nosniff' },
-      });
+      sendAttachment(res, file, absPath);
     }),
   );
 
@@ -191,6 +158,49 @@ export function mountApi(
     '/api/tasks/:slug/files/:id',
     withServices((s, req, res) => {
       s.service.deleteFile(req.params.slug, intParam(req.params.id));
+      res.status(204).end();
+    }),
+  );
+
+  // ---- log entry files (§8.6) — same protocol, hung off a log entry ----
+
+  router.get(
+    '/api/logs/:id/files',
+    withServices((s, req, res) => {
+      res.json({ data: s.service.listLogFiles(intParam(req.params.id)) });
+    }),
+  );
+
+  router.post(
+    '/api/logs/:id/files',
+    withServices(async (s, req, res) => {
+      const file = await s.service.addLogFile(
+        intParam(req.params.id),
+        uploadFromRequest(req),
+        req,
+      );
+      res.status(201).json(file);
+    }),
+  );
+
+  router.get(
+    '/api/logs/:id/files/:fileId',
+    withServices((s, req, res) => {
+      const { file, absPath } = s.service.getLogFile(
+        intParam(req.params.id),
+        intParam(req.params.fileId),
+      );
+      sendAttachment(res, file, absPath);
+    }),
+  );
+
+  router.delete(
+    '/api/logs/:id/files/:fileId',
+    withServices((s, req, res) => {
+      s.service.deleteLogFile(
+        intParam(req.params.id),
+        intParam(req.params.fileId),
+      );
       res.status(204).end();
     }),
   );
@@ -327,6 +337,59 @@ function jsonBody(req: Request, res: Response, next: NextFunction): void {
         },
       });
     }
+  });
+}
+
+/**
+ * What the service needs to know about an upload before its bytes, from the
+ * request headers — and the checks that the body really is still a stream
+ * of bytes for it to read.
+ */
+function uploadFromRequest(req: Request): FileUpload {
+  // A JSON content type gets the body parsed (by SignalK or jsonBody)
+  // before it reaches here, leaving nothing to stream to disk. Checked
+  // by stream state, not req.body: body-parser 1.x sets req.body = {}
+  // even on requests it skips.
+  if (req.readableEnded || (req as { _body?: boolean })._body)
+    throw new ApiError(
+      400,
+      'invalid_upload',
+      'Send the file bytes as the raw request body with a non-JSON content type (e.g. application/octet-stream)',
+    );
+  const length = req.headers['content-length'];
+  if (length === undefined)
+    throw new ApiError(
+      411,
+      'length_required',
+      'Uploads must send a Content-Length header',
+    );
+  return {
+    name: decodeHeader(req.headers['x-file-name']),
+    mime: str(req.headers['x-file-type']) ?? null,
+    declaredSize: Number.parseInt(String(length), 10) || 0,
+  };
+}
+
+/**
+ * Serve an attachment's bytes. What a browser can show on its own (images,
+ * PDF, text, media) is served inline so links open in a tab; everything
+ * else is an attachment, whatever the uploader called it, so no uploaded
+ * document ever runs on the server's origin. nosniff in both cases: the
+ * declared type is the only type.
+ */
+function sendAttachment(res: Response, file: FileDTO, absPath: string): void {
+  if (isInlineType(file.mime)) {
+    res.type(file.mime as string);
+    res.sendFile(absPath, {
+      headers: {
+        'Content-Disposition': inlineDisposition(file.name),
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+    return;
+  }
+  res.download(absPath, file.name, {
+    headers: { 'X-Content-Type-Options': 'nosniff' },
   });
 }
 

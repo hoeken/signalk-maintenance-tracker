@@ -10,7 +10,14 @@ import { useState } from '../../vendor/preact-hooks.js';
 import { Modal } from './Modal.js';
 import { FormError } from './FormError.js';
 import { PlacementAllocator } from './PlacementAllocator.js';
-import { addLog, addStandaloneLog, updateLog } from '../api/hooks.js';
+import { FilesField } from './FilesField.js';
+import {
+  addLog,
+  addStandaloneLog,
+  updateLog,
+  uploadLogFile,
+  deleteLogFile,
+} from '../api/hooks.js';
 import { useStowageItems } from '../api/stowage.js';
 import { toDateInput } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
@@ -57,6 +64,39 @@ export function LogEntryModal(props) {
   const [consumeStock, setConsumeStock] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Files picked before the entry exists wait here and go up once it has
+  // an id (an edit uploads straight to the entry instead).
+  const [pendingFiles, setPendingFiles] = useState(/** @type {File[]} */ ([]));
+  const [uploading, setUploading] = useState(
+    /** @type {{ name: string, fraction: number }|null} */ (null),
+  );
+
+  /**
+   * The entry is saved by now; a failed upload is reported, not fatal — the
+   * person can edit the entry and try again.
+   * @param {number} logId
+   */
+  const uploadPending = async (logId) => {
+    for (const file of pendingFiles) {
+      setUploading({ name: file.name, fraction: 0 });
+      try {
+        await uploadLogFile(logId, file, (fraction) =>
+          setUploading({ name: file.name, fraction: fraction }),
+        );
+      } catch (err) {
+        toast(
+          'Could not upload ' +
+            file.name +
+            ': ' +
+            (err instanceof Error ? err.message : 'upload failed') +
+            '. Edit the entry to try again.',
+          'error',
+        );
+      }
+    }
+    setUploading(null);
+  };
 
   // Split items (across stowage-mgmt locations) need the person to say which
   // location(s) stock came from — stowage-mgmt won't pick one automatically
@@ -148,9 +188,11 @@ export function LogEntryModal(props) {
             'error',
           );
         }
+        await uploadPending(created.id);
       } else {
-        await addStandaloneLog(input);
+        const created = await addStandaloneLog(input);
         toast('Log entry added.', 'success');
+        await uploadPending(created.id);
       }
       props.onClose();
     } catch (err) {
@@ -171,7 +213,9 @@ export function LogEntryModal(props) {
     >
       ${
         busy
-          ? 'Saving…'
+          ? uploading
+            ? 'Uploading…'
+            : 'Saving…'
           : isEdit
             ? 'Save changes'
             : task
@@ -256,6 +300,32 @@ export function LogEntryModal(props) {
             value=${notes}
             onInput=${(/** @type {any} */ e) => setNotes(e.currentTarget.value)}
           />
+        </div>
+
+        <div class="field">
+          <label class="field-label">Files</label>
+          ${
+            isEdit && entry
+              ? html`<${FilesField}
+                  id="log-files-input"
+                  files=${entry.files || []}
+                  upload=${(
+                    /** @type {File} */ file,
+                    /** @type {(fraction: number) => void} */ onProgress,
+                  ) => uploadLogFile(entry.id, file, onProgress)}
+                  remove=${(/** @type {import('../types.js').FileDTO} */ f) =>
+                    deleteLogFile(entry.id, f.id)}
+                  hint="Photos of the work, receipts — any type, up to 1 GB each. Uploads and deletions apply immediately."
+                />`
+              : html`<${FilesField}
+                  id="log-files-input"
+                  pending=${pendingFiles}
+                  onPendingChange=${setPendingFiles}
+                  uploading=${uploading}
+                  disabled=${busy}
+                  hint="Photos of the work, receipts — any type, up to 1 GB each. Uploaded when the entry is saved."
+                />`
+          }
         </div>
 
         ${

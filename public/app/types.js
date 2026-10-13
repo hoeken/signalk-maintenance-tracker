@@ -15,7 +15,8 @@
  */
 
 /**
- * @typedef {Object} TaskFileDTO
+ * An attachment record, whether on a task or a log entry.
+ * @typedef {Object} FileDTO
  * @property {number} id
  * @property {string} name
  * @property {number} size bytes
@@ -64,7 +65,7 @@
  * @property {string} created_at
  * @property {string} updated_at
  * @property {TaskConsumableDTO[]} consumables
- * @property {TaskFileDTO[]} files attachments; managed via the /files endpoints
+ * @property {FileDTO[]} files attachments; managed via the /tasks/:slug/files endpoints
  */
 
 /**
@@ -79,6 +80,7 @@
  * @property {string} created_at
  * @property {string|null} task_slug null on standalone entries
  * @property {string|null} task_name null on standalone entries — show `title` instead
+ * @property {FileDTO[]} files attachments; managed via the /logs/:id/files endpoints
  * @property {string[]} [consumable_warnings]
  */
 

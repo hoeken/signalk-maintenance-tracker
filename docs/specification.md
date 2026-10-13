@@ -510,12 +510,16 @@ drives the attribute.
   `runtime_fraction` / `time_fraction`), next due date(s), and current status
   badge.
 - A "Mark complete" button opening the Complete modal.
-- A per-task log table with edit/delete actions on each entry.
+- A per-task log table with edit/delete actions on each entry. An entry with
+  attachments carries a green paperclip ahead of the edit icon (shown to
+  logged-out visitors too) that opens the entry's attachments modal — files
+  are never rendered inline in the table.
 
 **Master Log (`/log`)**
 
 - One row per log entry across all tasks: task name (link), maintenance date,
-  runtime hours, notes (truncated, expandable), logged_by.
+  runtime hours, notes (truncated, expandable), logged_by, and the same
+  paperclip as the per-task log for entries with attachments.
 - Sortable + searchable + paginated (server-side, same pattern as task list).
 
 ### 7.5 Modals
@@ -540,8 +544,15 @@ Escape-to-close, focus trap, `role="dialog"`) — no modal library.
   won't save without at least one interval.
 - **Complete** — maintenance datetime (default now), runtime hours (prefilled from
   the task's `current_runtime` from the `/tasks` API when a runtime path is set,
-  §8.1/§8.4), notes (markdown). Submits a new log entry (§8,
-  `POST /tasks/:slug/logs`).
+  §8.1/§8.4), notes (markdown), and files (after the notes). Submits a new log
+  entry (§8, `POST /tasks/:slug/logs`); files picked before the entry exists
+  are held in the form and uploaded to `POST /logs/:id/files` once it has an
+  id — a failed upload is toasted, never a failed completion. The same form
+  edits an entry (and creates a standalone one), where the files field acts
+  on the server immediately, like the task form's.
+- **Log attachments** — read-only: the entry's documents under **Files** and
+  its images as thumbnails under **Images**, exactly as the task detail page
+  shows a task's. Opened from the paperclip on a log row.
 - **Delete confirm** — simple confirmation; on confirm calls `DELETE
 /tasks/:slug`.
 
@@ -796,7 +807,7 @@ Task response object (list item / detail):
 | GET    | `/tasks/:slug/logs` | Log entries for one task.                                                                                                                                                                                                                                                                                                                                                                  |
 | POST   | `/tasks/:slug/logs` | **Mark complete** — create a log entry. Recomputes task denormalized fields (§5.6), clears any one-time `due_date` (the deadline was for this completion), archives the task if it is a non-recurring todo (§6.3), and refreshes the task's notification. `logged_by` is filled server-side from the request principal (§9), not the body. If the task has linked consumables (§8.1) and stowage-mgmt integration is configured, also decrements their stock — best-effort; see below and `docs/inventory-interaction.md`. |
 | PUT    | `/logs/:id`         | Edit a log entry. Recomputes task fields if it was/becomes the latest.                                                                                                                                                                                                                                                                                                                     |
-| DELETE | `/logs/:id`         | Delete a log entry. Recomputes task fields.                                                                                                                                                                                                                                                                                                                                                |
+| DELETE | `/logs/:id`         | Delete a log entry (and its attachments, §8.6). Recomputes task fields.                                                                                                                                                                                                                                                                                                                    |
 
 Log create body (mark complete):
 
@@ -858,7 +869,9 @@ conversion boundary; the frontend never reads runtime _values_ from SignalK.
 | ------ | --------- | ------------------------------------------------------------------------------------------------- |
 | GET    | `/health` | Plugin status: db task/log counts, subscribed runtime paths, last recompute tick, plugin version. |
 
-### 8.6 Task files (attachments)
+### 8.6 Files (attachments)
+
+Tasks and log entries both take attachments, over the same protocol.
 
 | Method | Path                     | Description                                                                                                                                                                                                                                                                          |
 | ------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -866,14 +879,22 @@ conversion boundary; the frontend never reads runtime _values_ from SignalK.
 | POST   | `/tasks/:slug/files`     | Upload one file. The request body **is** the file (streamed to disk, never buffered); the original filename comes percent-encoded in `X-File-Name`, the client's content type in `X-File-Type`. `Content-Length` is required (411 without it) and `Content-Type` must not be JSON — `application/octet-stream` is conventional. Any type is accepted; 413 `file_too_large` above 1 GiB. Returns 201 with the file record. |
 | GET    | `/tasks/:slug/files/:id` | The bytes. What a browser can show on its own — by declared `mime`: `image/*`, `audio/*`, `video/*`, `application/pdf`, `text/plain` — is served `Content-Disposition: inline` under that type so it opens in a tab; everything else is `attachment` under the original name. Anything XML- or HTML-shaped (SVG included) is always an attachment, since it can carry script. Always `X-Content-Type-Options: nosniff`, so the declared type is the only type and no uploaded document runs on the server's origin. |
 | DELETE | `/tasks/:slug/files/:id` | Remove the record and the bytes. 204.                                                                                                                                                                                                                                                 |
+| GET    | `/logs/:id/files`        | A log entry's attachments, same shape. The list also rides on every log entry the API returns (`/logs`, `/tasks/:slug/logs`, and the create/edit responses) as `files`.                                                                                                             |
+| POST   | `/logs/:id/files`        | Upload one file to a log entry — identical to the task upload.                                                                                                                                                                                                                       |
+| GET    | `/logs/:id/files/:fileId` | The bytes, served exactly as a task file's.                                                                                                                                                                                                                                         |
+| DELETE | `/logs/:id/files/:fileId` | Remove the record and the bytes. 204.                                                                                                                                                                                                                                              |
 
 Bytes live under the plugin data directory at `files/<task_id>/<token>-<name>`
-and are indexed by the `task_files` table (migration 8: id, task_id, name,
-size, mime, path, created_at). Uploads land in `files/tmp` first and are
-renamed into place only once complete and within the limit, so an interrupted
-or oversize upload leaves nothing behind. Deleting a task removes its whole
-directory. A file is only addressable through its own task's URL — a matching
-id under another slug is a 404.
+for a task's files and `files/logs/<log_id>/<token>-<name>` for a log entry's
+(task directories are numeric, so `logs` can't collide), indexed by the
+`task_files` table (migration 8: id, task_id, name, size, mime, path,
+created_at) and the `log_files` table (migration 9: the same with log_id).
+Uploads land in `files/tmp` first and are renamed into place only once
+complete and within the limit, so an interrupted or oversize upload leaves
+nothing behind. Deleting a task removes its whole directory and those of its
+log entries; deleting a log entry removes its directory. A file is only
+addressable through its own owner's URL — a matching id under another task or
+entry is a 404.
 
 ### 8.7 Auth
 

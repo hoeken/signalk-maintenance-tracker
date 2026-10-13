@@ -14,7 +14,6 @@ import {
 } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import {
-  formatBytes,
   formatDate,
   formatElapsedTime,
   formatHours,
@@ -23,7 +22,7 @@ import {
   formatUser,
   toDateInput,
 } from '../lib/format.js';
-import { isInlineImage, isInlineType } from '../lib/files.js';
+import { splitAttachments } from '../lib/files.js';
 import { navigate } from '../lib/router.js';
 import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
@@ -36,11 +35,18 @@ import { TaskFormModal } from '../components/TaskFormModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
+import { FileList, ImageGallery } from '../components/AttachmentList.js';
+import { LogAttachmentsModal } from '../components/LogAttachmentsModal.js';
 import { apiFetch } from '../api/client.js';
 import { stowageItemUrl, useStowageItems } from '../api/stowage.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
+
+/** @param {number} n */
+function attachmentsTitle(n) {
+  return n === 1 ? '1 attachment' : n + ' attachments';
+}
 
 /** @param {{ slug: string }} props */
 export function TaskDetailPage(props) {
@@ -58,8 +64,12 @@ export function TaskDetailPage(props) {
     /** @type {LogDTO|null} */ (null),
   );
   const [downloadingLog, setDownloadingLog] = useState(false);
+  const [viewingFiles, setViewingFiles] = useState(
+    /** @type {LogDTO|null} */ (null),
+  );
 
   const task = taskRes.data;
+  const logRows = logsRes.data ? logsRes.data.data : [];
 
   if (taskRes.error && !task) {
     return html`<div class="error-box">
@@ -93,30 +103,48 @@ export function TaskDetailPage(props) {
           : html`<span class="muted">—</span>`,
     },
   ];
-  if (auth.isLoggedIn) {
+  // Attachments are viewable by anyone; edit/delete need a login.
+  if (auth.isLoggedIn || logRows.some((e) => e.files && e.files.length)) {
     logColumns.push({
       key: 'actions',
       label: '',
       className: 'actions',
       render: (/** @type {LogDTO} */ e) => html`
-        <button
-          type="button"
-          class="btn-icon primary"
-          aria-label="Edit log entry"
-          title="Edit"
-          onClick=${() => setEditingEntry(e)}
-        >
-          <i class="bi bi-pencil" />
-        </button>
-        <button
-          type="button"
-          class="btn-icon danger"
-          aria-label="Delete log entry"
-          title="Delete"
-          onClick=${() => setDeletingEntry(e)}
-        >
-          <i class="bi bi-trash" />
-        </button>
+        ${
+          e.files && e.files.length
+            ? html`<button
+                type="button"
+                class="btn-icon success"
+                aria-label="View attachments"
+                title=${attachmentsTitle(e.files.length)}
+                onClick=${() => setViewingFiles(e)}
+              >
+                <i class="bi bi-paperclip" />
+              </button>`
+            : null
+        }
+        ${
+          auth.isLoggedIn
+            ? html`<button
+                  type="button"
+                  class="btn-icon primary"
+                  aria-label="Edit log entry"
+                  title="Edit"
+                  onClick=${() => setEditingEntry(e)}
+                >
+                  <i class="bi bi-pencil" />
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon danger"
+                  aria-label="Delete log entry"
+                  title="Delete"
+                  onClick=${() => setDeletingEntry(e)}
+                >
+                  <i class="bi bi-trash" />
+                </button>`
+            : null
+        }
       `,
     });
   }
@@ -139,11 +167,9 @@ export function TaskDetailPage(props) {
 
   const consumables = task.consumables || [];
   const files = task.files || [];
-  // Images are a thumbnail gallery of their own; the rest are listed by
-  // name. Of those, what the browser can show (PDFs, text, media) opens in a
-  // tab; everything else is a plain download.
-  const images = files.filter((f) => isInlineImage(f.mime));
-  const documents = files.filter((f) => !isInlineImage(f.mime));
+  const { images, documents } = splitAttachments(files);
+  /** @param {import('../types.js').FileDTO} f */
+  const fileUrl = (f) => taskFileUrl(task.slug, f.id);
 
   // Live stock levels for the "required / in stock" figures. Shared with the
   // StockBadge subscription, so this adds no extra polling. Stays undefined
@@ -264,24 +290,7 @@ export function TaskDetailPage(props) {
                         style=${task.description ? 'margin-top:16px' : ''}
                       >
                         <h3>Files</h3>
-                        <ul class="files-list">
-                          ${documents.map(
-                            (f) => html`<li key=${f.id} class="files-row">
-                              <span class="files-name"
-                                ><a
-                                  href=${taskFileUrl(task.slug, f.id)}
-                                  ...${
-                                    isInlineType(f.mime)
-                                      ? { target: '_blank', rel: 'noopener' }
-                                      : { download: f.name }
-                                  }
-                                  ><i class="bi bi-paperclip" />${f.name}</a
-                                ></span
-                              >
-                              <span class="files-size">${formatBytes(f.size)}</span>
-                            </li>`,
-                          )}
-                        </ul>
+                        <${FileList} files=${documents} urlFor=${fileUrl} />
                       </div>`
                     : null
                 }
@@ -295,22 +304,7 @@ export function TaskDetailPage(props) {
                         }
                       >
                         <h3>Gallery</h3>
-                        <div class="files-gallery">
-                          ${images.map(
-                            (f) => html`<a
-                              key=${f.id}
-                              class="files-thumb"
-                              href=${taskFileUrl(task.slug, f.id)}
-                              target="_blank"
-                              rel="noopener"
-                              title=${f.name}
-                              ><img
-                                src=${taskFileUrl(task.slug, f.id)}
-                                alt=${f.name}
-                                loading="lazy"
-                            /></a>`,
-                          )}
-                        </div>
+                        <${ImageGallery} files=${images} urlFor=${fileUrl} />
                       </div>`
                     : null
                 }
@@ -541,7 +535,7 @@ export function TaskDetailPage(props) {
       </div>
       <${Table}
         columns=${logColumns}
-        rows=${logsRes.data ? logsRes.data.data : []}
+        rows=${logRows}
         renderDetail=${(/** @type {LogDTO} */ e) =>
           e.notes
             ? html`<div class="log-notes">
@@ -583,6 +577,15 @@ export function TaskDetailPage(props) {
       }
       ${completing ? html`<${LogEntryModal} task=${task} onClose=${() => setCompleting(false)} />` : null}
       ${editingEntry ? html`<${LogEntryModal} entry=${editingEntry} onClose=${() => setEditingEntry(null)} />` : null}
+      ${
+        viewingFiles
+          ? html`<${LogAttachmentsModal}
+              entry=${viewingFiles}
+              subject=${task.name}
+              onClose=${() => setViewingFiles(null)}
+            />`
+          : null
+      }
       ${
         deletingTask
           ? html`<${ConfirmModal}

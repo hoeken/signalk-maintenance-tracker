@@ -43,15 +43,27 @@ export class FileTooLargeError extends Error {
 }
 
 /**
- * On-disk home for task attachments: `<root>/<task_id>/<token>-<name>`, with
- * `<root>` under the plugin data directory. The database row (FilesRepo)
- * holds the path relative to `<root>`, so the data directory can move as a
- * whole. Uploads stream into `<root>/tmp` and are renamed into place only
- * once fully written, so a crash or an over-limit upload never leaves a
- * half-file where a task would find it.
+ * On-disk home for attachments, with `<root>` under the plugin data
+ * directory: a task's files at `<root>/<task_id>/<token>-<name>`, a log
+ * entry's at `<root>/logs/<log_id>/<token>-<name>` (task directories are
+ * numeric, so `logs` can't collide). The database row (FilesRepo /
+ * LogFilesRepo) holds the path relative to `<root>`, so the data directory
+ * can move as a whole. Uploads stream into `<root>/tmp` and are renamed into
+ * place only once fully written, so a crash or an over-limit upload never
+ * leaves a half-file where an owner would find it.
  */
 export class FileStore {
   constructor(readonly root: string) {}
+
+  /** Where a task's files live, relative to the root. */
+  static taskDir(taskId: number): string {
+    return String(taskId);
+  }
+
+  /** Where a log entry's files live, relative to the root. */
+  static logDir(logId: number): string {
+    return path.join('logs', String(logId));
+  }
 
   absolute(relPath: string): string {
     return path.join(this.root, relPath);
@@ -100,10 +112,13 @@ export class FileStore {
     });
   }
 
-  /** Move a finished temp file under its task; returns the relative path. */
-  commit(tmpPath: string, taskId: number, name: string): string {
+  /**
+   * Move a finished temp file under its owner's directory (taskDir / logDir,
+   * relative to the root); returns the relative path.
+   */
+  commit(tmpPath: string, dir: string, name: string): string {
     const token = crypto.randomBytes(4).toString('hex');
-    const relPath = path.join(String(taskId), `${token}-${safeName(name)}`);
+    const relPath = path.join(dir, `${token}-${safeName(name)}`);
     const dest = this.absolute(relPath);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.renameSync(tmpPath, dest);
@@ -120,10 +135,16 @@ export class FileStore {
 
   /** Drop a task's whole directory (task deleted). */
   removeTask(taskId: number): void {
-    fs.rmSync(path.join(this.root, String(taskId)), {
-      recursive: true,
-      force: true,
-    });
+    this.removeDir(FileStore.taskDir(taskId));
+  }
+
+  /** Drop a log entry's whole directory (entry deleted). */
+  removeLog(logId: number): void {
+    this.removeDir(FileStore.logDir(logId));
+  }
+
+  private removeDir(dir: string): void {
+    fs.rmSync(this.absolute(dir), { recursive: true, force: true });
   }
 }
 

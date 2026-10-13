@@ -1,6 +1,22 @@
 /**
- * Attachment helpers shared by the detail page and the edit form.
+ * Attachment helpers shared by the detail page, the log views and the forms.
  */
+
+/** @typedef {import('../types.js').FileDTO} FileDTO */
+
+/**
+ * Images go in a thumbnail gallery of their own; the rest are listed by
+ * name. Of those, what the browser can show (PDFs, text, media) opens in a
+ * tab; everything else is a plain download.
+ * @param {FileDTO[]} files
+ * @returns {{ images: FileDTO[], documents: FileDTO[] }}
+ */
+export function splitAttachments(files) {
+  return {
+    images: files.filter((f) => isInlineImage(f.mime)),
+    documents: files.filter((f) => !isInlineImage(f.mime)),
+  };
+}
 
 /**
  * Whether the server serves a file of this declared type inline (see

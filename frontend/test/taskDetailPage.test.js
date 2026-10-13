@@ -507,3 +507,86 @@ describe('TaskDetailPage — title bar and description card', () => {
     expect(screen.getByText('Drain the sump.')).toBeTruthy();
   });
 });
+
+describe('TaskDetailPage — log attachments', () => {
+  const logs = [
+    {
+      id: 21,
+      task_id: 1,
+      title: null,
+      maintenance_date: '2026-03-04T00:00:00.000Z',
+      runtime_hours: 1300,
+      notes: null,
+      logged_by: 'zach',
+      created_at: '2026-03-04T00:00:00.000Z',
+      files: [
+        {
+          id: 5,
+          name: 'after.jpg',
+          size: 900,
+          mime: 'image/jpeg',
+          created_at: '2026-03-04T00:00:00.000Z',
+        },
+      ],
+    },
+    {
+      id: 22,
+      task_id: 1,
+      title: null,
+      maintenance_date: '2025-03-04T00:00:00.000Z',
+      runtime_hours: 1100,
+      notes: null,
+      logged_by: 'zach',
+      created_at: '2025-03-04T00:00:00.000Z',
+      files: [],
+    },
+  ];
+
+  it('shows a green paperclip on entries with files and opens them in a modal', async () => {
+    const task = makeTask();
+    mockFetch(detailRoutes(task, logs));
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${TaskDetailPage} slug=${task.slug} />`);
+    await waitFor(() =>
+      expect(screen.getByLabelText('View attachments')).toBeTruthy(),
+    );
+    const clips = screen.getAllByLabelText('View attachments');
+    expect(clips).toHaveLength(1);
+    expect(clips[0].className).toContain('success');
+    expect(clips[0].getAttribute('title')).toBe('1 attachment');
+    // nothing inline in the log table
+    expect(document.querySelectorAll('.files-thumb')).toHaveLength(0);
+
+    fireEvent.click(clips[0]);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-label')).toMatch(
+      /^Attachments — Engine oil change, /,
+    );
+    const headings = Array.from(dialog.querySelectorAll('h3')).map(
+      (h) => h.textContent,
+    );
+    expect(headings).toEqual(['Images']);
+    expect(dialog.querySelector('.files-thumb').getAttribute('href')).toBe(
+      '/plugins/signalk-maintenance-tracker/api/logs/21/files/5',
+    );
+  });
+
+  it('orders the paperclip before edit and delete when logged in', async () => {
+    const task = makeTask();
+    mockFetch(detailRoutes(task, logs));
+    authState.value = { checked: true, isLoggedIn: true, username: 'admin' };
+    render(html`<${TaskDetailPage} slug=${task.slug} />`);
+    await waitFor(() =>
+      expect(screen.getByLabelText('View attachments')).toBeTruthy(),
+    );
+    const cell = screen.getByLabelText('View attachments').closest('td');
+    const labels = Array.from(cell.querySelectorAll('button')).map((b) =>
+      b.getAttribute('aria-label'),
+    );
+    expect(labels).toEqual([
+      'View attachments',
+      'Edit log entry',
+      'Delete log entry',
+    ]);
+  });
+});

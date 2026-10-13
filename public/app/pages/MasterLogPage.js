@@ -23,6 +23,7 @@ import { MarkdownView } from '../components/MarkdownView.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
+import { LogAttachmentsModal } from '../components/LogAttachmentsModal.js';
 
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 
@@ -84,6 +85,12 @@ export function MasterLogPage() {
   const [deletingEntry, setDeletingEntry] = useState(
     /** @type {LogDTO|null} */ (null),
   );
+  const [viewingFiles, setViewingFiles] = useState(
+    /** @type {LogDTO|null} */ (null),
+  );
+
+  const pageData = logsRes.data;
+  const rows = pageData ? pageData.data : [];
 
   const [expanded, setExpanded] = useState(
     /** @type {Record<string, boolean>} */ ({}),
@@ -141,30 +148,48 @@ export function MasterLogPage() {
           : html`<span class="muted">—</span>`,
     },
   ];
-  if (auth.isLoggedIn) {
+  // Attachments are viewable by anyone; edit/delete need a login.
+  if (auth.isLoggedIn || rows.some((e) => e.files && e.files.length)) {
     columns.push({
       key: 'actions',
       label: '',
       className: 'actions',
       render: (/** @type {LogDTO} */ e) => html`
-        <button
-          type="button"
-          class="btn-icon primary"
-          aria-label="Edit log entry"
-          title="Edit"
-          onClick=${() => setEditingEntry(e)}
-        >
-          <i class="bi bi-pencil" />
-        </button>
-        <button
-          type="button"
-          class="btn-icon danger"
-          aria-label="Delete log entry"
-          title="Delete"
-          onClick=${() => setDeletingEntry(e)}
-        >
-          <i class="bi bi-trash" />
-        </button>
+        ${
+          e.files && e.files.length
+            ? html`<button
+                type="button"
+                class="btn-icon success"
+                aria-label="View attachments"
+                title=${e.files.length === 1 ? '1 attachment' : e.files.length + ' attachments'}
+                onClick=${() => setViewingFiles(e)}
+              >
+                <i class="bi bi-paperclip" />
+              </button>`
+            : null
+        }
+        ${
+          auth.isLoggedIn
+            ? html`<button
+                  type="button"
+                  class="btn-icon primary"
+                  aria-label="Edit log entry"
+                  title="Edit"
+                  onClick=${() => setEditingEntry(e)}
+                >
+                  <i class="bi bi-pencil" />
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon danger"
+                  aria-label="Delete log entry"
+                  title="Delete"
+                  onClick=${() => setDeletingEntry(e)}
+                >
+                  <i class="bi bi-trash" />
+                </button>`
+            : null
+        }
       `,
     });
   }
@@ -203,8 +228,6 @@ export function MasterLogPage() {
       <div class="log-notes-body">${body}</div>
     </div>`;
   };
-
-  const pageData = logsRes.data;
 
   return html`
     <div>
@@ -254,6 +277,15 @@ export function MasterLogPage() {
       ${creating ? html`<${LogEntryModal} onClose=${() => setCreating(false)} />` : null}
       ${editingEntry ? html`<${LogEntryModal} entry=${editingEntry} onClose=${() => setEditingEntry(null)} />` : null}
       ${
+        viewingFiles
+          ? html`<${LogAttachmentsModal}
+              entry=${viewingFiles}
+              subject=${viewingFiles.task_name || viewingFiles.title}
+              onClose=${() => setViewingFiles(null)}
+            />`
+          : null
+      }
+      ${
         deletingEntry
           ? html`<${ConfirmModal}
               title="Delete log entry"
@@ -283,7 +315,7 @@ export function MasterLogPage() {
           : html`
               <${Table}
                 columns=${columns}
-                rows=${pageData ? pageData.data : []}
+                rows=${rows}
                 renderDetail=${renderNotes}
                 sort=${sort}
                 order=${order}

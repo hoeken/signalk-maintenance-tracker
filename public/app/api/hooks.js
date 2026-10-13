@@ -8,7 +8,7 @@ import { onUnauthorized } from '../auth/auth.js';
 import { useResource, invalidate } from './resource.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
-/** @typedef {import('../types.js').TaskFileDTO} TaskFileDTO */
+/** @typedef {import('../types.js').FileDTO} FileDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 /** @typedef {import('../types.js').TagDTO} TagDTO */
 /** @typedef {import('../types.js').TaskInput} TaskInput */
@@ -172,11 +172,11 @@ export async function deleteLog(id, taskSlug) {
   if (taskSlug) invalidate('task/' + taskSlug);
 }
 
-// ---- task files (§8.6) ----
+// ---- attachments (§8.6) ----
 
 /**
- * Download URL for an attachment — served as an attachment under the
- * original filename by the plugin API.
+ * Download URL for a task attachment — served under the original filename
+ * by the plugin API, inline when the browser can show it.
  * @param {string} slug
  * @param {number} fileId
  */
@@ -185,19 +185,84 @@ export function taskFileUrl(slug, fileId) {
 }
 
 /**
+ * Download URL for a log-entry attachment.
+ * @param {number} logId
+ * @param {number} fileId
+ */
+export function logFileUrl(logId, fileId) {
+  return API_BASE + '/logs/' + logId + '/files/' + fileId;
+}
+
+/**
+ * Upload one attachment to a task.
+ * @param {string} slug
+ * @param {File} file
+ * @param {(fraction: number) => void} [onProgress] 0..1
+ * @returns {Promise<FileDTO>}
+ */
+export async function uploadTaskFile(slug, file, onProgress) {
+  const saved = await uploadFile(
+    API_BASE + '/tasks/' + encodeSlug(slug) + '/files',
+    file,
+    onProgress,
+  );
+  invalidate('tasks', 'task/' + slug);
+  return saved;
+}
+
+/**
+ * @param {string} slug
+ * @param {number} fileId
+ */
+export async function deleteTaskFile(slug, fileId) {
+  await apiFetch('/tasks/' + encodeSlug(slug) + '/files/' + fileId, {
+    method: 'DELETE',
+  });
+  invalidate('tasks', 'task/' + slug);
+}
+
+/**
+ * Upload one attachment to a log entry. Any open task's log is refetched
+ * along with the master log — the entry's task isn't known here, and there
+ * is only ever one task page open.
+ * @param {number} logId
+ * @param {File} file
+ * @param {(fraction: number) => void} [onProgress] 0..1
+ * @returns {Promise<FileDTO>}
+ */
+export async function uploadLogFile(logId, file, onProgress) {
+  const saved = await uploadFile(
+    API_BASE + '/logs/' + logId + '/files',
+    file,
+    onProgress,
+  );
+  invalidate('logs', 'task');
+  return saved;
+}
+
+/**
+ * @param {number} logId
+ * @param {number} fileId
+ */
+export async function deleteLogFile(logId, fileId) {
+  await apiFetch('/logs/' + logId + '/files/' + fileId, { method: 'DELETE' });
+  invalidate('logs', 'task');
+}
+
+/**
  * Upload one attachment. The bytes go as the raw request body (always
  * octet-stream — a JSON content type would get the body parsed server-side)
  * with the name and real type in headers. XMLHttpRequest rather than fetch
  * so a multi-hundred-megabyte upload can report progress.
- * @param {string} slug
+ * @param {string} url
  * @param {File} file
  * @param {(fraction: number) => void} [onProgress] 0..1
- * @returns {Promise<TaskFileDTO>}
+ * @returns {Promise<FileDTO>}
  */
-export function uploadTaskFile(slug, file, onProgress) {
+function uploadFile(url, file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', API_BASE + '/tasks/' + encodeSlug(slug) + '/files');
+    xhr.open('POST', url);
     xhr.withCredentials = true;
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
@@ -219,7 +284,6 @@ export function uploadTaskFile(slug, file, onProgress) {
         body = null;
       }
       if (xhr.status >= 200 && xhr.status < 300) {
-        invalidate('tasks', 'task/' + slug);
         resolve(body);
         return;
       }
@@ -234,15 +298,4 @@ export function uploadTaskFile(slug, file, onProgress) {
     };
     xhr.send(file);
   });
-}
-
-/**
- * @param {string} slug
- * @param {number} fileId
- */
-export async function deleteTaskFile(slug, fileId) {
-  await apiFetch('/tasks/' + encodeSlug(slug) + '/files/' + fileId, {
-    method: 'DELETE',
-  });
-  invalidate('tasks', 'task/' + slug);
 }

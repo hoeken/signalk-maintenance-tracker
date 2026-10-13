@@ -17,7 +17,14 @@ import { TagInput } from './TagInput.js';
 import { ConsumablesPicker } from './ConsumablesPicker.js';
 import { FilesField } from './FilesField.js';
 import { PathPicker } from './PathPicker.js';
-import { createTask, updateTask, useTags, useHealth } from '../api/hooks.js';
+import {
+  createTask,
+  updateTask,
+  useTags,
+  useHealth,
+  uploadTaskFile,
+  deleteTaskFile,
+} from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
 import { formatDate, formatHours } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
@@ -310,7 +317,17 @@ export function TaskFormModal(props) {
           <label class="field-label">Files</label>
           ${
             isEdit && task
-              ? html`<${FilesField} slug=${task.slug} files=${task.files || []} />`
+              ? html`<${FilesField}
+                  id="task-files-input"
+                  files=${task.files || []}
+                  upload=${(
+                    /** @type {File} */ file,
+                    /** @type {(fraction: number) => void} */ onProgress,
+                  ) => uploadTaskFile(task.slug, file, onProgress)}
+                  remove=${(/** @type {import('../types.js').FileDTO} */ f) =>
+                    deleteTaskFile(task.slug, f.id)}
+                  hint="Manuals, receipts, photos — any type, up to 1 GB each. Uploads and deletions apply immediately."
+                />`
               : html`<div class="field-hint">
                   Save the task first, then edit it to attach files.
                 </div>`

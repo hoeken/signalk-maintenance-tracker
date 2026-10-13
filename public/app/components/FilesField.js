@@ -1,23 +1,39 @@
 /**
- * Attachments editor for the task form: the task's files with their sizes,
- * a delete per row, and an upload button. Unlike the rest of the form these
- * act on the server immediately — a file is too big to ride along in the
- * task's JSON body, so each upload/delete is its own request and the list
- * here reflects what the server has right now. Deleting asks for an inline
- * confirmation first, since there is no Cancel to fall back on.
+ * Attachments editor shared by the task form and the log-entry form: the
+ * current files with their sizes, a delete per row, and an upload button.
+ *
+ * Two modes. With `upload`/`remove` callbacks the field acts on the server
+ * immediately — a file is too big to ride along in a JSON body, so each
+ * upload/delete is its own request and the list here reflects what the
+ * server has right now; deleting asks for an inline confirmation first,
+ * since there is no Cancel to fall back on. Without them (`pending` +
+ * `onPendingChange`) the owner doesn't exist yet: picked files are only held
+ * locally for the parent to upload once it has saved and has an id, with
+ * the parent reporting progress back through `uploading`.
  */
 import { html } from '../lib/html.js';
 import { useEffect, useState } from '../../vendor/preact-hooks.js';
-import { deleteTaskFile, uploadTaskFile } from '../api/hooks.js';
 import { formatBytes } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 
-/** @typedef {import('../types.js').TaskFileDTO} TaskFileDTO */
+/** @typedef {import('../types.js').FileDTO} FileDTO */
 
 /**
- * @param {{ slug: string, files: TaskFileDTO[] }} props
+ * @param {{
+ *   id?: string,
+ *   files?: FileDTO[],
+ *   upload?: (file: File, onProgress: (fraction: number) => void) => Promise<FileDTO>,
+ *   remove?: (file: FileDTO) => Promise<void>,
+ *   pending?: File[],
+ *   onPendingChange?: (files: File[]) => void,
+ *   uploading?: { name: string, fraction: number }|null,
+ *   disabled?: boolean,
+ *   hint?: string,
+ * }} props
  */
 export function FilesField(props) {
+  const deferred = !props.upload;
+  const inputId = props.id || 'files-input';
   const [files, setFiles] = useState(props.files || []);
   const [uploading, setUploading] = useState(
     /** @type {{ name: string, fraction: number }|null} */ (null),
@@ -28,8 +44,8 @@ export function FilesField(props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  // The parent re-renders with fresh task data after each change (and on
-  // its poll); the server's list wins over the local copy whenever it lands.
+  // The parent re-renders with fresh data after each change (and on its
+  // poll); the server's list wins over the local copy whenever it lands.
   useEffect(() => {
     setFiles(props.files || []);
   }, [props.files]);
@@ -37,14 +53,24 @@ export function FilesField(props) {
   /** @param {Event} e */
   const onPick = async (e) => {
     const input = /** @type {HTMLInputElement} */ (e.currentTarget);
+    /** @type {File[]} */
     const picked = Array.prototype.slice.call(input.files || []);
     if (!picked.length) return;
+    if (deferred) {
+      if (props.onPendingChange)
+        props.onPendingChange((props.pending || []).concat(picked));
+      input.value = '';
+      return;
+    }
+    const upload = /** @type {NonNullable<typeof props.upload>} */ (
+      props.upload
+    );
     setError('');
     setBusy(true);
     try {
       for (const file of picked) {
         setUploading({ name: file.name, fraction: 0 });
-        const saved = await uploadTaskFile(props.slug, file, (fraction) =>
+        const saved = await upload(file, (fraction) =>
           setUploading({ name: file.name, fraction: fraction }),
         );
         setFiles((prev) => prev.concat([saved]));
@@ -59,12 +85,13 @@ export function FilesField(props) {
     }
   };
 
-  /** @param {TaskFileDTO} file */
+  /** @param {FileDTO} file */
   const remove = async (file) => {
+    if (!props.remove) return;
     setError('');
     setBusy(true);
     try {
-      await deleteTaskFile(props.slug, file.id);
+      await props.remove(file);
       setFiles((prev) => prev.filter((f) => f.id !== file.id));
       setPendingDelete(null);
       toast('Deleted ' + file.name + '.', 'success');
@@ -75,10 +102,22 @@ export function FilesField(props) {
     }
   };
 
+  /** @param {number} index */
+  const removePending = (index) => {
+    if (props.onPendingChange)
+      props.onPendingChange(
+        (props.pending || []).filter((_, i) => i !== index),
+      );
+  };
+
+  const pending = props.pending || [];
+  const progress = deferred ? props.uploading || null : uploading;
+  const disabled = busy || !!props.disabled;
+
   return html`
     <div>
       ${
-        files.length
+        !deferred && files.length
           ? html`<ul class="files-list">
               ${files.map(
                 (f) => html`
@@ -91,7 +130,7 @@ export function FilesField(props) {
                             <button
                               type="button"
                               class="btn btn-danger"
-                              disabled=${busy}
+                              disabled=${disabled}
                               onClick=${() => remove(f)}
                             >
                               ${busy ? 'Deleting…' : 'Delete'}
@@ -99,7 +138,7 @@ export function FilesField(props) {
                             <button
                               type="button"
                               class="btn"
-                              disabled=${busy}
+                              disabled=${disabled}
                               onClick=${() => setPendingDelete(null)}
                             >
                               Cancel
@@ -110,7 +149,7 @@ export function FilesField(props) {
                             class="btn-icon danger"
                             aria-label=${'Delete ' + f.name}
                             title="Delete"
-                            disabled=${busy}
+                            disabled=${disabled}
                             onClick=${() => setPendingDelete(f.id)}
                           >
                             <i class="bi bi-trash" />
@@ -122,41 +161,62 @@ export function FilesField(props) {
             </ul>`
           : null
       }
+      ${
+        deferred && pending.length
+          ? html`<ul class="files-list">
+              ${pending.map(
+                (f, i) => html`
+                  <li key=${i} class="files-row">
+                    <span class="files-name">${f.name}</span>
+                    <span class="files-size">${formatBytes(f.size)}</span>
+                    <button
+                      type="button"
+                      class="btn-icon danger"
+                      aria-label=${'Remove ' + f.name}
+                      title="Remove"
+                      disabled=${disabled}
+                      onClick=${() => removePending(i)}
+                    >
+                      <i class="bi bi-x-lg" />
+                    </button>
+                  </li>
+                `,
+              )}
+            </ul>`
+          : null
+      }
       <div class="files-upload">
         <input
-          id="task-files-input"
+          id=${inputId}
           type="file"
           multiple
           aria-label="Upload file"
-          disabled=${busy}
+          disabled=${disabled}
           onChange=${onPick}
         />
-        <label class=${'btn' + (busy ? ' disabled' : '')} for="task-files-input">
-          <i class="bi bi-upload" />Upload file…
+        <label class=${'btn' + (disabled ? ' disabled' : '')} for=${inputId}>
+          <i class="bi bi-upload" />${deferred ? 'Add file…' : 'Upload file…'}
         </label>
         ${
-          uploading
+          progress
             ? html`<span class="files-name"
-                  >Uploading ${uploading.name}…
-                  ${Math.round(uploading.fraction * 100)}%</span
+                  >Uploading ${progress.name}…
+                  ${Math.round(progress.fraction * 100)}%</span
                 >
                 <div
                   class="files-progress"
                   role="progressbar"
                   aria-valuemin="0"
                   aria-valuemax="100"
-                  aria-valuenow=${Math.round(uploading.fraction * 100)}
+                  aria-valuenow=${Math.round(progress.fraction * 100)}
                 >
-                  <div style=${'width:' + uploading.fraction * 100 + '%'} />
+                  <div style=${'width:' + progress.fraction * 100 + '%'} />
                 </div>`
             : null
         }
       </div>
       ${error ? html`<div class="field-error">${error}</div>` : null}
-      <div class="field-hint">
-        Manuals, receipts, photos — any type, up to 1 GB each. Uploads and
-        deletions apply immediately.
-      </div>
+      ${props.hint ? html`<div class="field-hint">${props.hint}</div>` : null}
     </div>
   `;
 }

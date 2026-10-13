@@ -2,7 +2,13 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Readable } from 'node:stream';
 import { publicUser } from './auth';
 import { ConsumableRow, ConsumablesRepo } from './db/consumables.repo';
-import { FileRow, FilesRepo } from './db/files.repo';
+import {
+  AttachmentRow,
+  FileRow,
+  FilesRepo,
+  LogFileRow,
+  LogFilesRepo,
+} from './db/files.repo';
 import { LogsRepo, MasterLogQuery } from './db/logs.repo';
 import { TagsRepo, TagCount } from './db/tags.repo';
 import { TasksRepo, NewTask } from './db/tasks.repo';
@@ -11,13 +17,14 @@ import { computeTask, StatusConfig } from './domain/status';
 import { FileStore, FileTooLargeError, MAX_FILE_BYTES } from './files/store';
 import { StowageClient, StowageUnavailableError } from './stowage/client';
 import {
+  FileDTO,
   LogDTO,
+  LogEntryDTO,
   LogInput,
   LogRow,
   Page,
   Status,
   TaskDTO,
-  TaskFileDTO,
   TaskInput,
   TaskRow,
   TIME_UNITS,
@@ -77,7 +84,7 @@ export interface FileUpload {
  * decrementing linked stowage-mgmt stock. A completion always succeeds even
  * if stock consumption partially or fully fails — warnings are informational
  * (docs/inventory-interaction.md: "toast, don't block the task view"). */
-export interface LogResult extends LogRow {
+export interface LogResult extends LogEntryDTO {
   consumable_warnings?: string[];
 }
 
@@ -90,6 +97,7 @@ export class MaintenanceService {
   readonly tags: TagsRepo;
   readonly consumables: ConsumablesRepo;
   readonly files: FilesRepo;
+  readonly logFiles: LogFilesRepo;
 
   constructor(
     private db: DatabaseSync,
@@ -100,6 +108,7 @@ export class MaintenanceService {
     this.tags = new TagsRepo(db);
     this.consumables = new ConsumablesRepo(db);
     this.files = new FilesRepo(db);
+    this.logFiles = new LogFilesRepo(db);
   }
 
   private now(): Date {
@@ -151,7 +160,7 @@ export class MaintenanceService {
     };
   }
 
-  private toFileDTO(f: FileRow): TaskFileDTO {
+  private toFileDTO(f: AttachmentRow): FileDTO {
     return {
       id: f.id,
       name: f.name,
@@ -478,17 +487,24 @@ export class MaintenanceService {
 
   deleteTask(slug: string): void {
     const row = this.requireTask(slug);
-    this.tasks.delete(row.id); // cascades to log_entries, task_tags, task_files
+    // The entries' ids are needed to find their files on disk once the
+    // cascade has taken the rows.
+    const logIds = this.logs.listForTask(row.id).map((l) => l.id);
+    this.tasks.delete(row.id); // cascades to log_entries (+ log_files), task_tags, task_files
     this.tags.pruneOrphans();
     // The rows are gone; the bytes follow. Nothing to roll back if this
     // fails — an orphaned directory is harmless and nothing references it.
-    this.deps.fileStore?.removeTask(row.id);
+    const store = this.deps.fileStore;
+    if (store) {
+      store.removeTask(row.id);
+      for (const id of logIds) store.removeLog(id);
+    }
     this.emit({ clearedSlug: row.slug });
   }
 
   // ---- files ----
 
-  listFiles(slug: string): TaskFileDTO[] {
+  listFiles(slug: string): FileDTO[] {
     const row = this.requireTask(slug);
     return this.files.forTask(row.id).map((f) => this.toFileDTO(f));
   }
@@ -502,9 +518,86 @@ export class MaintenanceService {
     slug: string,
     upload: FileUpload,
     body: Readable,
-  ): Promise<TaskFileDTO> {
-    const store = this.requireFileStore();
+  ): Promise<FileDTO> {
     const task = this.requireTask(slug);
+    const row = await this.storeUpload(
+      upload,
+      body,
+      FileStore.taskDir(task.id),
+      (f, nowIso) => this.files.insert({ task_id: task.id, ...f }, nowIso),
+    );
+    return this.toFileDTO(row);
+  }
+
+  /** A file's row plus where its bytes are, for the download route. */
+  getFile(slug: string, id: number): { file: FileDTO; absPath: string } {
+    const store = this.requireFileStore();
+    const row = this.requireFile(slug, id);
+    return { file: this.toFileDTO(row), absPath: store.absolute(row.path) };
+  }
+
+  deleteFile(slug: string, id: number): void {
+    const store = this.requireFileStore();
+    const row = this.requireFile(slug, id);
+    this.files.delete(row.id);
+    store.remove(row.path);
+    this.emit();
+  }
+
+  // ---- log files ----
+
+  listLogFiles(logId: number): FileDTO[] {
+    const row = this.requireLog(logId);
+    return this.logFiles.forLog(row.id).map((f) => this.toFileDTO(f));
+  }
+
+  /** Attach an upload to a log entry; same lifecycle as addFile. */
+  async addLogFile(
+    logId: number,
+    upload: FileUpload,
+    body: Readable,
+  ): Promise<FileDTO> {
+    const entry = this.requireLog(logId);
+    const row = await this.storeUpload(
+      upload,
+      body,
+      FileStore.logDir(entry.id),
+      (f, nowIso) => this.logFiles.insert({ log_id: entry.id, ...f }, nowIso),
+    );
+    return this.toFileDTO(row);
+  }
+
+  /** A log file's row plus where its bytes are, for the download route. */
+  getLogFile(logId: number, id: number): { file: FileDTO; absPath: string } {
+    const store = this.requireFileStore();
+    const row = this.requireLogFile(logId, id);
+    return { file: this.toFileDTO(row), absPath: store.absolute(row.path) };
+  }
+
+  deleteLogFile(logId: number, id: number): void {
+    const store = this.requireFileStore();
+    const row = this.requireLogFile(logId, id);
+    this.logFiles.delete(row.id);
+    store.remove(row.path);
+    this.emit();
+  }
+
+  /**
+   * The upload lifecycle shared by task and log attachments: validate, stream
+   * the body to a temp file (refusing anything over the limit), move it into
+   * `dir` under the store root, then index it with `insert`. Each step undoes
+   * the previous one on failure, so nothing half-done is left on disk.
+   */
+  private async storeUpload<Row extends AttachmentRow>(
+    upload: FileUpload,
+    body: Readable,
+    dir: string,
+    insert: (
+      f: { name: string; size: number; mime: string | null; path: string },
+      nowIso: string,
+    ) => Row,
+  ): Promise<Row> {
+    const store = this.requireFileStore();
     const name = this.validateFileName(upload.name);
     if (upload.declaredSize !== null && upload.declaredSize > MAX_FILE_BYTES)
       throw this.fileTooLarge();
@@ -519,21 +612,15 @@ export class MaintenanceService {
 
     let relPath: string;
     try {
-      relPath = store.commit(written.tmpPath, task.id, name);
+      relPath = store.commit(written.tmpPath, dir, name);
     } catch (err) {
       store.discard(written.tmpPath);
       throw err;
     }
-    let row: FileRow;
+    let row: Row;
     try {
-      row = this.files.insert(
-        {
-          task_id: task.id,
-          name,
-          size: written.size,
-          mime: upload.mime,
-          path: relPath,
-        },
+      row = insert(
+        { name, size: written.size, mime: upload.mime, path: relPath },
         this.now().toISOString(),
       );
     } catch (err) {
@@ -541,29 +628,14 @@ export class MaintenanceService {
       throw err;
     }
     this.emit();
-    return this.toFileDTO(row);
-  }
-
-  /** A file's row plus where its bytes are, for the download route. */
-  getFile(slug: string, id: number): { file: TaskFileDTO; absPath: string } {
-    const store = this.requireFileStore();
-    const row = this.requireFile(slug, id);
-    return { file: this.toFileDTO(row), absPath: store.absolute(row.path) };
-  }
-
-  deleteFile(slug: string, id: number): void {
-    const store = this.requireFileStore();
-    const row = this.requireFile(slug, id);
-    this.files.delete(row.id);
-    store.remove(row.path);
-    this.emit();
+    return row;
   }
 
   // ---- logs ----
 
-  listTaskLogs(slug: string): LogRow[] {
+  listTaskLogs(slug: string): LogEntryDTO[] {
     const row = this.requireTask(slug);
-    return this.logs.listForTask(row.id).map((r) => this.redactLog(r));
+    return this.withFiles(this.logs.listForTask(row.id));
   }
 
   listMasterLog(
@@ -578,7 +650,23 @@ export class MaintenanceService {
       Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE),
     );
     const { data, total } = this.logs.listMaster({ ...q, page, pageSize });
-    return { data: data.map((r) => this.redactLog(r)), total, page, pageSize };
+    return { data: this.withFiles(data), total, page, pageSize };
+  }
+
+  /** Each entry with its attachments — one query for the whole list. */
+  private withFiles<T extends LogRow>(rows: T[]): (T & LogEntryDTO)[] {
+    const byLog = this.logFiles.byLog();
+    return rows.map((r) => this.toLogDTO(r, byLog.get(r.id) ?? []));
+  }
+
+  private toLogDTO<T extends LogRow>(
+    row: T,
+    files: LogFileRow[],
+  ): T & LogEntryDTO {
+    return {
+      ...this.redactLog(row),
+      files: files.map((f) => this.toFileDTO(f)),
+    };
   }
 
   async addLog(
@@ -637,7 +725,7 @@ export class MaintenanceService {
     );
 
     return {
-      ...this.redactLog(entry),
+      ...this.toLogDTO(entry, []), // just created: nothing attached yet
       ...(warnings.length ? { consumable_warnings: warnings } : {}),
     };
   }
@@ -706,7 +794,7 @@ export class MaintenanceService {
    * no denormalization to recompute, no due date to clear, and no stock to
    * consume.
    */
-  addStandaloneLog(body: LogInput, loggedBy: string | null): LogRow {
+  addStandaloneLog(body: LogInput, loggedBy: string | null): LogEntryDTO {
     const title = this.validateTitle(body.title);
     const date = this.validateDate(body.maintenance_date, 'maintenance_date');
     const entry = this.logs.insert(
@@ -721,13 +809,11 @@ export class MaintenanceService {
       this.now().toISOString(),
     );
     this.emit();
-    return this.redactLog(entry);
+    return this.toLogDTO(entry, []);
   }
 
-  updateLog(id: number, body: LogInput): LogRow {
-    const existing = this.logs.get(id);
-    if (!existing)
-      throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
+  updateLog(id: number, body: LogInput): LogEntryDTO {
+    const existing = this.requireLog(id);
     const date =
       body.maintenance_date !== undefined
         ? this.validateDate(body.maintenance_date, 'maintenance_date')
@@ -757,22 +843,22 @@ export class MaintenanceService {
       throw err;
     }
     this.emit();
-    return this.redactLog(this.logs.get(id)!);
+    return this.toLogDTO(this.logs.get(id)!, this.logFiles.forLog(id));
   }
 
   deleteLog(id: number): void {
-    const existing = this.logs.get(id);
-    if (!existing)
-      throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
+    const existing = this.requireLog(id);
     this.db.exec('BEGIN');
     try {
-      this.logs.delete(id);
+      this.logs.delete(id); // cascades to log_files
       if (existing.task_id !== null) this.recomputeDenorm(existing.task_id);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
       throw err;
     }
+    // Rows gone; bytes follow (an orphaned directory would be harmless).
+    this.deps.fileStore?.removeLog(id);
     this.emit();
   }
 
@@ -848,6 +934,21 @@ export class MaintenanceService {
     const task = this.requireTask(slug);
     const row = this.files.get(id);
     if (!row || row.task_id !== task.id)
+      throw new ApiError(404, 'not_found', `File ${id} not found`);
+    return row;
+  }
+
+  private requireLog(id: number): LogRow {
+    const row = this.logs.get(id);
+    if (!row) throw new ApiError(404, 'not_found', `Log entry ${id} not found`);
+    return row;
+  }
+
+  /** A log file is only reachable through its own entry's URL. */
+  private requireLogFile(logId: number, id: number): LogFileRow {
+    const entry = this.requireLog(logId);
+    const row = this.logFiles.get(id);
+    if (!row || row.log_id !== entry.id)
       throw new ApiError(404, 'not_found', `File ${id} not found`);
     return row;
   }

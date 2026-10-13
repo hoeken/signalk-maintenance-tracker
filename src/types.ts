@@ -64,7 +64,14 @@ export interface LogRow {
   created_at: string;
 }
 
-export interface LogDTO extends LogRow {
+/** A log entry as the API returns it: the row plus its attachments. */
+export interface LogEntryDTO extends LogRow {
+  /** Attachments (photos of the work, receipts) — uploaded and deleted
+   * through the /logs/:id/files endpoints, never through the entry body. */
+  files: FileDTO[];
+}
+
+export interface LogDTO extends LogEntryDTO {
   /** null on standalone entries — the UI shows `title` instead. */
   task_slug: string | null;
   task_name: string | null;
@@ -116,7 +123,8 @@ export interface TaskConsumableDTO {
   qty_per_service: number;
 }
 
-export interface TaskFileDTO {
+/** An attachment record, whether on a task or a log entry. */
+export interface FileDTO {
   id: number;
   name: string;
   /** bytes */
@@ -150,7 +158,7 @@ export interface TaskDTO extends ComputedFields {
   consumables: TaskConsumableDTO[];
   /** Attachments (manuals, receipts, photos) — uploaded and deleted through
    * the /tasks/:slug/files endpoints, never through the task body. */
-  files: TaskFileDTO[];
+  files: FileDTO[];
 }
 
 export interface Page<T> {

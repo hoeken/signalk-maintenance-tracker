@@ -593,6 +593,18 @@ pre {
   border-color: var(--accent);
   outline: none;
 }
+/* the log-entry attachments modal: the detail page's Files / Gallery
+   sections, stacked */
+.attachments-section + .attachments-section {
+  margin-top: 16px;
+}
+.attachments-section h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
 .files-confirm {
   display: inline-flex;
   align-items: center;

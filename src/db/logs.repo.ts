@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { LogDTO, LogRow } from '../types';
+import { LogRow } from '../types';
 
 export interface NewLog {
   /** null for a standalone (non-task) entry, which must carry a title. */
@@ -10,6 +10,13 @@ export interface NewLog {
   notes: string | null;
   logged_by: string | null;
 }
+
+/** A master-log row: the entry plus its task's slug and name (both null on
+ * a standalone entry). */
+export type MasterLogRow = LogRow & {
+  task_slug: string | null;
+  task_name: string | null;
+};
 
 export interface MasterLogQuery {
   search?: string;
@@ -118,7 +125,7 @@ export class LogsRepo {
     return row.n;
   }
 
-  listMaster(q: MasterLogQuery): { data: LogDTO[]; total: number } {
+  listMaster(q: MasterLogQuery): { data: MasterLogRow[]; total: number } {
     // LEFT JOIN: standalone entries have no task row — they list under their
     // own title, which stands in for the task name in search and sort too.
     const where: string[] = [];
@@ -158,7 +165,7 @@ export class LogsRepo {
         ...params,
         q.pageSize,
         (q.page - 1) * q.pageSize,
-      ) as unknown as LogDTO[];
+      ) as unknown as MasterLogRow[];
 
     return { data, total: totalRow.n };
   }

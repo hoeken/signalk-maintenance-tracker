@@ -100,6 +100,10 @@ the SignalK server — currently admin):
   and media are served inline and open in the browser, images also as a
   gallery on the task page; everything else downloads)
 - `GET /logs`, `PUT/DELETE /logs/:id`
+- `GET/POST /logs/:id/files`, `GET/DELETE /logs/:id/files/:fileId` (the same
+  attachment protocol for a log entry — photos of the work, receipts —
+  picked when marking a task complete or editing an entry; each entry's
+  `files` ride on the log responses)
 - `GET /tags`
 - `GET /health`
 

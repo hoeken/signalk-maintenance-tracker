@@ -184,4 +184,25 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 9,
+    up(db) {
+      // Files attached to a log entry (photos of the work, receipts for that
+      // service). Same shape as task_files, keyed by the entry; bytes live
+      // under files/logs/<log_id>/. Rows cascade with the entry (and so with
+      // the task); the service removes the bytes alongside.
+      db.exec(`
+        CREATE TABLE log_files (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          log_id INTEGER NOT NULL REFERENCES log_entries(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          size INTEGER NOT NULL,
+          mime TEXT,
+          path TEXT NOT NULL UNIQUE,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_log_files_log ON log_files (log_id);
+      `);
+    },
+  },
 ];
