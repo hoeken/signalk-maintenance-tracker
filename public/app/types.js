@@ -78,6 +78,7 @@
  * @property {string|null} notes
  * @property {string|null} logged_by
  * @property {string} created_at
+ * @property {string|null} updated_at last edit that changed the entry; null if never edited
  * @property {string|null} task_slug null on standalone entries
  * @property {string|null} task_name null on standalone entries — show `title` instead
  * @property {FileDTO[]} files attachments; managed via the /logs/:id/files endpoints

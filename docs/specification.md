@@ -249,6 +249,7 @@ task references them.
 | notes            | TEXT                                              | markdown                                         |
 | logged_by        | TEXT NULL                                         | SignalK user identifier (see §9)                 |
 | created_at       | TEXT NOT NULL                                     |                                                  |
+| updated_at       | TEXT NULL                                         | last edit that changed the entry; null if never  |
 
 Indexes: `idx_log_task_date (task_id, maintenance_date DESC)`. Search uses plain
 `LIKE` (§6.3); at the expected scale (well under ~200 tasks) no full-text index is
@@ -554,7 +555,8 @@ Escape-to-close, focus trap, `role="dialog"`) — no modal library.
   edits an entry (and creates a standalone one), where the files field acts
   on the server immediately, like the task form's.
 - **Log entry details** — read-only: the entry's task (link) or title,
-  log date (`maintenance_date`), updated date (`created_at`), runtime and
+  completed date (`maintenance_date`), logged date (`created_at`), updated
+  date (`updated_at`, only once the entry has been edited), runtime and
   logged_by, then its notes (markdown) under
   **Notes**, documents under **Files** and images as thumbnails under
   **Images**, exactly as the task detail page shows a task's. Empty sections

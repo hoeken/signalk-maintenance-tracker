@@ -27,7 +27,7 @@ export interface MasterLogQuery {
 }
 
 const LOG_COLUMNS = `l.id, l.task_id, l.title, l.maintenance_date, l.runtime_hours, l.notes,
-  l.logged_by, l.created_at`;
+  l.logged_by, l.created_at, l.updated_at`;
 
 export class LogsRepo {
   constructor(private db: DatabaseSync) {}
@@ -63,17 +63,19 @@ export class LogsRepo {
       maintenance_date: string;
       runtime_hours: number | null;
       notes: string | null;
+      updated_at: string | null;
     },
   ): void {
     this.db
       .prepare(
-        `UPDATE log_entries SET title = ?, maintenance_date = ?, runtime_hours = ?, notes = ? WHERE id = ?`,
+        `UPDATE log_entries SET title = ?, maintenance_date = ?, runtime_hours = ?, notes = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         fields.title,
         fields.maintenance_date,
         fields.runtime_hours,
         fields.notes,
+        fields.updated_at,
         id,
       );
   }

@@ -50,8 +50,14 @@ export function LogDetailsModal(props) {
                 : null,
             },
             { label: 'Title', value: entry.title },
-            { label: 'Log Date', value: when },
-            { label: 'Updated', value: formatTimestampDate(entry.created_at) },
+            { label: 'Completed', value: when },
+            { label: 'Logged', value: formatTimestampDate(entry.created_at) },
+            {
+              label: 'Updated',
+              value: entry.updated_at
+                ? formatTimestampDate(entry.updated_at)
+                : null,
+            },
             { label: 'Runtime', value: formatHours(entry.runtime_hours) },
             {
               label: 'Logged by',

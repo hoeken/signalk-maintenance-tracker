@@ -62,6 +62,8 @@ export interface LogRow {
   notes: string | null;
   logged_by: string | null;
   created_at: string;
+  /** Last edit that changed the entry; null if never edited. */
+  updated_at: string | null;
 }
 
 /** A log entry as the API returns it: the row plus its attachments. */

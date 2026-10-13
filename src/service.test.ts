@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(9);
+    expect(schemaVersion(db)).toBe(10);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -932,6 +932,26 @@ describe('standalone (non-task) log entries', () => {
 
     service.deleteLog(entry.id);
     expect(service.listMasterLog({}).total).toBe(0);
+  });
+
+  it('stamps updated_at only when an edit changes something', () => {
+    const { service } = makeService();
+    const entry = service.addStandaloneLog(
+      { title: 'Haul out', maintenance_date: '2026-03-01T00:00:00Z' },
+      null,
+    );
+    expect(entry.updated_at).toBeNull();
+
+    const unchanged = service.updateLog(entry.id, {
+      title: 'Haul out',
+      maintenance_date: '2026-03-01',
+      notes: null,
+    });
+    expect(unchanged.updated_at).toBeNull();
+
+    const edited = service.updateLog(entry.id, { notes: 'Bottom paint' });
+    expect(edited.updated_at).toBe(NOW.toISOString());
+    expect(edited.created_at).toBe(entry.created_at);
   });
 
   it('ignores a title sent for a task-linked entry', async () => {

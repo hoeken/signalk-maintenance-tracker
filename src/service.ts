@@ -825,16 +825,26 @@ export class MaintenanceService {
         ? this.validateTitle(body.title)
         : existing.title;
 
+    const fields = {
+      title,
+      maintenance_date: date,
+      runtime_hours:
+        body.runtime_hours !== undefined
+          ? body.runtime_hours
+          : existing.runtime_hours,
+      notes: body.notes !== undefined ? body.notes : existing.notes,
+    };
+    // The edit form resends every field, so only stamp updated_at when one
+    // actually changed — a save with no changes isn't an update.
+    const changed = (Object.keys(fields) as (keyof typeof fields)[]).some(
+      (k) => fields[k] !== existing[k],
+    );
+
     this.db.exec('BEGIN');
     try {
       this.logs.update(id, {
-        title,
-        maintenance_date: date,
-        runtime_hours:
-          body.runtime_hours !== undefined
-            ? body.runtime_hours
-            : existing.runtime_hours,
-        notes: body.notes !== undefined ? body.notes : existing.notes,
+        ...fields,
+        updated_at: changed ? this.now().toISOString() : existing.updated_at,
       });
       if (existing.task_id !== null) this.recomputeDenorm(existing.task_id);
       this.db.exec('COMMIT');

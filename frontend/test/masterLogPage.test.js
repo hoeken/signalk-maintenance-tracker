@@ -17,6 +17,7 @@ const logs = [
     notes: null,
     logged_by: 'zach',
     created_at: '2026-01-02T00:00:00.000Z',
+    updated_at: null,
     task_slug: 'engine-oil',
     task_name: 'Engine oil',
   },
@@ -29,6 +30,7 @@ const logs = [
     notes: null,
     logged_by: 'zach',
     created_at: '2026-03-04T00:00:00.000Z',
+    updated_at: '2026-03-05T12:00:00.000Z',
     task_slug: null,
     task_name: null,
   },
@@ -161,9 +163,10 @@ describe('master log page — details modal', () => {
     );
     expect(stats).toEqual([
       ['Task', 'Engine oil'],
-      ['Log Date', '2026-01-02'],
-      // created_at is an instant, shown as the local date.
-      ['Updated', dayjs(logs[0].created_at).format('YYYY-MM-DD')],
+      ['Completed', '2026-01-02'],
+      // created_at is an instant, shown as the local date. No Updated row:
+      // the entry was never edited.
+      ['Logged', dayjs(logs[0].created_at).format('YYYY-MM-DD')],
       ['Runtime', '12.5 h'],
       ['Logged by', 'zach'],
     ]);
@@ -203,8 +206,9 @@ describe('master log page — details modal', () => {
     );
     expect(labels).toEqual([
       'Title',
-      'Log Date',
-      'Updated',
+      'Completed',
+      'Logged',
+      'Updated', // only rows for edited entries carry updated_at
       'Runtime',
       'Logged by',
     ]);

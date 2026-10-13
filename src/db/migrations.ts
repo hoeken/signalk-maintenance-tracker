@@ -205,4 +205,12 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 10,
+    up(db) {
+      // When a log entry was last edited. Null until an edit actually
+      // changes something, so "never edited" needs no separate flag.
+      db.exec(`ALTER TABLE log_entries ADD COLUMN updated_at TEXT;`);
+    },
+  },
 ];
