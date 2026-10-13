@@ -988,7 +988,7 @@ app.handleMessage(plugin.id, {
 
 The alarm state for each task status is configurable (`alarmState*` options),
 choosing from SignalK's states `none | normal | alert | warn | alarm | emergency`.
-Defaults: `overdue → alarm`, `due_soon → warn`, `ok → none`. A `none` state
+Defaults: `overdue → warn`, `due_soon → alert`, `ok → none`. A `none` state
 publishes a `null` value, which clears the notification. `todo`, `pending`, and
 `archived` publish nothing (or clear a prior notification) — an overdue or
 due-soon todo notifies through those statuses like any other task.
@@ -1010,10 +1010,10 @@ Exposed in the SignalK admin UI (`plugin.schema`):
 | ------------------------ | ------- | ------- | ----------------------------------------- |
 | `enableNotifications`    | boolean | true    | master switch for notification publishing |
 | `alarmStateOk`           | string  | `none`  | alarm state for up-to-date tasks          |
-| `alarmStateDueSoon`      | string  | `warn`  | alarm state for due-soon tasks            |
-| `alarmStateOverdue`      | string  | `alarm` | alarm state for overdue tasks             |
-| `runtimeNotifyLeadHours` | number  | 10      | runtime lead window for `due_soon`/warn   |
-| `timeNotifyLeadDays`     | number  | 7       | time lead window for `due_soon`/warn      |
+| `alarmStateDueSoon`      | string  | `alert` | alarm state for due-soon tasks            |
+| `alarmStateOverdue`      | string  | `warn`  | alarm state for overdue tasks             |
+| `runtimeNotifyLeadHours` | number  | 10      | runtime lead window for `due_soon`/alert  |
+| `timeNotifyLeadDays`     | number  | 7       | time lead window for `due_soon`/alert     |
 | `recomputeIntervalMs`    | number  | 60000   | backend status-recompute tick             |
 
 (Per-task runtime paths are stored with the tasks, not in plugin config, so the

@@ -58,8 +58,8 @@ Tracker**; data is stored in the plugin's data directory as `maintenance.db`.
 | `enablePublishPaths`     | `true`  | publish each task to `maintenance.{slug}.*` paths |
 | `enableNotifications`    | `true`  | master switch for notification publishing         |
 | `alarmStateOk`           | `none`  | alarm state for up-to-date tasks                  |
-| `alarmStateDueSoon`      | `warn`  | alarm state for due-soon tasks                    |
-| `alarmStateOverdue`      | `alarm` | alarm state for overdue tasks                     |
+| `alarmStateDueSoon`      | `alert` | alarm state for due-soon tasks                    |
+| `alarmStateOverdue`      | `warn`  | alarm state for overdue tasks                     |
 | `runtimeNotifyLeadHours` | `10`    | runtime hours before due to raise "due soon"      |
 | `timeNotifyLeadDays`     | `7`     | days before due to raise "due soon"               |
 | `recomputeIntervalMs`    | `60000` | status recompute tick in ms                       |
