@@ -1,3 +1,49 @@
+# v1.7.0
+
+Log entries can now carry files, and everything about an entry lives in one
+details modal.
+
+## Highlights
+
+- **Log entry attachments.** Marking a task complete, adding a log entry or
+  editing one can now attach files — photos of the work, receipts — the
+  same way tasks carry manuals. The log entry modal gains a **Files** field
+  after Notes. On create, files queue locally and upload once the entry is
+  saved. Bytes live under `files/logs/<log_id>/`, indexed by a new
+  `log_files` table (migration 9). New routes mirror the task ones:
+  `GET/POST /logs/:id/files` and `GET/DELETE /logs/:id/files/:fileId`.
+  Every log entry the API returns carries a `files` array. Deleting an
+  entry removes its files, and deleting a task removes those of all its
+  entries.
+- **Log details modal.** Log tables now show only the key figures per row.
+  A green magnifying glass on each row (visible logged out too) opens a
+  read-only modal with the entry's task or title, dates, runtime, who
+  logged it, notes, files and images. On phones the master log shows just
+  the task name.
+- **Attachments in log downloads.** The download log modal gains a
+  **Download file attachments** checkbox, on by default. When ticked, the
+  log and every entry's files download as one `.zip`, each entry's files in
+  their own `attachments/<task>_<date>_log-<id>/` folder. The log gains an
+  Attachments column (an `attachments` array in JSON) listing each file's
+  path in the zip. The zip is built in the browser with no new
+  dependency, and is capped at 4 GB.
+
+## Changes
+
+- Log entries record when they were last edited, in a new
+  `log_entries.updated_at` column (migration 10). It is only set when a
+  field actually changes. The details modal shows it as **Updated**,
+  alongside **Completed** and **Logged**.
+- Default notification states are softer: due soon is now `alert` and
+  overdue is now `warn` (previously `warn` / `alarm`). Existing installs
+  keep their saved settings.
+
+## Fixes
+
+- A log entry's logged date is shown in the browser's local time zone
+  instead of UTC, so entries logged in the morning ahead of UTC no longer
+  show the previous day.
+
 # v1.6.1
 
 Attachments open in the browser when the browser can show them.
