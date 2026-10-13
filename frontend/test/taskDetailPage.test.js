@@ -508,7 +508,7 @@ describe('TaskDetailPage — title bar and description card', () => {
   });
 });
 
-describe('TaskDetailPage — log attachments', () => {
+describe('TaskDetailPage — log details', () => {
   const logs = [
     {
       id: 21,
@@ -542,26 +542,41 @@ describe('TaskDetailPage — log attachments', () => {
     },
   ];
 
-  it('shows a green paperclip on entries with files and opens them in a modal', async () => {
+  it('keeps the log to date, runtime and user, with a magnifying glass on every entry', async () => {
     const task = makeTask();
     mockFetch(detailRoutes(task, logs));
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskDetailPage} slug=${task.slug} />`);
     await waitFor(() =>
-      expect(screen.getByLabelText('View attachments')).toBeTruthy(),
+      expect(screen.getAllByLabelText('View log entry details')).toHaveLength(
+        2,
+      ),
     );
-    const clips = screen.getAllByLabelText('View attachments');
-    expect(clips).toHaveLength(1);
-    expect(clips[0].className).toContain('success');
-    expect(clips[0].getAttribute('title')).toBe('1 attachment');
+    expect(screen.queryByLabelText('View attachments')).toBeNull();
+    // the user column drops out on phones
+    const byCells = screen.getAllByText('zach').map((el) => el.closest('td'));
+    expect(byCells).toHaveLength(2);
+    expect(byCells[0].className).toContain('hide-sm');
     // nothing inline in the log table
     expect(document.querySelectorAll('.files-thumb')).toHaveLength(0);
+  });
 
-    fireEvent.click(clips[0]);
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.getAttribute('aria-label')).toMatch(
-      /^Attachments — Engine oil change, /,
+  it('opens the entry in a details modal', async () => {
+    const task = makeTask();
+    mockFetch(detailRoutes(task, logs));
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${TaskDetailPage} slug=${task.slug} />`);
+    await waitFor(() =>
+      expect(screen.getAllByLabelText('View log entry details')).toHaveLength(
+        2,
+      ),
     );
+    fireEvent.click(screen.getAllByLabelText('View log entry details')[0]);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-label')).toBe(
+      'Log entry — Engine oil change, 2026-03-04',
+    );
+    expect(dialog.querySelector('.stat-table').textContent).toContain('zach');
     const headings = Array.from(dialog.querySelectorAll('h3')).map(
       (h) => h.textContent,
     );
@@ -571,20 +586,24 @@ describe('TaskDetailPage — log attachments', () => {
     );
   });
 
-  it('orders the paperclip before edit and delete when logged in', async () => {
+  it('orders the magnifying glass before edit and delete when logged in', async () => {
     const task = makeTask();
     mockFetch(detailRoutes(task, logs));
     authState.value = { checked: true, isLoggedIn: true, username: 'admin' };
     render(html`<${TaskDetailPage} slug=${task.slug} />`);
     await waitFor(() =>
-      expect(screen.getByLabelText('View attachments')).toBeTruthy(),
+      expect(screen.getAllByLabelText('View log entry details')).toHaveLength(
+        2,
+      ),
     );
-    const cell = screen.getByLabelText('View attachments').closest('td');
+    const cell = screen
+      .getAllByLabelText('View log entry details')[0]
+      .closest('td');
     const labels = Array.from(cell.querySelectorAll('button')).map((b) =>
       b.getAttribute('aria-label'),
     );
     expect(labels).toEqual([
-      'View attachments',
+      'View log entry details',
       'Edit log entry',
       'Delete log entry',
     ]);

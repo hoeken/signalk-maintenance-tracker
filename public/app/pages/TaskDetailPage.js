@@ -36,17 +36,12 @@ import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
 import { FileList, ImageGallery } from '../components/AttachmentList.js';
-import { LogAttachmentsModal } from '../components/LogAttachmentsModal.js';
+import { LogDetailsModal } from '../components/LogDetailsModal.js';
 import { apiFetch } from '../api/client.js';
 import { stowageItemUrl, useStowageItems } from '../api/stowage.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
-
-/** @param {number} n */
-function attachmentsTitle(n) {
-  return n === 1 ? '1 attachment' : n + ' attachments';
-}
 
 /** @param {{ slug: string }} props */
 export function TaskDetailPage(props) {
@@ -64,7 +59,7 @@ export function TaskDetailPage(props) {
     /** @type {LogDTO|null} */ (null),
   );
   const [downloadingLog, setDownloadingLog] = useState(false);
-  const [viewingFiles, setViewingFiles] = useState(
+  const [viewingEntry, setViewingEntry] = useState(
     /** @type {LogDTO|null} */ (null),
   );
 
@@ -97,57 +92,52 @@ export function TaskDetailPage(props) {
     {
       key: 'logged_by',
       label: 'By',
+      className: 'hide-sm',
       render: (/** @type {LogDTO} */ e) =>
         e.logged_by
           ? formatUser(e.logged_by)
           : html`<span class="muted">—</span>`,
     },
   ];
-  // Attachments are viewable by anyone; edit/delete need a login.
-  if (auth.isLoggedIn || logRows.some((e) => e.files && e.files.length)) {
-    logColumns.push({
-      key: 'actions',
-      label: '',
-      className: 'actions',
-      render: (/** @type {LogDTO} */ e) => html`
-        ${
-          e.files && e.files.length
-            ? html`<button
+  // Details are viewable by anyone; edit/delete need a login.
+  logColumns.push({
+    key: 'actions',
+    label: '',
+    className: 'actions',
+    render: (/** @type {LogDTO} */ e) => html`
+      <button
+        type="button"
+        class="btn-icon success"
+        aria-label="View log entry details"
+        title="Details"
+        onClick=${() => setViewingEntry(e)}
+      >
+        <i class="bi bi-search" />
+      </button>
+      ${
+        auth.isLoggedIn
+          ? html`<button
                 type="button"
-                class="btn-icon success"
-                aria-label="View attachments"
-                title=${attachmentsTitle(e.files.length)}
-                onClick=${() => setViewingFiles(e)}
+                class="btn-icon primary"
+                aria-label="Edit log entry"
+                title="Edit"
+                onClick=${() => setEditingEntry(e)}
               >
-                <i class="bi bi-paperclip" />
+                <i class="bi bi-pencil" />
+              </button>
+              <button
+                type="button"
+                class="btn-icon danger"
+                aria-label="Delete log entry"
+                title="Delete"
+                onClick=${() => setDeletingEntry(e)}
+              >
+                <i class="bi bi-trash" />
               </button>`
-            : null
-        }
-        ${
-          auth.isLoggedIn
-            ? html`<button
-                  type="button"
-                  class="btn-icon primary"
-                  aria-label="Edit log entry"
-                  title="Edit"
-                  onClick=${() => setEditingEntry(e)}
-                >
-                  <i class="bi bi-pencil" />
-                </button>
-                <button
-                  type="button"
-                  class="btn-icon danger"
-                  aria-label="Delete log entry"
-                  title="Delete"
-                  onClick=${() => setDeletingEntry(e)}
-                >
-                  <i class="bi bi-trash" />
-                </button>`
-            : null
-        }
-      `,
-    });
-  }
+          : null
+      }
+    `,
+  });
 
   const runtimeConfigured = task.runtime_interval !== null;
   const timeConfigured = task.time_interval !== null;
@@ -536,14 +526,6 @@ export function TaskDetailPage(props) {
       <${Table}
         columns=${logColumns}
         rows=${logRows}
-        renderDetail=${(/** @type {LogDTO} */ e) =>
-          e.notes
-            ? html`<div class="log-notes">
-                <div class="log-notes-body">
-                  <${MarkdownView} markdown=${e.notes} />
-                </div>
-              </div>`
-            : null}
         loading=${logsRes.loading}
         emptyMessage="No maintenance logged yet."
       />
@@ -578,11 +560,11 @@ export function TaskDetailPage(props) {
       ${completing ? html`<${LogEntryModal} task=${task} onClose=${() => setCompleting(false)} />` : null}
       ${editingEntry ? html`<${LogEntryModal} entry=${editingEntry} onClose=${() => setEditingEntry(null)} />` : null}
       ${
-        viewingFiles
-          ? html`<${LogAttachmentsModal}
-              entry=${viewingFiles}
+        viewingEntry
+          ? html`<${LogDetailsModal}
+              entry=${viewingEntry}
               subject=${task.name}
-              onClose=${() => setViewingFiles(null)}
+              onClose=${() => setViewingEntry(null)}
             />`
           : null
       }

@@ -65,7 +65,7 @@ describe('master log page (§7.4)', () => {
   });
 });
 
-describe('master log page — attachments', () => {
+describe('master log page — details modal', () => {
   const pdf = {
     id: 3,
     name: 'yard-bill.pdf',
@@ -80,56 +80,99 @@ describe('master log page — attachments', () => {
     mime: 'image/jpeg',
     created_at: '2026-01-02T00:00:00.000Z',
   };
-  const withFiles = [
-    { ...logs[0], files: [pdf, jpg] },
+  const detailed = [
+    { ...logs[0], notes: 'Swapped the **filter** too.', files: [pdf, jpg] },
     { ...logs[1], files: [] },
   ];
 
-  it('marks entries with files with a green paperclip, visible logged out', async () => {
-    mockFetch(apiRoutes({ logs: withFiles }));
+  it('keeps rows to task, date and runtime — no By column, notes or files', async () => {
+    mockFetch(apiRoutes({ logs: detailed }));
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${MasterLogPage} />`);
     await waitFor(() => expect(screen.getByText('Haul out')).toBeTruthy());
-    const clips = screen.getAllByLabelText('View attachments');
-    expect(clips).toHaveLength(1);
-    expect(clips[0].className).toContain('success');
-    expect(clips[0].getAttribute('title')).toBe('2 attachments');
-    expect(clips[0].closest('tr').textContent).toContain('Engine oil');
+    const headers = Array.from(document.querySelectorAll('thead th')).map(
+      (th) => th.textContent.trim(),
+    );
+    expect(headers).toEqual(['Task', 'Date', 'Runtime', '']);
+    // date and runtime drop out on phones so each entry stays on one line
+    const hidden = Array.from(document.querySelectorAll('th.hide-sm')).map(
+      (th) => th.textContent.trim(),
+    );
+    expect(hidden).toEqual(['Date', 'Runtime']);
+    expect(document.querySelectorAll('td.hide-sm')).toHaveLength(4);
+    // long task names are cut off with an ellipsis, the full name on hover
+    const taskCell = screen.getByText('Engine oil').closest('td');
+    expect(taskCell.className).toContain('col-truncate');
+    expect(screen.getByText('Engine oil').getAttribute('title')).toBe(
+      'Engine oil',
+    );
+    expect(screen.queryByText('zach')).toBeNull();
+    expect(screen.queryByText('filter')).toBeNull();
+    expect(screen.queryByLabelText('View attachments')).toBeNull();
+    expect(document.querySelectorAll('.files-thumb')).toHaveLength(0);
+  });
+
+  it('gives every entry a magnifying glass, visible logged out', async () => {
+    mockFetch(apiRoutes({ logs: detailed }));
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${MasterLogPage} />`);
+    await waitFor(() => expect(screen.getByText('Haul out')).toBeTruthy());
+    const buttons = screen.getAllByLabelText('View log entry details');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].querySelector('.bi-search')).toBeTruthy();
+    expect(buttons[0].className).toContain('success');
     expect(screen.queryByLabelText('Edit log entry')).toBeNull();
   });
 
-  it('puts the paperclip before the edit icon when logged in', async () => {
-    mockFetch(apiRoutes({ logs: withFiles }));
+  it('puts the magnifying glass before the edit icon when logged in', async () => {
+    mockFetch(apiRoutes({ logs: detailed }));
     authState.value = { checked: true, isLoggedIn: true, username: 'admin' };
     render(html`<${MasterLogPage} />`);
     await waitFor(() => expect(screen.getByText('Haul out')).toBeTruthy());
-    const cell = screen.getByLabelText('View attachments').closest('td');
+    const cell = screen
+      .getAllByLabelText('View log entry details')[0]
+      .closest('td');
     const labels = Array.from(cell.querySelectorAll('button')).map((b) =>
       b.getAttribute('aria-label'),
     );
     expect(labels).toEqual([
-      'View attachments',
+      'View log entry details',
       'Edit log entry',
       'Delete log entry',
     ]);
-    // an entry without files keeps just edit/delete
-    expect(screen.getAllByLabelText('Edit log entry')).toHaveLength(2);
   });
 
-  it('opens a modal listing Files and Images, served from the log file routes', async () => {
-    mockFetch(apiRoutes({ logs: withFiles }));
+  it('opens a modal with the figures, notes, Files and Images', async () => {
+    mockFetch(apiRoutes({ logs: detailed }));
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${MasterLogPage} />`);
     await waitFor(() => expect(screen.getByText('Haul out')).toBeTruthy());
-    fireEvent.click(screen.getByLabelText('View attachments'));
+    fireEvent.click(screen.getAllByLabelText('View log entry details')[0]);
     const dialog = screen.getByRole('dialog');
-    expect(dialog.getAttribute('aria-label')).toMatch(
-      /^Attachments — Engine oil, /,
+    expect(dialog.getAttribute('aria-label')).toBe(
+      'Log entry — Engine oil, 2026-01-02',
+    );
+    const stats = Array.from(dialog.querySelectorAll('.stat-table tr')).map(
+      (tr) => [
+        tr.querySelector('th').textContent,
+        tr.querySelector('td').textContent.trim(),
+      ],
+    );
+    expect(stats).toEqual([
+      ['Task', 'Engine oil'],
+      ['Log Date', '2026-01-02'],
+      ['Updated', '2026-01-02'],
+      ['Runtime', '12.5 h'],
+      ['Logged by', 'zach'],
+    ]);
+    expect(dialog.querySelector('.stat-table a').getAttribute('href')).toBe(
+      '#/tasks/engine-oil',
     );
     const headings = Array.from(dialog.querySelectorAll('h3')).map(
       (h) => h.textContent,
     );
-    expect(headings).toEqual(['Files', 'Images']);
+    expect(headings).toEqual(['Notes', 'Files', 'Images']);
+    expect(dialog.querySelector('strong').textContent).toBe('filter');
     const link = screen.getByText('yard-bill.pdf').closest('a');
     expect(link.getAttribute('href')).toBe(
       '/plugins/signalk-maintenance-tracker/api/logs/1/files/3',
@@ -141,7 +184,28 @@ describe('master log page — attachments', () => {
       '/plugins/signalk-maintenance-tracker/api/logs/1/files/4',
     );
     expect(thumb.querySelector('img').getAttribute('alt')).toBe('impeller.jpg');
-    // the table itself stays free of inline files
-    expect(document.querySelectorAll('.files-thumb')).toHaveLength(1);
+  });
+
+  it('shows a standalone entry by title, without empty sections', async () => {
+    mockFetch(apiRoutes({ logs: detailed }));
+    authState.value = { checked: true, isLoggedIn: false, username: null };
+    render(html`<${MasterLogPage} />`);
+    await waitFor(() => expect(screen.getByText('Haul out')).toBeTruthy());
+    fireEvent.click(screen.getAllByLabelText('View log entry details')[1]);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-label')).toBe(
+      'Log entry — Haul out, 2026-03-04',
+    );
+    const labels = Array.from(dialog.querySelectorAll('.stat-table th')).map(
+      (th) => th.textContent,
+    );
+    expect(labels).toEqual([
+      'Title',
+      'Log Date',
+      'Updated',
+      'Runtime',
+      'Logged by',
+    ]);
+    expect(dialog.querySelectorAll('h3')).toHaveLength(0);
   });
 });

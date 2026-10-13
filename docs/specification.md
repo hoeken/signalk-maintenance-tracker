@@ -510,16 +510,19 @@ drives the attribute.
   `runtime_fraction` / `time_fraction`), next due date(s), and current status
   badge.
 - A "Mark complete" button opening the Complete modal.
-- A per-task log table with edit/delete actions on each entry. An entry with
-  attachments carries a green paperclip ahead of the edit icon (shown to
-  logged-out visitors too) that opens the entry's attachments modal — files
-  are never rendered inline in the table.
+- A per-task log table kept to date, runtime and logged_by (dropped on
+  phones), with edit/delete actions on each entry. Every entry carries a
+  magnifying glass ahead of the edit icon (shown to logged-out visitors too)
+  that opens the entry's details modal — notes and files are never rendered
+  inline in the table.
 
 **Master Log (`/log`)**
 
-- One row per log entry across all tasks: task name (link), maintenance date,
-  runtime hours, notes (truncated, expandable), logged_by, and the same
-  paperclip as the per-task log for entries with attachments.
+- One row per log entry across all tasks: task name (link, or a standalone
+  entry's title), maintenance date, runtime hours, and the same magnifying
+  glass as the per-task log for everything else. On phones the date and
+  runtime columns drop out and long names end in an ellipsis, so each entry
+  stays on one line.
 - Sortable + searchable + paginated (server-side, same pattern as task list).
 
 ### 7.5 Modals
@@ -550,9 +553,12 @@ Escape-to-close, focus trap, `role="dialog"`) — no modal library.
   id — a failed upload is toasted, never a failed completion. The same form
   edits an entry (and creates a standalone one), where the files field acts
   on the server immediately, like the task form's.
-- **Log attachments** — read-only: the entry's documents under **Files** and
-  its images as thumbnails under **Images**, exactly as the task detail page
-  shows a task's. Opened from the paperclip on a log row.
+- **Log entry details** — read-only: the entry's task (link) or title,
+  log date (`maintenance_date`), updated date (`created_at`), runtime and
+  logged_by, then its notes (markdown) under
+  **Notes**, documents under **Files** and images as thumbnails under
+  **Images**, exactly as the task detail page shows a task's. Empty sections
+  are dropped. Opened from the magnifying glass on a log row.
 - **Delete confirm** — simple confirmation; on confirm calls `DELETE
 /tasks/:slug`.
 

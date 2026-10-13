@@ -593,12 +593,12 @@ pre {
   border-color: var(--accent);
   outline: none;
 }
-/* the log-entry attachments modal: the detail page's Files / Gallery
-   sections, stacked */
-.attachments-section + .attachments-section {
+/* the log-entry details modal: the entry's figures, notes, files and
+   images, stacked */
+.details-section + .details-section {
   margin-top: 16px;
 }
-.attachments-section h3 {
+.details-section h3 {
   margin: 0 0 10px;
   font-size: 15px;
   text-transform: uppercase;
@@ -723,32 +723,23 @@ pre {
   gap: 6px 8px;
 }
 
-/* full-width detail row (log notes) rendered under its entry row */
-.table tr.has-detail td {
-  border-bottom: none;
-}
-.table tr.detail-row td {
-  padding-top: 0;
-}
-.table tbody tr.detail-row:hover td {
-  background: transparent;
-}
-
-/* notes annotate a log entry rather than being its data, so they read one
-   step back from the row's figures — in the task log and the master log alike */
-.log-notes {
-  display: flex;
-  color: var(--text-muted);
-}
-.log-notes-body {
-  min-width: 0;
-}
-
 /* columns hidden on small screens */
 @media (max-width: 640px) {
   .table th.hide-sm,
   .table td.hide-sm {
     display: none;
+  }
+
+  /* with the figures hidden, a column like the master log's task name soaks up
+     the row and cuts long text off with an ellipsis rather than wrapping —
+     max-width: 0 lets the cell shrink below its content under auto layout.
+     Phones only: on wider screens it would squeeze the figures to the right. */
+  .table td.col-truncate {
+    width: 100%;
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* auto table layout hands every column a share of the slack in proportion to

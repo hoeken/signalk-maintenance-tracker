@@ -1,8 +1,9 @@
 /**
  * Master log (§7.4): one row per log entry across all tasks, plus standalone
  * (non-task) entries listed under their own title. Server-side
- * search/sort/pagination, truncated-but-expandable notes, and — when logged
- * in — creating standalone entries and editing/deleting any entry.
+ * search/sort/pagination, a details modal per entry (notes, attachments), and
+ * — when logged in — creating standalone entries and editing/deleting any
+ * entry.
  */
 import { html } from '../lib/html.js';
 import { useState, useEffect } from '../../vendor/preact-hooks.js';
@@ -10,25 +11,18 @@ import { useLogs, deleteLog } from '../api/hooks.js';
 import { apiFetch, buildQuery } from '../api/client.js';
 import { useAuth } from '../auth/auth.js';
 import { useListParams } from '../lib/useListParams.js';
-import {
-  formatDate,
-  formatHours,
-  formatUser,
-  truncate,
-} from '../lib/format.js';
+import { formatDate, formatHours } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
-import { MarkdownView } from '../components/MarkdownView.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
-import { LogAttachmentsModal } from '../components/LogAttachmentsModal.js';
+import { LogDetailsModal } from '../components/LogDetailsModal.js';
 
 /** @typedef {import('../types.js').LogDTO} LogDTO */
 
 const PAGE_SIZE = 25;
-const NOTE_PREVIEW_CHARS = 120;
 /** Server-side pageSize cap (see MAX_PAGE_SIZE in src/service.ts). */
 const EXPORT_PAGE_SIZE = 200;
 
@@ -85,24 +79,12 @@ export function MasterLogPage() {
   const [deletingEntry, setDeletingEntry] = useState(
     /** @type {LogDTO|null} */ (null),
   );
-  const [viewingFiles, setViewingFiles] = useState(
+  const [viewingEntry, setViewingEntry] = useState(
     /** @type {LogDTO|null} */ (null),
   );
 
   const pageData = logsRes.data;
   const rows = pageData ? pageData.data : [];
-
-  const [expanded, setExpanded] = useState(
-    /** @type {Record<string, boolean>} */ ({}),
-  );
-  /** @param {number} id */
-  const toggleExpanded = (id) => {
-    /** @type {Record<string, boolean>} */
-    const next = {};
-    for (const key of Object.keys(expanded)) next[key] = expanded[key];
-    next[id] = !next[id];
-    setExpanded(next);
-  };
 
   /** @param {string} key */
   const onSort = (key) => {
@@ -117,117 +99,71 @@ export function MasterLogPage() {
       key: 'task',
       label: 'Task',
       sortable: true,
+      className: 'col-truncate',
       // Standalone entries have no task to link to — their title stands in.
       render: (/** @type {LogDTO} */ e) =>
         e.task_slug !== null
-          ? html`<a href=${'#/tasks/' + encodeURIComponent(e.task_slug)}
+          ? html`<a
+              href=${'#/tasks/' + encodeURIComponent(e.task_slug)}
+              title=${e.task_name}
               >${e.task_name}</a
             >`
-          : e.title,
+          : html`<span title=${e.title}>${e.title}</span>`,
     },
     {
       key: 'maintenance_date',
       label: 'Date',
       sortable: true,
-      className: 'num',
+      className: 'num hide-sm',
       render: (/** @type {LogDTO} */ e) => formatDate(e.maintenance_date),
     },
     {
       key: 'runtime_hours',
       label: 'Runtime',
       sortable: true,
-      className: 'num',
+      className: 'num hide-sm',
       render: (/** @type {LogDTO} */ e) => formatHours(e.runtime_hours),
     },
-    {
-      key: 'logged_by',
-      label: 'By',
-      render: (/** @type {LogDTO} */ e) =>
-        e.logged_by
-          ? formatUser(e.logged_by)
-          : html`<span class="muted">—</span>`,
-    },
   ];
-  // Attachments are viewable by anyone; edit/delete need a login.
-  if (auth.isLoggedIn || rows.some((e) => e.files && e.files.length)) {
-    columns.push({
-      key: 'actions',
-      label: '',
-      className: 'actions',
-      render: (/** @type {LogDTO} */ e) => html`
-        ${
-          e.files && e.files.length
-            ? html`<button
+  // Details are viewable by anyone; edit/delete need a login.
+  columns.push({
+    key: 'actions',
+    label: '',
+    className: 'actions',
+    render: (/** @type {LogDTO} */ e) => html`
+      <button
+        type="button"
+        class="btn-icon success"
+        aria-label="View log entry details"
+        title="Details"
+        onClick=${() => setViewingEntry(e)}
+      >
+        <i class="bi bi-search" />
+      </button>
+      ${
+        auth.isLoggedIn
+          ? html`<button
                 type="button"
-                class="btn-icon success"
-                aria-label="View attachments"
-                title=${e.files.length === 1 ? '1 attachment' : e.files.length + ' attachments'}
-                onClick=${() => setViewingFiles(e)}
+                class="btn-icon primary"
+                aria-label="Edit log entry"
+                title="Edit"
+                onClick=${() => setEditingEntry(e)}
               >
-                <i class="bi bi-paperclip" />
+                <i class="bi bi-pencil" />
+              </button>
+              <button
+                type="button"
+                class="btn-icon danger"
+                aria-label="Delete log entry"
+                title="Delete"
+                onClick=${() => setDeletingEntry(e)}
+              >
+                <i class="bi bi-trash" />
               </button>`
-            : null
-        }
-        ${
-          auth.isLoggedIn
-            ? html`<button
-                  type="button"
-                  class="btn-icon primary"
-                  aria-label="Edit log entry"
-                  title="Edit"
-                  onClick=${() => setEditingEntry(e)}
-                >
-                  <i class="bi bi-pencil" />
-                </button>
-                <button
-                  type="button"
-                  class="btn-icon danger"
-                  aria-label="Delete log entry"
-                  title="Delete"
-                  onClick=${() => setDeletingEntry(e)}
-                >
-                  <i class="bi bi-trash" />
-                </button>`
-            : null
-        }
-      `,
-    });
-  }
-
-  /** Notes render on their own full-width row under the entry. @param {LogDTO} e */
-  const renderNotes = (e) => {
-    if (!e.notes) return null;
-    const isLong = e.notes.length > NOTE_PREVIEW_CHARS;
-    const body =
-      expanded[e.id] || !isLong
-        ? html`
-            <${MarkdownView} markdown=${e.notes} />
-            ${
-              isLong
-                ? html`<button
-                    type="button"
-                    class="btn-link"
-                    onClick=${() => toggleExpanded(e.id)}
-                  >
-                    less
-                  </button>`
-                : null
-            }
-          `
-        : html`
-            ${truncate(e.notes, NOTE_PREVIEW_CHARS)}${' '}
-            <button
-              type="button"
-              class="btn-link"
-              onClick=${() => toggleExpanded(e.id)}
-            >
-              more
-            </button>
-          `;
-    return html`<div class="log-notes">
-      <div class="log-notes-body">${body}</div>
-    </div>`;
-  };
+          : null
+      }
+    `,
+  });
 
   return html`
     <div>
@@ -277,11 +213,11 @@ export function MasterLogPage() {
       ${creating ? html`<${LogEntryModal} onClose=${() => setCreating(false)} />` : null}
       ${editingEntry ? html`<${LogEntryModal} entry=${editingEntry} onClose=${() => setEditingEntry(null)} />` : null}
       ${
-        viewingFiles
-          ? html`<${LogAttachmentsModal}
-              entry=${viewingFiles}
-              subject=${viewingFiles.task_name || viewingFiles.title}
-              onClose=${() => setViewingFiles(null)}
+        viewingEntry
+          ? html`<${LogDetailsModal}
+              entry=${viewingEntry}
+              subject=${viewingEntry.task_name || viewingEntry.title}
+              onClose=${() => setViewingEntry(null)}
             />`
           : null
       }
@@ -316,7 +252,6 @@ export function MasterLogPage() {
               <${Table}
                 columns=${columns}
                 rows=${rows}
-                renderDetail=${renderNotes}
                 sort=${sort}
                 order=${order}
                 onSort=${onSort}
