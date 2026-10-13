@@ -5,6 +5,8 @@ import {
   buildJson,
   buildLogExport,
   dateStamp,
+  attachmentPaths,
+  safeFileName,
 } from '../../public/app/lib/logExport.js';
 
 /** @type {import('../../public/app/types.js').LogDTO[]} */
@@ -112,5 +114,78 @@ describe('log export', () => {
   it('formats a zero-padded local date stamp', () => {
     expect(dateStamp(new Date(2026, 0, 5))).toBe('2026-01-05');
     expect(dateStamp(new Date(2026, 11, 31))).toBe('2026-12-31');
+  });
+
+  describe('with attachments', () => {
+    const file = (id, name) => ({
+      id,
+      name,
+      size: 1,
+      mime: null,
+      created_at: '2026-01-02T00:00:00Z',
+    });
+    /** @type {import('../../public/app/types.js').LogDTO[]} */
+    const withFiles = [
+      {
+        ...entries[0],
+        files: [file(10, 'receipt.pdf'), file(11, 'photo.jpg')],
+      },
+      { ...entries[1], files: [] },
+      {
+        ...entries[2],
+        maintenance_date: '2026-03-04T00:00:00.000Z', // as the API sends it
+        files: [file(12, 'a.txt'), file(13, 'A.txt'), file(14, 'a.txt')],
+      },
+    ];
+    const paths = attachmentPaths(withFiles);
+
+    it('puts each entry in its own folder keyed by date and log id', () => {
+      expect(paths.get(1)).toEqual([
+        'attachments/engine-oil_2026-01-02_log-1/receipt.pdf',
+        'attachments/engine-oil_2026-01-02_log-1/photo.jpg',
+      ]);
+      expect(paths.has(2)).toBe(false);
+      // case-insensitive collisions get numbered
+      expect(paths.get(3)).toEqual([
+        'attachments/haul-out_2026-03-04_log-3/a.txt',
+        'attachments/haul-out_2026-03-04_log-3/A (2).txt',
+        'attachments/haul-out_2026-03-04_log-3/a (3).txt',
+      ]);
+    });
+
+    it('sanitizes names into a single safe path segment', () => {
+      expect(safeFileName('../../etc/passwd')).toBe('.._.._etc_passwd');
+      expect(safeFileName('a:b*c?.txt')).toBe('a_b_c_.txt');
+      expect(safeFileName('trailing. ')).toBe('trailing');
+      expect(safeFileName('..')).toBe('file');
+      expect(safeFileName('')).toBe('file');
+    });
+
+    it('adds an Attachments column to CSV listing zip paths', () => {
+      const lines = buildCsv(withFiles, paths).split('\r\n');
+      expect(lines[0]).toBe(
+        'Task,Date,Runtime Hours,Logged By,Notes,Attachments',
+      );
+      expect(lines[1]).toBe(
+        'Engine oil,2026-01-02,12.5,zach,"Changed oil, filter",' +
+          '"attachments/engine-oil_2026-01-02_log-1/receipt.pdf\n' +
+          'attachments/engine-oil_2026-01-02_log-1/photo.jpg"',
+      );
+    });
+
+    it('links attachments from the Markdown table', () => {
+      const md = buildMarkdown(withFiles, paths);
+      expect(md).toContain('| Notes | Attachments |');
+      expect(md).toContain(
+        '[receipt.pdf](<attachments/engine-oil_2026-01-02_log-1/receipt.pdf>)<br>' +
+          '[photo.jpg](<attachments/engine-oil_2026-01-02_log-1/photo.jpg>)',
+      );
+    });
+
+    it('adds an attachments array to JSON records', () => {
+      const parsed = JSON.parse(buildLogExport(withFiles, 'json', paths));
+      expect(parsed[0].attachments).toEqual(paths.get(1));
+      expect(parsed[1].attachments).toEqual([]);
+    });
   });
 });

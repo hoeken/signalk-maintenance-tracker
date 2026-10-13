@@ -111,3 +111,41 @@ export function makeTask(overrides) {
     overrides || {},
   );
 }
+
+/**
+ * Read back a stored (uncompressed) zip from its central directory:
+ * path → bytes, plus each entry's CRC as written, for checking zip.js output.
+ * @param {Blob} blob
+ */
+export async function readZip(blob) {
+  // jsdom's Blob has no arrayBuffer(); FileReader works
+  const buf = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () =>
+      resolve(new Uint8Array(/** @type {ArrayBuffer} */ (r.result)));
+    r.onerror = () => reject(r.error);
+    r.readAsArrayBuffer(blob);
+  });
+  const view = new DataView(buf.buffer);
+  const eocd = buf.length - 22;
+  if (view.getUint32(eocd, true) !== 0x06054b50) throw new Error('no EOCD');
+  const count = view.getUint16(eocd + 10, true);
+  let p = view.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  /** @type {Map<string, { data: Uint8Array, crc: number, flags: number }>} */
+  const out = new Map();
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(p, true) !== 0x02014b50) throw new Error('bad CD');
+    const flags = view.getUint16(p + 8, true);
+    const crc = view.getUint32(p + 16, true);
+    const size = view.getUint32(p + 24, true);
+    const nameLen = view.getUint16(p + 28, true);
+    const local = view.getUint32(p + 42, true);
+    const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
+    if (view.getUint32(local, true) !== 0x04034b50) throw new Error('bad LFH');
+    const start = local + 30 + view.getUint16(local + 26, true);
+    out.set(name, { data: buf.slice(start, start + size), crc, flags });
+    p += 46 + nameLen;
+  }
+  return out;
+}
