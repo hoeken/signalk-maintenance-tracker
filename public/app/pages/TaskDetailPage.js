@@ -38,7 +38,7 @@ import { DownloadLogModal } from '../components/DownloadLogModal.js';
 import { FileList, ImageGallery } from '../components/AttachmentList.js';
 import { LogDetailsModal } from '../components/LogDetailsModal.js';
 import { apiFetch } from '../api/client.js';
-import { stowageItemUrl, useStowageItems } from '../api/stowage.js';
+import { stockLevel, stowageItemUrl, useStowageItems } from '../api/stowage.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
 /** @typedef {import('../types.js').LogDTO} LogDTO */
@@ -308,64 +308,70 @@ export function TaskDetailPage(props) {
                         }
                       >
                         <h3>Consumables</h3>
-                        <ul class="consumables-list">
-                          ${consumables.map((c) => {
-                            const item = stockById.get(c.item_id);
-                            // Enough for this job: green, or orange when that
-                            // still leaves the item below its restock target.
-                            const stock = !item
-                              ? null
-                              : {
-                                  onHand: item.actual_quantity,
-                                  cls:
-                                    item.actual_quantity < c.qty_per_service
-                                      ? 'short'
-                                      : item.target_quantity !== null &&
-                                          item.actual_quantity <
-                                            item.target_quantity
-                                        ? 'low'
-                                        : 'ok',
-                                  target: item.target_quantity,
-                                };
-                            return html`<li
-                              key=${c.item_id}
-                              class="consumables-row"
-                            >
-                              <span class="consumables-name"
-                                ><a href=${stowageItemUrl(c.item_id)}
-                                  >${c.item_name}</a
-                                >${' '}
-                                ${
-                                  stock
-                                    ? html`<span
-                                        class=${'consumables-stock ' + stock.cls}
-                                        title=${
-                                          'Need ' +
-                                          c.qty_per_service +
-                                          ', ' +
-                                          stock.onHand +
-                                          ' in stock' +
-                                          (stock.cls === 'low'
-                                            ? ' (below target of ' +
-                                              stock.target +
-                                              ')'
-                                            : '')
-                                        }
-                                        >${
-                                          '× ' +
-                                          c.qty_per_service +
-                                          ' / ' +
-                                          stock.onHand
-                                        }</span
-                                      >`
-                                    : html`<span class="muted"
-                                        >× ${c.qty_per_service}</span
-                                      >`
-                                }</span
-                              >
-                            </li>`;
-                          })}
-                        </ul>
+                        <div class="consumables-table">
+                          <${Table}
+                            columns=${[
+                              {
+                                key: 'item_name',
+                                label: 'Item',
+                                className: 'col-name',
+                                render: (
+                                  /** @type {import('../types.js').TaskConsumableDTO} */ c,
+                                ) =>
+                                  html`<a href=${stowageItemUrl(c.item_id)}
+                                    >${c.item_name}</a
+                                  >`,
+                              },
+                              {
+                                key: 'qty_per_service',
+                                label: 'Quantity',
+                                className: 'num',
+                                render: (
+                                  /** @type {import('../types.js').TaskConsumableDTO} */ c,
+                                ) => {
+                                  const item = stockById.get(c.item_id);
+                                  // An item stowage-mgmt no longer knows: just
+                                  // the required qty, uncoloured.
+                                  if (!item)
+                                    return html`<span class="muted"
+                                      >${c.qty_per_service}</span
+                                    >`;
+                                  // Enough for this job: green, or orange when
+                                  // that still leaves the item below its
+                                  // restock target.
+                                  const cls = stockLevel(
+                                    item,
+                                    c.qty_per_service,
+                                  );
+                                  return html`<span
+                                    class=${'consumables-stock ' + cls}
+                                    title=${
+                                      'Need ' +
+                                      c.qty_per_service +
+                                      ', ' +
+                                      item.actual_quantity +
+                                      ' in stock' +
+                                      (cls === 'low'
+                                        ? ' (below target of ' +
+                                          item.target_quantity +
+                                          ')'
+                                        : '')
+                                    }
+                                    >${
+                                      c.qty_per_service +
+                                      ' / ' +
+                                      item.actual_quantity
+                                    }</span
+                                  >`;
+                                },
+                              },
+                            ]}
+                            rows=${consumables}
+                            rowKey=${(
+                              /** @type {import('../types.js').TaskConsumableDTO} */ c,
+                            ) => c.item_id}
+                          />
+                        </div>
                       </div>`
                     : null
                 }

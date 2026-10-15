@@ -1234,6 +1234,77 @@ describe('stock consumption on completion (docs/inventory-interaction.md)', () =
     expect(consumeFromPlacements).not.toHaveBeenCalled();
   });
 
+  it('consumes only the items listed in consumable_quantities, at the given quantities', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil change' });
+    service.consumables.setForTask(
+      service.getTask('oil-change').id,
+      [
+        { item_id: 'item-filter', item_name: 'Filter', qty_per_service: 1 },
+        { item_id: 'item-oil', item_name: 'Oil', qty_per_service: 4 },
+      ],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'oil-change',
+      {
+        maintenance_date: '2026-07-11T00:00:00Z',
+        consumable_quantities: [
+          { item_id: 'item-oil', quantity: 3.5 },
+          { item_id: 'item-unlinked', quantity: 1 }, // not on this task
+        ],
+      },
+      null,
+    );
+
+    expect(consumeForTask).toHaveBeenCalledTimes(1);
+    expect(consumeForTask).toHaveBeenCalledWith(
+      'item-oil',
+      3.5,
+      expect.any(String),
+      {},
+    );
+  });
+
+  it('an empty consumable_quantities list consumes nothing', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil change' });
+    service.consumables.setForTask(
+      service.getTask('oil-change').id,
+      [{ item_id: 'item-filter', item_name: 'Filter', qty_per_service: 1 }],
+      NOW.toISOString(),
+    );
+
+    await service.addLog(
+      'oil-change',
+      { maintenance_date: '2026-07-11T00:00:00Z', consumable_quantities: [] },
+      null,
+    );
+
+    expect(consumeForTask).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-positive consumable quantity before logging anything', async () => {
+    const consumeForTask = vi.fn().mockResolvedValue({});
+    const { service } = makeService({}, stubClient(consumeForTask));
+    service.createTask({ name: 'Oil change' });
+
+    await expect(
+      service.addLog(
+        'oil-change',
+        {
+          maintenance_date: '2026-07-11T00:00:00Z',
+          consumable_quantities: [{ item_id: 'item-filter', quantity: 0 }],
+        },
+        null,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(service.getTask('oil-change').last_maintenance).toBeNull();
+  });
+
   it('a per-placement allocation failure produces a warning without blocking the log', async () => {
     const consumeForTask = vi.fn();
     const consumeFromPlacements = vi

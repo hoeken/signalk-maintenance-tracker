@@ -71,6 +71,25 @@ export function useStowageItems() {
 }
 
 /**
+ * Stock level of one item against what a single service needs, as the
+ * `consumables-stock` colour class: 'short' (red) when there isn't enough
+ * for the job, 'low' (orange) when there is but the item is below its
+ * restock target, otherwise 'ok' (green).
+ * @param {StowageItem} item
+ * @param {number} required
+ * @returns {'short'|'low'|'ok'}
+ */
+export function stockLevel(item, required) {
+  if (item.actual_quantity < required) return 'short';
+  if (
+    item.target_quantity !== null &&
+    item.actual_quantity < item.target_quantity
+  )
+    return 'low';
+  return 'ok';
+}
+
+/**
  * Worst-case stock status across a set of linked consumables, for the
  * summary badge: any item at 0 -> 'out'; any item below its target -> 'low';
  * otherwise 'ok'. Items stowage-mgmt no longer has a record of are ignored

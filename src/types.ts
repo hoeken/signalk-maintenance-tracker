@@ -219,4 +219,10 @@ export interface LogInput {
     item_id: string;
     placements: { placement_id: string; quantity: number }[];
   }[];
+  /** Person-chosen subset of the task's linked consumables to draw down,
+   * each with the quantity actually used. When present, only the listed
+   * items are consumed (linked items left out are skipped, unlinked ids are
+   * ignored); when omitted, every linked item is consumed at its
+   * qty_per_service. */
+  consumable_quantities?: { item_id: string; quantity: number }[];
 }

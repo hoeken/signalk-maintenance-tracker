@@ -677,6 +677,7 @@ export class MaintenanceService {
   ): Promise<LogResult> {
     const task = this.requireTask(slug);
     const date = this.validateDate(body.maintenance_date, 'maintenance_date');
+    this.validateConsumableQuantities(body.consumable_quantities);
     const nowIso = this.now().toISOString();
 
     // multi-write path (§5.6): insert + denormalization update, atomically
@@ -744,6 +745,11 @@ export class MaintenanceService {
    * item without a matching allocation is treated as non-split; if it turns
    * out to actually be split, that surfaces as a normal warning rather than
    * silently picking a location.
+   *
+   * `consumable_quantities`, when given, narrows consumption to the listed
+   * items at the listed quantities (the person unticked or adjusted parts
+   * in the mark-complete form); otherwise every linked item is consumed at
+   * its qty_per_service.
    */
   private async consumeStock(
     taskId: number,
@@ -754,8 +760,16 @@ export class MaintenanceService {
   ): Promise<string[]> {
     if (body.consume_stock === false) return [];
     if (!this.deps.stowageClient) return [];
-    const items = this.consumables.forTask(taskId);
-    if (!items.length) return [];
+    const linked = this.consumables.forTask(taskId);
+    if (!linked.length) return [];
+
+    const quantities = body.consumable_quantities;
+    const items = quantities
+      ? quantities.flatMap((q) => {
+          const item = linked.find((l) => l.item_id === q.item_id);
+          return item ? [{ ...item, qty_per_service: q.quantity }] : [];
+        })
+      : linked;
 
     const allocationsByItem = new Map(
       (body.consumable_allocations ?? []).map((a) => [a.item_id, a.placements]),
@@ -1013,6 +1027,36 @@ export class MaintenanceService {
         );
       return { item_id, item_name, qty_per_service: qty };
     });
+  }
+
+  private validateConsumableQuantities(
+    quantities: LogInput['consumable_quantities'],
+  ): void {
+    if (quantities === undefined) return;
+    if (!Array.isArray(quantities))
+      throw new ApiError(
+        400,
+        'invalid_consumable',
+        'consumable_quantities must be an array',
+      );
+    for (const q of quantities) {
+      if (!q || typeof q.item_id !== 'string' || !q.item_id)
+        throw new ApiError(
+          400,
+          'invalid_consumable',
+          'Each consumable quantity requires an item_id',
+        );
+      if (
+        typeof q.quantity !== 'number' ||
+        !Number.isFinite(q.quantity) ||
+        !(q.quantity > 0)
+      )
+        throw new ApiError(
+          400,
+          'invalid_consumable',
+          'Consumable quantity must be a positive number',
+        );
+    }
   }
 
   private validateIntervals(

@@ -523,7 +523,44 @@ pre {
   width: 80px;
   flex: none;
 }
-/* "× required / in stock" on the task detail page */
+/* the mark-complete form's quantity-used inputs: narrower than the
+   picker's */
+.log-parts .consumables-qty {
+  width: 64px;
+}
+/* "/ in stock" after the quantity used in the mark-complete form */
+.consumables-total {
+  flex: none;
+  min-width: 3em;
+  color: var(--text-muted);
+}
+/* the task detail page's parts table: borderless, flush with the card */
+.consumables-table .table-wrap {
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+.consumables-table .table th,
+.consumables-table .table td {
+  border-bottom: none;
+}
+.consumables-table .table tbody tr:hover td {
+  background: none;
+}
+.consumables-table .table th.num,
+.consumables-table .table td.num {
+  text-align: center;
+}
+/* flush with the card's other content: no outer cell padding */
+.consumables-table .table th:first-child,
+.consumables-table .table td:first-child {
+  padding-left: 0;
+}
+.consumables-table .table th:last-child,
+.consumables-table .table td:last-child {
+  padding-right: 0;
+}
+/* "required / in stock" on the task detail page */
 .consumables-stock {
   font-weight: 600;
 }

@@ -180,4 +180,31 @@ describe('PlacementAllocator (docs/inventory-interaction.md)', () => {
       false,
     );
   });
+
+  it('drops the empty extra row when the required amount is lowered', async () => {
+    const onChange = vi.fn();
+    const view = (required) =>
+      html`<${PlacementAllocator}
+        itemName="Zincs"
+        required=${required}
+        placements=${TWO_LOCATIONS}
+        onChange=${onChange}
+      />`;
+    const { rerender } = render(view(3));
+    fireEvent.input(screen.getByLabelText('Location 1 for Zincs'), {
+      target: { value: 'placement-1' }, // has 2, need 3
+    });
+    await waitFor(() =>
+      expect(screen.getAllByLabelText(/Location \d for Zincs/).length).toBe(2),
+    );
+    rerender(view(2));
+    await waitFor(() =>
+      expect(screen.getAllByLabelText(/Location \d for Zincs/).length).toBe(1),
+    );
+    expect(screen.getByText('Fully allocated.')).toBeTruthy();
+    expect(onChange).toHaveBeenLastCalledWith(
+      [{ placement_id: 'placement-1', quantity: 2 }],
+      true,
+    );
+  });
 });

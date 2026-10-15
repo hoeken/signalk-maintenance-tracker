@@ -129,6 +129,7 @@
  * @property {string|null} [title] standalone (non-task) entries only
  * @property {boolean} [consume_stock]
  * @property {{ item_id: string, placements: { placement_id: string, quantity: number }[] }[]} [consumable_allocations]
+ * @property {{ item_id: string, quantity: number }[]} [consumable_quantities]
  */
 
 export {};

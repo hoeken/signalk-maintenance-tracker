@@ -829,7 +829,13 @@ Log create body (mark complete):
 ```
 
 `consume_stock` defaults to `true` when the task has linked consumables; set
-`false` to log the work without touching stowage-mgmt stock. The log entry
+`false` to log the work without touching stowage-mgmt stock. An optional
+`consumable_quantities: { item_id, quantity }[]` narrows that to the listed
+linked items at the given quantities (the mark-complete form's per-part
+checkboxes and quantity fields); items left out are not touched, and ids not
+linked to the task are ignored. Omitted, every linked item is consumed at its
+`qty_per_service`. A non-positive quantity is rejected with a 400 before
+anything is logged. The log entry
 is created regardless of whether stock consumption succeeds — it is never
 rolled back for a stowage-mgmt failure. If any linked item's stock update
 fails for a reason worth surfacing (as opposed to stowage-mgmt simply being

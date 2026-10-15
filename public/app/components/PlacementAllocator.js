@@ -65,10 +65,15 @@ export function PlacementAllocator(props) {
   );
 
   // Auto-append a new empty row once the current picks don't cover the full
-  // amount and there's still an unused placement with stock left to try.
+  // amount and there's still an unused placement with stock left to try —
+  // and drop that empty row again if the required amount is lowered so the
+  // picks already cover it.
   useEffect(() => {
-    if (remaining > 0 && !exhausted && picks[picks.length - 1] !== null) {
+    const lastEmpty = picks[picks.length - 1] === null;
+    if (remaining > 0 && !exhausted && !lastEmpty) {
       setPicks(picks.concat([null]));
+    } else if (remaining <= 0 && lastEmpty && picks.length > 1) {
+      setPicks(picks.slice(0, -1));
     }
   }, [remaining, exhausted, picks.length]);
 

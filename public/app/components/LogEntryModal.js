@@ -18,7 +18,7 @@ import {
   uploadLogFile,
   deleteLogFile,
 } from '../api/hooks.js';
-import { useStowageItems } from '../api/stowage.js';
+import { stockLevel, useStowageItems } from '../api/stowage.js';
 import { toDateInput } from '../lib/format.js';
 import { toast } from '../lib/toasts.js';
 
@@ -61,7 +61,12 @@ export function LogEntryModal(props) {
   );
   const hasConsumables =
     !isEdit && !!task && !!task.consumables && task.consumables.length > 0;
-  const [consumeStock, setConsumeStock] = useState(true);
+  // Per-part overrides of the stock-update defaults, keyed by item_id:
+  // `enabled` (the row's checkbox) and `qty` (the raw input text). Anything
+  // not touched yet falls back to the defaults derived in stockRows below.
+  const [partEdits, setPartEdits] = useState(
+    /** @type {Record<string, { enabled?: boolean, qty?: string }>} */ ({}),
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -98,21 +103,50 @@ export function LogEntryModal(props) {
     setUploading(null);
   };
 
-  // Split items (across stowage-mgmt locations) need the person to say which
-  // location(s) stock came from — stowage-mgmt won't pick one automatically
-  // (BoatHacks/signalk-stowage-mgmt#17). Figure out which of this task's
-  // linked consumables are currently split, using the same live item data
-  // the picker/badges use.
+  // One row per linked part, checked by default and prefilled with the
+  // task's qty_per_service (capped to what's in stock), using the same live
+  // item data the picker/badges use. A part with nothing in stock — or that
+  // stowage-mgmt no longer has — can't be drawn down, so its row is
+  // disabled.
   const itemsRes = useStowageItems();
   const stowageItems = itemsRes.data || [];
   /** @type {import('../types.js').TaskConsumableDTO[]} */
   const consumables = hasConsumables && task ? task.consumables : [];
-  const splitConsumables = consumables
-    .map((c) => ({
+  const stockRows = consumables.map((c) => {
+    const item = stowageItems.find((i) => i.id === c.item_id) || null;
+    const available = item ? item.actual_quantity : 0;
+    const edit = partEdits[c.item_id] || {};
+    const disabled = available <= 0;
+    return {
       consumable: c,
-      item: stowageItems.find((i) => i.id === c.item_id),
-    }))
-    .filter((x) => x.item && x.item.placements.length > 0);
+      item,
+      available,
+      disabled,
+      enabled: !disabled && edit.enabled !== false,
+      qty:
+        edit.qty !== undefined
+          ? edit.qty
+          : String(Math.min(c.qty_per_service, Math.max(available, 0))),
+    };
+  });
+  const enabledRows = stockRows.filter((r) => r.enabled);
+  // Split items (across stowage-mgmt locations) need the person to say which
+  // location(s) stock came from — stowage-mgmt won't pick one automatically
+  // (BoatHacks/signalk-stowage-mgmt#17).
+  const splitRows = enabledRows.filter(
+    (r) => r.item && r.item.placements.length > 0,
+  );
+
+  /**
+   * @param {string} itemId
+   * @param {{ enabled?: boolean, qty?: string }} patch
+   */
+  const editPart = (itemId, patch) =>
+    setPartEdits(
+      (
+        /** @type {Record<string, { enabled?: boolean, qty?: string }>} */ prev,
+      ) => ({ ...prev, [itemId]: { ...prev[itemId], ...patch } }),
+    );
 
   /** @type {[Record<string, { allocations: {placement_id: string, quantity: number}[], complete: boolean }>, any]} */
   const [allocationState, setAllocationState] = useState(
@@ -131,18 +165,37 @@ export function LogEntryModal(props) {
       setError('Maintenance date is required.');
       return;
     }
-    if (hasConsumables && consumeStock) {
-      const incomplete = splitConsumables.find(
-        (x) => !allocationState[x.consumable.item_id]?.complete,
-      );
-      if (incomplete) {
+    for (const r of enabledRows) {
+      const qty = Number(r.qty);
+      if (r.qty.trim() === '' || !isFinite(qty) || qty <= 0) {
         setError(
-          'Pick a location for all of the ' +
-            incomplete.consumable.item_name +
-            ' used before marking this complete.',
+          'Quantity of ' +
+            r.consumable.item_name +
+            ' used must be a positive number.',
         );
         return;
       }
+      if (qty > r.available) {
+        setError(
+          'Only ' +
+            r.available +
+            ' ' +
+            r.consumable.item_name +
+            ' in stock — lower the quantity used.',
+        );
+        return;
+      }
+    }
+    const incomplete = splitRows.find(
+      (r) => !allocationState[r.consumable.item_id]?.complete,
+    );
+    if (incomplete) {
+      setError(
+        'Pick a location for all of the ' +
+          incomplete.consumable.item_name +
+          ' used before marking this complete.',
+      );
+      return;
     }
     /** @type {import('../types.js').LogInput} */
     const input = {
@@ -166,11 +219,17 @@ export function LogEntryModal(props) {
         toast('Log entry updated.', 'success');
       } else if (task) {
         if (hasConsumables) {
-          input.consume_stock = consumeStock;
-          if (consumeStock && splitConsumables.length) {
-            input.consumable_allocations = splitConsumables.map((x) => ({
-              item_id: x.consumable.item_id,
-              placements: allocationState[x.consumable.item_id].allocations,
+          input.consume_stock = enabledRows.length > 0;
+          if (enabledRows.length) {
+            input.consumable_quantities = enabledRows.map((r) => ({
+              item_id: r.consumable.item_id,
+              quantity: Number(r.qty),
+            }));
+          }
+          if (splitRows.length) {
+            input.consumable_allocations = splitRows.map((r) => ({
+              item_id: r.consumable.item_id,
+              placements: allocationState[r.consumable.item_id].allocations,
             }));
           }
         }
@@ -331,44 +390,102 @@ export function LogEntryModal(props) {
         ${
           hasConsumables
             ? html`<div class="field">
-                <label class="field-label" for="log-consume-stock">
-                  <input
-                    id="log-consume-stock"
-                    type="checkbox"
-                    checked=${consumeStock}
-                    onInput=${(/** @type {any} */ e) =>
-                      setConsumeStock(e.currentTarget.checked)}
-                  />
-                  ${' '}Update signalk-stowage-mgmt stock for this task's
-                  linked parts
-                </label>
+                <label class="field-label">Inventory Management</label>
+                <div class="field-hint" style="margin:0 0 6px">
+                  Tick the parts used to update their signalk-stowage-mgmt
+                  stock.
+                </div>
+                <ul class="consumables-list log-parts">
+                  ${stockRows.map((r) => {
+                    const id = 'log-part-' + r.consumable.item_id;
+                    return html`<li key=${r.consumable.item_id}>
+                      <div class="consumables-row">
+                        <input
+                          id=${id}
+                          type="checkbox"
+                          checked=${r.enabled}
+                          disabled=${r.disabled}
+                          onInput=${(/** @type {any} */ e) =>
+                            editPart(r.consumable.item_id, {
+                              enabled: e.currentTarget.checked,
+                            })}
+                        />
+                        <input
+                          class="input consumables-qty"
+                          type="number"
+                          min="0"
+                          max=${r.available}
+                          step="any"
+                          aria-label=${'Quantity of ' + r.consumable.item_name + ' used'}
+                          value=${r.qty}
+                          disabled=${!r.enabled}
+                          onInput=${(/** @type {any} */ e) =>
+                            editPart(r.consumable.item_id, {
+                              qty: e.currentTarget.value,
+                            })}
+                        />
+                        <span class="consumables-total">
+                          /${' '}${
+                            r.item
+                              ? html`<span
+                                  class=${
+                                    'consumables-stock ' +
+                                    stockLevel(
+                                      r.item,
+                                      r.consumable.qty_per_service,
+                                    )
+                                  }
+                                  >${r.available}</span
+                                >`
+                              : itemsRes.loading
+                                ? '…'
+                                : '?'
+                          }
+                        </span>
+                        <label class="consumables-name" for=${id}>
+                          ${r.consumable.item_name}
+                        </label>
+                      </div>
+                      ${
+                        r.enabled && Number(r.qty) > r.available
+                          ? html`<div class="field-error">
+                              Only ${r.available} in stock.
+                            </div>`
+                          : !r.item && !itemsRes.loading
+                            ? html`<div class="field-hint">
+                                Not found in signalk-stowage-mgmt.
+                              </div>`
+                            : null
+                      }
+                    </li>`;
+                  })}
+                </ul>
               </div>`
             : null
         }
-        ${
-          hasConsumables && consumeStock && splitConsumables.length
-            ? splitConsumables.map(
-                (x) => html`<${PlacementAllocator}
-                  key=${x.consumable.item_id}
-                  itemName=${x.consumable.item_name}
-                  required=${x.consumable.qty_per_service}
-                  placements=${/** @type {any} */ (x.item).placements}
-                  onChange=${(
-                    /** @type {{placement_id: string, quantity: number}[]} */ allocations,
-                    /** @type {boolean} */ complete,
-                  ) =>
-                    setAllocationState(
-                      (
-                        /** @type {Record<string, { allocations: {placement_id: string, quantity: number}[], complete: boolean }>} */ prev,
-                      ) => ({
-                        ...prev,
-                        [x.consumable.item_id]: { allocations, complete },
-                      }),
-                    )}
-                />`,
-              )
-            : null
-        }
+        ${splitRows.map((r) => {
+          const required = Number(r.qty);
+          return isFinite(required) && required > 0 && required <= r.available
+            ? html`<${PlacementAllocator}
+                key=${r.consumable.item_id}
+                itemName=${r.consumable.item_name}
+                required=${required}
+                placements=${/** @type {any} */ (r.item).placements}
+                onChange=${(
+                  /** @type {{placement_id: string, quantity: number}[]} */ allocations,
+                  /** @type {boolean} */ complete,
+                ) =>
+                  setAllocationState(
+                    (
+                      /** @type {Record<string, { allocations: {placement_id: string, quantity: number}[], complete: boolean }>} */ prev,
+                    ) => ({
+                      ...prev,
+                      [r.consumable.item_id]: { allocations, complete },
+                    }),
+                  )}
+              />`
+            : null;
+        })}
       </form>
     <//>
   `;

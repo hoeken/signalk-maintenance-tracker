@@ -364,25 +364,32 @@ describe('TaskDetailPage — title bar and description card', () => {
     authState.value = { checked: true, isLoggedIn: false, username: null };
     render(html`<${TaskDetailPage} slug=${task.slug} />`);
     await waitFor(() =>
-      expect(screen.getByText('Oil filter').closest('li').textContent).toMatch(
-        /× 1 \/ 3/,
+      expect(screen.getByText('Oil filter').closest('tr').textContent).toMatch(
+        /1 \/ 3/,
       ),
     );
-    const rowOf = (name) => screen.getByText(name).closest('li');
+    const rowOf = (name) => screen.getByText(name).closest('tr');
+    expect(
+      [...rowOf('Oil filter').closest('table').querySelectorAll('th')].map(
+        (th) => th.textContent.trim(),
+      ),
+    ).toEqual(['Item', 'Quantity']);
     expect(
       rowOf('Oil filter').querySelector('.consumables-stock.ok'),
     ).toBeTruthy();
-    expect(rowOf('Engine oil').textContent).toMatch(/× 4 \/ 2/);
+    expect(rowOf('Engine oil').textContent).toMatch(/4 \/ 2/);
     expect(
       rowOf('Engine oil').querySelector('.consumables-stock.short'),
     ).toBeTruthy();
     // Enough for this job, but below the restock target: orange.
-    expect(rowOf('Drive belt').textContent).toMatch(/× 1 \/ 1/);
+    expect(rowOf('Drive belt').textContent).toMatch(/1 \/ 1/);
     expect(
       rowOf('Drive belt').querySelector('.consumables-stock.low'),
     ).toBeTruthy();
     // An item stowage-mgmt no longer knows: just the required qty, uncolored.
-    expect(rowOf('Old gasket').textContent).toMatch(/× 1$/);
+    expect(rowOf('Old gasket').textContent.replace(/\s+/g, '')).toBe(
+      'Oldgasket1',
+    );
     expect(rowOf('Old gasket').querySelector('.consumables-stock')).toBeNull();
   });
 
