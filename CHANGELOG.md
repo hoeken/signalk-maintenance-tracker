@@ -1,3 +1,55 @@
+# v1.8.0
+
+Tasks and log entries now track time and money, completing a task can
+update stock part by part, and the task detail page is split into cards.
+
+## Highlights
+
+- **Estimated and actual hours and costs.** Tasks can carry an optional
+  estimated time (decimal hours) and estimated cost, and log entries an
+  optional actual time and cost (migration 11). Completing a task
+  prefills the actuals from the task's estimates. Amounts must be
+  non-negative numbers; anything else is a 400 `invalid_amount`. The task
+  detail page shows Time and Costs cards with the estimate plus the total
+  and average from the task's log entries, and the log details modal
+  shows the recorded time and cost. Averages only count entries that
+  recorded a value.
+- **Statistics.** The task list and master log gain a Statistics section
+  below the table, covering every matching row rather than just the
+  current page. `GET /tasks` and `GET /logs` now return a `stats` field.
+  A new **Stats** page (`#/stats`, `GET /api/stats`) compares estimated
+  and actual time and cost overall, per task, and for standalone entries.
+  Log exports (CSV, Markdown, JSON) include Actual Hours and Actual Cost.
+- **Per-part stock updates.** The complete modal's single "update stock"
+  checkbox is replaced by an Inventory Management section listing each
+  linked part with its own checkbox, an editable quantity (defaulting to
+  `qty_per_service`, capped at stock on hand) and a colour-coded
+  "/ in stock" total. Parts with nothing in stock, or unknown to
+  stowage-mgmt, are disabled. Quantities above stock, blank or
+  non-positive block submit. The log create body gains an optional
+  `consumable_quantities` array (`[{ item_id, quantity }]`) that narrows
+  consumption to the listed items at the given amounts; omitting it keeps
+  the old behaviour.
+- **Task detail cards.** Description, Schedule, Runtime, Time, Costs,
+  Consumables, Files and Gallery each get their own card, three across on
+  screens 900px and up, one column below. Each card appears only when it
+  has something to show. The gallery, always last, widens over any free
+  columns in its row.
+
+## Changes
+
+- "Mark complete" is renamed **Complete** everywhere it appears.
+- The task detail page's consumables list is now an Item / Quantity
+  table.
+- Gallery thumbnails are fluid squares on an auto-fill grid, so a phone
+  shows three across. This also applies to the log details modal.
+- On phones, the task detail header puts the status/stock badges and tags
+  on their own row, and the four action buttons form an even 2x2 grid.
+- On phones in portrait, the header splits into two rows: the title and
+  theme toggle on top, the nav as a full-width tab strip below.
+- In iOS landscape, the header now reaches the screen edges and content
+  respects the safe-area insets.
+
 # v1.7.0
 
 Log entries can now carry files, and everything about an entry lives in one
