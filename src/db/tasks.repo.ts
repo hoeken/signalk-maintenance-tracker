@@ -20,13 +20,15 @@ export interface NewTask {
   is_archived: number;
   /** SQLite boolean (0/1). 0 = one-off todo item. */
   is_recurring: number;
+  estimated_hours: number | null;
+  estimated_cost: number | null;
 }
 
 const COLUMNS = `id, slug, name, description, runtime_interval, time_interval,
   time_interval_unit, runtime_path, due_date, runtime_warning_hours,
   time_warning_days, last_maintenance, last_runtime,
   seed_last_maintenance, seed_last_runtime, is_archived, is_recurring,
-  created_at, updated_at`;
+  estimated_hours, estimated_cost, created_at, updated_at`;
 
 export class TasksRepo {
   constructor(private db: DatabaseSync) {}
@@ -38,8 +40,8 @@ export class TasksRepo {
            time_interval_unit, runtime_path, due_date, runtime_warning_hours,
            time_warning_days, last_maintenance, last_runtime,
            seed_last_maintenance, seed_last_runtime, is_archived, is_recurring,
-           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           estimated_hours, estimated_cost, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         t.slug,
@@ -58,6 +60,8 @@ export class TasksRepo {
         t.seed_last_runtime,
         t.is_archived,
         t.is_recurring,
+        t.estimated_hours,
+        t.estimated_cost,
         nowIso,
         nowIso,
       );
@@ -104,7 +108,8 @@ export class TasksRepo {
            due_date = ?, runtime_warning_hours = ?, time_warning_days = ?,
            last_maintenance = ?, last_runtime = ?,
            seed_last_maintenance = ?, seed_last_runtime = ?, is_archived = ?,
-           is_recurring = ?, updated_at = ?
+           is_recurring = ?, estimated_hours = ?, estimated_cost = ?,
+           updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -124,6 +129,8 @@ export class TasksRepo {
         t.seed_last_runtime,
         t.is_archived,
         t.is_recurring,
+        t.estimated_hours,
+        t.estimated_cost,
         nowIso,
         id,
       );

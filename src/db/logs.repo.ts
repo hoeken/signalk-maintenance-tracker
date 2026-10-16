@@ -9,7 +9,26 @@ export interface NewLog {
   runtime_hours: number | null;
   notes: string | null;
   logged_by: string | null;
+  actual_hours: number | null;
+  actual_cost: number | null;
 }
+
+/** Raw SUM/COUNT of the recorded actuals over a set of entries — COUNT
+ * skips NULLs, so each count is how many entries recorded that figure. */
+export interface WorkSums {
+  hours_total: number;
+  hours_count: number;
+  cost_total: number;
+  cost_count: number;
+}
+
+/** WorkSums for one task, plus how many entries it has in all. */
+export type TaskWorkSums = WorkSums & { log_count: number };
+
+const SUMS_SQL = `COALESCE(SUM(l.actual_hours), 0) AS hours_total,
+  COUNT(l.actual_hours) AS hours_count,
+  COALESCE(SUM(l.actual_cost), 0) AS cost_total,
+  COUNT(l.actual_cost) AS cost_count`;
 
 /** A master-log row: the entry plus its task's slug and name (both null on
  * a standalone entry). */
@@ -27,7 +46,7 @@ export interface MasterLogQuery {
 }
 
 const LOG_COLUMNS = `l.id, l.task_id, l.title, l.maintenance_date, l.runtime_hours, l.notes,
-  l.logged_by, l.created_at, l.updated_at`;
+  l.logged_by, l.actual_hours, l.actual_cost, l.created_at, l.updated_at`;
 
 export class LogsRepo {
   constructor(private db: DatabaseSync) {}
@@ -35,8 +54,9 @@ export class LogsRepo {
   insert(entry: NewLog, nowIso: string): LogRow {
     const result = this.db
       .prepare(
-        `INSERT INTO log_entries (task_id, title, maintenance_date, runtime_hours, notes, logged_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO log_entries (task_id, title, maintenance_date, runtime_hours, notes, logged_by,
+           actual_hours, actual_cost, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         entry.task_id,
@@ -45,6 +65,8 @@ export class LogsRepo {
         entry.runtime_hours,
         entry.notes,
         entry.logged_by,
+        entry.actual_hours,
+        entry.actual_cost,
         nowIso,
       );
     return this.get(Number(result.lastInsertRowid))!;
@@ -63,18 +85,23 @@ export class LogsRepo {
       maintenance_date: string;
       runtime_hours: number | null;
       notes: string | null;
+      actual_hours: number | null;
+      actual_cost: number | null;
       updated_at: string | null;
     },
   ): void {
     this.db
       .prepare(
-        `UPDATE log_entries SET title = ?, maintenance_date = ?, runtime_hours = ?, notes = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE log_entries SET title = ?, maintenance_date = ?, runtime_hours = ?, notes = ?,
+           actual_hours = ?, actual_cost = ?, updated_at = ? WHERE id = ?`,
       )
       .run(
         fields.title,
         fields.maintenance_date,
         fields.runtime_hours,
         fields.notes,
+        fields.actual_hours,
+        fields.actual_cost,
         fields.updated_at,
         id,
       );
@@ -127,19 +154,56 @@ export class LogsRepo {
     return row.n;
   }
 
+  /** Recorded actuals summed per task (task-linked entries only). */
+  sumsByTask(): Map<number, TaskWorkSums> {
+    const rows = this.db
+      .prepare(
+        `SELECT l.task_id AS task_id, COUNT(*) AS log_count, ${SUMS_SQL}
+         FROM log_entries l WHERE l.task_id IS NOT NULL GROUP BY l.task_id`,
+      )
+      .all() as unknown as (TaskWorkSums & { task_id: number })[];
+    return new Map(rows.map(({ task_id, ...sums }) => [task_id, sums]));
+  }
+
+  /** Recorded actuals summed over every entry, or only standalone ones,
+   * plus how many entries that is. */
+  sums(opts: { standaloneOnly?: boolean } = {}): TaskWorkSums {
+    const where = opts.standaloneOnly ? 'WHERE l.task_id IS NULL' : '';
+    return this.db
+      .prepare(
+        `SELECT COUNT(*) AS log_count, ${SUMS_SQL} FROM log_entries l ${where}`,
+      )
+      .get() as unknown as TaskWorkSums;
+  }
+
+  /** Recorded actuals summed over every master-log entry matching `search`
+   * (all pages). */
+  masterSums(search?: string): WorkSums {
+    const { whereSql, params } = this.masterWhere(search);
+    return this.db
+      .prepare(
+        `SELECT ${SUMS_SQL} FROM log_entries l LEFT JOIN tasks t ON t.id = l.task_id ${whereSql}`,
+      )
+      .get(...params) as unknown as WorkSums;
+  }
+
+  /** The master log's search filter. LEFT JOIN: standalone entries have no
+   * task row — they list under their own title, which stands in for the
+   * task name in search and sort too. */
+  private masterWhere(search?: string): {
+    whereSql: string;
+    params: string[];
+  } {
+    if (!search) return { whereSql: '', params: [] };
+    const like = `%${search}%`;
+    return {
+      whereSql: `WHERE (l.notes LIKE ? OR t.name LIKE ? OR l.title LIKE ? OR l.logged_by LIKE ?)`,
+      params: [like, like, like, like],
+    };
+  }
+
   listMaster(q: MasterLogQuery): { data: MasterLogRow[]; total: number } {
-    // LEFT JOIN: standalone entries have no task row — they list under their
-    // own title, which stands in for the task name in search and sort too.
-    const where: string[] = [];
-    const params: (string | number)[] = [];
-    if (q.search) {
-      const like = `%${q.search}%`;
-      where.push(
-        `(l.notes LIKE ? OR t.name LIKE ? OR l.title LIKE ? OR l.logged_by LIKE ?)`,
-      );
-      params.push(like, like, like, like);
-    }
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const { whereSql, params } = this.masterWhere(q.search);
 
     const sortCol =
       q.sort === 'task'

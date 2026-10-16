@@ -13,19 +13,26 @@ import { LogsRepo, MasterLogQuery } from './db/logs.repo';
 import { TagsRepo, TagCount } from './db/tags.repo';
 import { TasksRepo, NewTask } from './db/tasks.repo';
 import { slugify, uniqueSlug } from './domain/slug';
+import {
+  addSums,
+  aggregateOf,
+  EMPTY_SUMS,
+  workStatsFromSums,
+} from './domain/stats';
 import { computeTask, StatusConfig } from './domain/status';
 import { FileStore, FileTooLargeError, MAX_FILE_BYTES } from './files/store';
 import { StowageClient, StowageUnavailableError } from './stowage/client';
 import {
   FileDTO,
-  LogDTO,
   LogEntryDTO,
   LogInput,
+  LogPage,
   LogRow,
-  Page,
+  StatsDTO,
   Status,
   TaskDTO,
   TaskInput,
+  TaskPage,
   TaskRow,
   TIME_UNITS,
 } from './types';
@@ -148,6 +155,8 @@ export class MaintenanceService {
       last_runtime: row.last_runtime,
       is_archived: row.is_archived !== 0,
       is_recurring: row.is_recurring !== 0,
+      estimated_hours: row.estimated_hours,
+      estimated_cost: row.estimated_cost,
       created_at: row.created_at,
       updated_at: row.updated_at,
       consumables: consumables.map((c) => ({
@@ -182,7 +191,7 @@ export class MaintenanceService {
 
   // ---- tasks ----
 
-  listTasks(q: TaskListQuery): Page<TaskDTO> {
+  listTasks(q: TaskListQuery): TaskPage {
     const page = Math.max(1, q.page ?? 1);
     const pageSize = Math.min(
       MAX_PAGE_SIZE,
@@ -265,7 +274,20 @@ export class MaintenanceService {
 
     const total = items.length;
     const data = items.slice((page - 1) * pageSize, page * pageSize);
-    return { data, total, page, pageSize };
+    // Stats cover every matching task, not just this page.
+    const sumsByTask = this.logs.sumsByTask();
+    const actual = items.reduce(
+      (acc, t) => addSums(acc, sumsByTask.get(t.id) ?? EMPTY_SUMS),
+      EMPTY_SUMS,
+    );
+    const stats = {
+      estimated: {
+        hours: aggregateOf(items.map((t) => t.estimated_hours)),
+        cost: aggregateOf(items.map((t) => t.estimated_cost)),
+      },
+      actual: workStatsFromSums(actual),
+    };
+    return { data, total, page, pageSize, stats };
   }
 
   listAllComputed(): TaskDTO[] {
@@ -343,6 +365,14 @@ export class MaintenanceService {
       seed_last_runtime: body.last_runtime ?? null,
       is_archived: this.validateArchived(body.is_archived) ? 1 : 0,
       is_recurring: isRecurring ? 1 : 0,
+      estimated_hours: this.validateAmount(
+        body.estimated_hours,
+        'estimated_hours',
+      ),
+      estimated_cost: this.validateAmount(
+        body.estimated_cost,
+        'estimated_cost',
+      ),
     };
     const row = this.tasks.create(seed, nowIso);
     if (body.tags) this.tags.setTaskTags(row.id, body.tags);
@@ -406,6 +436,14 @@ export class MaintenanceService {
             : 0
           : row.is_archived,
       is_recurring: isRecurring ? 1 : 0,
+      estimated_hours:
+        body.estimated_hours !== undefined
+          ? this.validateAmount(body.estimated_hours, 'estimated_hours')
+          : row.estimated_hours,
+      estimated_cost:
+        body.estimated_cost !== undefined
+          ? this.validateAmount(body.estimated_cost, 'estimated_cost')
+          : row.estimated_cost,
     };
 
     if (!merged.name)
@@ -643,14 +681,21 @@ export class MaintenanceService {
       page?: number;
       pageSize?: number;
     },
-  ): Page<LogDTO> {
+  ): LogPage {
     const page = Math.max(1, q.page ?? 1);
     const pageSize = Math.min(
       MAX_PAGE_SIZE,
       Math.max(1, q.pageSize ?? DEFAULT_PAGE_SIZE),
     );
     const { data, total } = this.logs.listMaster({ ...q, page, pageSize });
-    return { data: this.withFiles(data), total, page, pageSize };
+    return {
+      data: this.withFiles(data),
+      total,
+      page,
+      pageSize,
+      // over every matching entry, not just this page
+      stats: workStatsFromSums(this.logs.masterSums(q.search)),
+    };
   }
 
   /** Each entry with its attachments — one query for the whole list. */
@@ -678,6 +723,7 @@ export class MaintenanceService {
     const task = this.requireTask(slug);
     const date = this.validateDate(body.maintenance_date, 'maintenance_date');
     this.validateConsumableQuantities(body.consumable_quantities);
+    const actual = this.validateActuals(body);
     const nowIso = this.now().toISOString();
 
     // multi-write path (§5.6): insert + denormalization update, atomically
@@ -692,6 +738,7 @@ export class MaintenanceService {
           runtime_hours: body.runtime_hours ?? null,
           notes: body.notes ?? null,
           logged_by: loggedBy,
+          ...actual,
         },
         nowIso,
       );
@@ -819,6 +866,7 @@ export class MaintenanceService {
         runtime_hours: body.runtime_hours ?? null,
         notes: body.notes ?? null,
         logged_by: loggedBy,
+        ...this.validateActuals(body),
       },
       this.now().toISOString(),
     );
@@ -847,6 +895,14 @@ export class MaintenanceService {
           ? body.runtime_hours
           : existing.runtime_hours,
       notes: body.notes !== undefined ? body.notes : existing.notes,
+      actual_hours:
+        body.actual_hours !== undefined
+          ? this.validateAmount(body.actual_hours, 'actual_hours')
+          : existing.actual_hours,
+      actual_cost:
+        body.actual_cost !== undefined
+          ? this.validateAmount(body.actual_cost, 'actual_cost')
+          : existing.actual_cost,
     };
     // The edit form resends every field, so only stamp updated_at when one
     // actually changed — a save with no changes isn't an update.
@@ -890,6 +946,49 @@ export class MaintenanceService {
 
   listTags(): TagCount[] {
     return this.tags.listWithCounts();
+  }
+
+  // ---- stats ----
+
+  /** Estimates across every task, actuals across every log entry, and the
+   * per-task breakdown behind them. */
+  stats(): StatsDTO {
+    const sumsByTask = this.logs.sumsByTask();
+    const standalone = this.logs.sums({ standaloneOnly: true });
+    const rows = this.tasks.listAll();
+    const tasks = rows
+      .map((row) => {
+        const sums = sumsByTask.get(row.id);
+        return {
+          slug: row.slug,
+          name: row.name,
+          is_archived: row.is_archived !== 0,
+          is_recurring: row.is_recurring !== 0,
+          estimated_hours: row.estimated_hours,
+          estimated_cost: row.estimated_cost,
+          log_count: sums?.log_count ?? 0,
+          actual: workStatsFromSums(sums ?? EMPTY_SUMS),
+        };
+      })
+      .filter(
+        (t) =>
+          t.estimated_hours !== null ||
+          t.estimated_cost !== null ||
+          t.actual.hours.count > 0 ||
+          t.actual.cost.count > 0,
+      );
+    return {
+      estimated: {
+        hours: aggregateOf(rows.map((r) => r.estimated_hours)),
+        cost: aggregateOf(rows.map((r) => r.estimated_cost)),
+      },
+      actual: workStatsFromSums(this.logs.sums()),
+      tasks,
+      standalone: {
+        log_count: standalone.log_count,
+        actual: workStatsFromSums(standalone),
+      },
+    };
   }
 
   // ---- misc ----
@@ -1115,6 +1214,34 @@ export class MaintenanceService {
     };
     check(runtimeWarningHours, 'runtime_warning_hours');
     check(timeWarningDays, 'time_warning_days');
+  }
+
+  /**
+   * Hours and costs are optional decimals: null/undefined = not recorded,
+   * otherwise a finite, non-negative number.
+   */
+  private validateAmount(
+    value: number | null | undefined,
+    field: string,
+  ): number | null {
+    if (value == null) return null;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+      throw new ApiError(
+        400,
+        'invalid_amount',
+        `${field} must be a non-negative number`,
+      );
+    return value;
+  }
+
+  private validateActuals(body: LogInput): {
+    actual_hours: number | null;
+    actual_cost: number | null;
+  } {
+    return {
+      actual_hours: this.validateAmount(body.actual_hours, 'actual_hours'),
+      actual_cost: this.validateAmount(body.actual_cost, 'actual_cost'),
+    };
   }
 
   /** is_recurring must be a real boolean when present; null/undefined =

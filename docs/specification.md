@@ -219,6 +219,10 @@ Constraints/notes:
   from whether an interval is present, which keeps pre-v1.5 API calls working.
   Toggling a recurring task to todo clears its schedule fields.
 - `time_interval` + `time_interval_unit` are set/cleared together.
+- Since migration 11, `estimated_hours` and `estimated_cost` (both REAL NULL)
+  hold optional per-completion estimates: labour in decimal hours (0.25 = a
+  quarter hour) and a unitless cost (the UI shows `$`). NULL = no estimate;
+  otherwise any non-negative number.
 
 ### 5.2 `tags`
 
@@ -250,6 +254,11 @@ task references them.
 | logged_by        | TEXT NULL                                         | SignalK user identifier (see §9)                 |
 | created_at       | TEXT NOT NULL                                     |                                                  |
 | updated_at       | TEXT NULL                                         | last edit that changed the entry; null if never  |
+
+Since migration 11, entries also carry optional `actual_hours` and
+`actual_cost` (REAL NULL): what the work actually took, in the same units as
+the task estimates (§5.1). The mark-complete form prefills them from the
+task's estimates.
 
 Indexes: `idx_log_task_date (task_id, maintenance_date DESC)`. Search uses plain
 `LIKE` (§6.3); at the expected scale (well under ~200 tasks) no full-text index is
@@ -843,6 +852,10 @@ unreachable/not installed, which is treated as normal), the response
 includes a `consumable_warnings: string[]` field alongside the usual log
 fields.
 
+Every log body (create and edit, task-linked or standalone) also accepts
+optional `actual_hours` and `actual_cost` (non-negative numbers, or null to
+clear); anything else is a 400 `invalid_amount`.
+
 ### 8.3 Tags
 
 | Method | Path    | Description                                                  |
@@ -876,6 +889,21 @@ remaining, and the Complete modal's runtime prefill — come from the plugin's
 `/tasks` API as the already-hours-converted `current_runtime` (§8.1, §10.2). The
 backend stays the single owner of runtime data and the sole seconds→hours
 conversion boundary; the frontend never reads runtime _values_ from SignalK.
+
+### 8.4a Hours and cost stats
+
+Aggregates are `{ total, count, average }` over the values actually recorded
+(`count` of them; `average` is null when there are none), grouped as
+`{ hours, cost }`.
+
+| Method | Path     | Description                                                                                                                                                                                        |
+| ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/stats` | `estimated` across every task, `actual` across every log entry, `tasks` (per-task estimates, entry count and actuals, for tasks with an estimate or any recorded actuals) and `standalone` entries. |
+
+`GET /tasks` and `GET /logs` also return a `stats` field covering every item
+matching the request's filters (all pages, not just the one returned): the
+task list's `{ estimated, actual }` — the tasks' estimates and their log
+entries' actuals — and the master log's actuals.
 
 ### 8.5 Status/health
 

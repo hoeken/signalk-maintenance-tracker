@@ -213,4 +213,17 @@ export const migrations: Migration[] = [
       db.exec(`ALTER TABLE log_entries ADD COLUMN updated_at TEXT;`);
     },
   },
+  {
+    version: 11,
+    up(db) {
+      // Labour and cost tracking, all optional (NULL = not recorded). A
+      // task carries its estimates; each log entry what the work actually
+      // took. Hours are decimal (0.25 = a quarter hour); cost is a unitless
+      // decimal amount.
+      db.exec(`ALTER TABLE tasks ADD COLUMN estimated_hours REAL;`);
+      db.exec(`ALTER TABLE tasks ADD COLUMN estimated_cost REAL;`);
+      db.exec(`ALTER TABLE log_entries ADD COLUMN actual_hours REAL;`);
+      db.exec(`ALTER TABLE log_entries ADD COLUMN actual_cost REAL;`);
+    },
+  },
 ];

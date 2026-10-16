@@ -335,6 +335,41 @@ describe('log endpoints', () => {
   });
 });
 
+describe('stats endpoint', () => {
+  it('GET /stats reports estimates and actuals', async () => {
+    await request(app)
+      .post(`${base}/tasks`)
+      .send({ name: 'Oil', estimated_hours: 0.5, estimated_cost: 40 })
+      .expect(201);
+    await request(app)
+      .post(`${base}/tasks/oil/logs`)
+      .send({
+        maintenance_date: '2026-01-01',
+        actual_hours: 0.75,
+        actual_cost: 45,
+      })
+      .expect(201);
+
+    const res = await request(app).get(`${base}/stats`).expect(200);
+    expect(res.body.estimated.hours.total).toBe(0.5);
+    expect(res.body.actual.cost).toEqual({ total: 45, count: 1, average: 45 });
+    expect(res.body.tasks).toHaveLength(1);
+
+    const logs = await request(app).get(`${base}/logs`).expect(200);
+    expect(logs.body.stats.hours.total).toBe(0.75);
+    const tasks = await request(app).get(`${base}/tasks`).expect(200);
+    expect(tasks.body.stats.estimated.cost.total).toBe(40);
+  });
+
+  it('rejects a negative amount with a 400', async () => {
+    const res = await request(app)
+      .post(`${base}/tasks`)
+      .send({ name: 'Oil', estimated_cost: -1 })
+      .expect(400);
+    expect(res.body.error.code).toBe('invalid_amount');
+  });
+});
+
 describe('tags & health endpoints', () => {
   it('GET /tags returns usage counts', async () => {
     await request(app)

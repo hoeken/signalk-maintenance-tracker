@@ -24,7 +24,7 @@ function encodeSlug(slug) {
 
 /**
  * @param {Record<string, string|number|undefined|null>} [params]
- * @returns {import('./resource.js').ResourceState<import('../types.js').Page<TaskDTO>>}
+ * @returns {import('./resource.js').ResourceState<import('../types.js').TaskPage>}
  */
 export function useTasks(params) {
   const query = buildQuery(params);
@@ -63,7 +63,7 @@ export function useTaskLogs(slug) {
 
 /**
  * @param {Record<string, string|number|undefined|null>} [params]
- * @returns {import('./resource.js').ResourceState<import('../types.js').Page<LogDTO>>}
+ * @returns {import('./resource.js').ResourceState<import('../types.js').LogPage>}
  */
 export function useLogs(params) {
   const query = buildQuery(params);
@@ -77,6 +77,16 @@ export function useLogs(params) {
  */
 export function useTags() {
   return useResource('tags', () => apiFetch('/tags'), {
+    refetchInterval: POLL_MS,
+  });
+}
+
+/**
+ * Hours/cost stats across every task and log entry.
+ * @returns {import('./resource.js').ResourceState<import('../types.js').StatsDTO>}
+ */
+export function useStats() {
+  return useResource('stats', () => apiFetch('/stats'), {
     refetchInterval: POLL_MS,
   });
 }
@@ -98,7 +108,7 @@ export function useHealth() {
  */
 export async function createTask(input) {
   const task = await apiFetch('/tasks', { method: 'POST', body: input });
-  invalidate('tasks', 'tags');
+  invalidate('tasks', 'tags', 'stats');
   return task;
 }
 
@@ -112,7 +122,7 @@ export async function updateTask(slug, input) {
     method: 'PUT',
     body: input,
   });
-  invalidate('tasks', 'task/' + slug, 'tags', 'logs');
+  invalidate('tasks', 'task/' + slug, 'tags', 'logs', 'stats');
   if (task && task.slug !== slug) invalidate('task/' + task.slug);
   return task;
 }
@@ -120,7 +130,7 @@ export async function updateTask(slug, input) {
 /** @param {string} slug */
 export async function deleteTask(slug) {
   await apiFetch('/tasks/' + encodeSlug(slug), { method: 'DELETE' });
-  invalidate('tasks', 'task/' + slug, 'tags', 'logs');
+  invalidate('tasks', 'task/' + slug, 'tags', 'logs', 'stats');
 }
 
 /**
@@ -134,7 +144,7 @@ export async function addLog(slug, input) {
     method: 'POST',
     body: input,
   });
-  invalidate('tasks', 'task/' + slug, 'logs');
+  invalidate('tasks', 'task/' + slug, 'logs', 'stats');
   return entry;
 }
 
@@ -146,7 +156,7 @@ export async function addLog(slug, input) {
  */
 export async function addStandaloneLog(input) {
   const entry = await apiFetch('/logs', { method: 'POST', body: input });
-  invalidate('logs');
+  invalidate('logs', 'stats');
   return entry;
 }
 
@@ -157,7 +167,7 @@ export async function addStandaloneLog(input) {
  */
 export async function updateLog(id, input) {
   const entry = await apiFetch('/logs/' + id, { method: 'PUT', body: input });
-  invalidate('tasks', 'logs');
+  invalidate('tasks', 'logs', 'stats');
   if (entry && entry.task_slug) invalidate('task/' + entry.task_slug);
   return entry;
 }
@@ -168,7 +178,7 @@ export async function updateLog(id, input) {
  */
 export async function deleteLog(id, taskSlug) {
   await apiFetch('/logs/' + id, { method: 'DELETE' });
-  invalidate('tasks', 'logs');
+  invalidate('tasks', 'logs', 'stats');
   if (taskSlug) invalidate('task/' + taskSlug);
 }
 

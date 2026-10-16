@@ -37,6 +37,32 @@ export function formatHours(hours) {
 }
 
 /**
+ * Labour hours for display: "0.25 h", "1.5 h". Kept to two decimals (rather
+ * than formatHours' one) so quarter hours survive. Null-safe.
+ * @param {number|null|undefined} hours
+ */
+export function formatWorkHours(hours) {
+  if (hours === null || hours === undefined) return '—';
+  return String(Math.round(hours * 100) / 100) + ' h';
+}
+
+/**
+ * A unitless cost amount for display, with a $ symbol and two decimals:
+ * "$1,234.50". Null-safe.
+ * @param {number|null|undefined} amount
+ */
+export function formatCost(amount) {
+  if (amount === null || amount === undefined) return '—';
+  return (
+    '$' +
+    amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
+}
+
+/**
  * Remaining runtime column: negative = overdue.
  * @param {number|null|undefined} hours
  */

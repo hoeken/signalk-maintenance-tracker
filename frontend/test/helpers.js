@@ -100,6 +100,8 @@ export function makeTask(overrides) {
       time_status: 'ok',
       is_archived: false,
       is_recurring: true,
+      estimated_hours: null,
+      estimated_cost: null,
       status: 'ok',
       status_rank: 3,
       urgency: 0.5975,

@@ -14,14 +14,17 @@ import {
 } from '../api/hooks.js';
 import { useAuth } from '../auth/auth.js';
 import {
+  formatCost,
   formatDate,
   formatElapsedTime,
   formatHours,
   formatRemainingHours,
   formatRemainingTime,
   formatUser,
+  formatWorkHours,
   toDateInput,
 } from '../lib/format.js';
+import { aggregateOf, isRecorded } from '../lib/stats.js';
 import { splitAttachments } from '../lib/files.js';
 import { navigate } from '../lib/router.js';
 import { toast } from '../lib/toasts.js';
@@ -200,6 +203,33 @@ export function TaskDetailPage(props) {
               : 'Warns ' + value + unit + ' early.'
           }
         </div>`;
+
+  // Labour and cost: the task's estimate against what its log entries
+  // recorded. Each card only appears once there's something to put in it.
+  const hours = aggregateOf(logRows.map((e) => e.actual_hours));
+  const cost = aggregateOf(logRows.map((e) => e.actual_cost));
+  const hasTime = isRecorded(task.estimated_hours) || hours.count > 0;
+  const hasCost = isRecorded(task.estimated_cost) || cost.count > 0;
+  /**
+   * @param {number|null|undefined} estimated
+   * @param {import('../types.js').Aggregate} actual
+   * @param {(n: number|null) => string} format
+   */
+  const workRows = (estimated, actual, format) => [
+    {
+      label: 'Estimated',
+      value: isRecorded(estimated) ? format(estimated) : null,
+    },
+    { label: 'Total', value: actual.count ? format(actual.total) : null },
+    {
+      label: 'Average',
+      value: actual.count
+        ? html`${format(actual.average)}${' '}<span class="muted stat-note"
+              >(${actual.count} ${actual.count === 1 ? 'entry' : 'entries'})</span
+            >`
+        : null,
+    },
+  ];
 
   return html`
     <div>
@@ -512,6 +542,33 @@ export function TaskDetailPage(props) {
             : null
         }
       </div>
+
+      ${
+        hasTime || hasCost
+          ? html`<div class="detail-grid" style="margin-top:16px">
+              ${
+                hasTime
+                  ? html`<div class="card">
+                      <h3>Time</h3>
+                      <${StatTable}
+                        rows=${workRows(task.estimated_hours, hours, formatWorkHours)}
+                      />
+                    </div>`
+                  : null
+              }
+              ${
+                hasCost
+                  ? html`<div class="card">
+                      <h3>Costs</h3>
+                      <${StatTable}
+                        rows=${workRows(task.estimated_cost, cost, formatCost)}
+                      />
+                    </div>`
+                  : null
+              }
+            </div>`
+          : null
+      }
 
       <div class="page-header" style="margin-top:24px">
         <h2 class="page-title" style="font-size:17px">Maintenance log</h2>

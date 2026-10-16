@@ -24,7 +24,7 @@ function makeService(
 describe('migrations', () => {
   it('applies schema and records version', () => {
     const { db } = makeService();
-    expect(schemaVersion(db)).toBe(10);
+    expect(schemaVersion(db)).toBe(11);
     const tables = (
       db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as {
         name: string;
@@ -1341,5 +1341,219 @@ describe('stock consumption on completion (docs/inventory-interaction.md)', () =
     expect(entry.consumable_warnings).toEqual([
       'Not enough "Zincs" at Engine room (have 2, need 3)',
     ]);
+  });
+});
+
+describe('estimated and actual hours/costs', () => {
+  it('stores optional estimates on a task, editable and clearable', () => {
+    const { service } = makeService();
+    const created = service.createTask({
+      name: 'Oil',
+      estimated_hours: 0.25,
+      estimated_cost: 42.5,
+    });
+    expect(created.estimated_hours).toBe(0.25);
+    expect(created.estimated_cost).toBe(42.5);
+
+    const plain = service.createTask({ name: 'Wax' });
+    expect(plain.estimated_hours).toBeNull();
+    expect(plain.estimated_cost).toBeNull();
+
+    // omitted = unchanged; null = cleared
+    expect(service.updateTask('oil', { name: 'Oil change' })).toMatchObject({
+      estimated_hours: 0.25,
+      estimated_cost: 42.5,
+    });
+    expect(
+      service.updateTask('oil', { estimated_hours: null, estimated_cost: 10 }),
+    ).toMatchObject({ estimated_hours: null, estimated_cost: 10 });
+  });
+
+  it('rejects negative or non-numeric amounts', async () => {
+    const { service } = makeService();
+    expect(() =>
+      service.createTask({ name: 'Oil', estimated_hours: -1 }),
+    ).toThrow(ApiError);
+    expect(() =>
+      service.createTask({
+        name: 'Oil',
+        estimated_cost: '5' as unknown as number,
+      }),
+    ).toThrow(ApiError);
+    service.createTask({ name: 'Oil' });
+    await expect(
+      service.addLog(
+        'oil',
+        { maintenance_date: '2026-01-01T00:00:00Z', actual_cost: -3 },
+        null,
+      ),
+    ).rejects.toThrow(ApiError);
+  });
+
+  it('records actuals on log entries and counts an edit to them as a change', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Oil' });
+    const entry = await service.addLog(
+      'oil',
+      {
+        maintenance_date: '2026-01-01T00:00:00Z',
+        actual_hours: 1.5,
+        actual_cost: 30,
+      },
+      null,
+    );
+    expect(entry).toMatchObject({ actual_hours: 1.5, actual_cost: 30 });
+
+    const edited = service.updateLog(entry.id, { actual_cost: 35.75 });
+    expect(edited).toMatchObject({ actual_hours: 1.5, actual_cost: 35.75 });
+    expect(edited.updated_at).toBe(NOW.toISOString());
+
+    const standalone = service.addStandaloneLog(
+      {
+        title: 'Haul out',
+        maintenance_date: '2026-02-01T00:00:00Z',
+        actual_hours: 8,
+      },
+      null,
+    );
+    expect(standalone).toMatchObject({ actual_hours: 8, actual_cost: null });
+  });
+
+  it('adds stats over every matching task to the task list', async () => {
+    const { service } = makeService();
+    service.createTask({
+      name: 'Oil',
+      estimated_hours: 1,
+      estimated_cost: 50,
+      tags: ['engine'],
+    });
+    service.createTask({
+      name: 'Impeller',
+      estimated_hours: 2,
+      tags: ['engine'],
+    });
+    service.createTask({ name: 'Wax', estimated_cost: 20 });
+    await service.addLog(
+      'oil',
+      {
+        maintenance_date: '2026-01-01T00:00:00Z',
+        actual_hours: 1.5,
+        actual_cost: 60,
+      },
+      null,
+    );
+    await service.addLog(
+      'oil',
+      { maintenance_date: '2026-02-01T00:00:00Z', actual_hours: 0.5 },
+      null,
+    );
+    await service.addLog(
+      'wax',
+      { maintenance_date: '2026-02-01T00:00:00Z', actual_cost: 25 },
+      null,
+    );
+
+    const all = service.listTasks({ pageSize: 1 });
+    expect(all.stats.estimated).toEqual({
+      hours: { total: 3, count: 2, average: 1.5 },
+      cost: { total: 70, count: 2, average: 35 },
+    });
+    expect(all.stats.actual).toEqual({
+      hours: { total: 2, count: 2, average: 1 },
+      cost: { total: 85, count: 2, average: 42.5 },
+    });
+
+    const engine = service.listTasks({ tags: ['engine'] });
+    expect(engine.stats.estimated.cost).toEqual({
+      total: 50,
+      count: 1,
+      average: 50,
+    });
+    expect(engine.stats.actual.cost.total).toBe(60);
+
+    const none = service.listTasks({ search: 'nothing matches' });
+    expect(none.stats.actual.hours).toEqual({
+      total: 0,
+      count: 0,
+      average: null,
+    });
+  });
+
+  it('adds actual stats over every matching entry to the master log', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Oil' });
+    await service.addLog(
+      'oil',
+      {
+        maintenance_date: '2026-01-01T00:00:00Z',
+        actual_hours: 1,
+        actual_cost: 10,
+      },
+      null,
+    );
+    await service.addLog(
+      'oil',
+      { maintenance_date: '2026-02-01T00:00:00Z', actual_hours: 3 },
+      null,
+    );
+    service.addStandaloneLog(
+      {
+        title: 'Haul out',
+        maintenance_date: '2026-03-01T00:00:00Z',
+        actual_cost: 500,
+      },
+      null,
+    );
+
+    const all = service.listMasterLog({ pageSize: 1 });
+    expect(all.stats).toEqual({
+      hours: { total: 4, count: 2, average: 2 },
+      cost: { total: 510, count: 2, average: 255 },
+    });
+    expect(service.listMasterLog({ search: 'haul' }).stats.cost.total).toBe(
+      500,
+    );
+  });
+
+  it('reports overall and per-task stats', async () => {
+    const { service } = makeService();
+    service.createTask({ name: 'Oil', estimated_hours: 1 });
+    service.createTask({ name: 'Wax' });
+    service.createTask({ name: 'Untracked' });
+    await service.addLog(
+      'wax',
+      { maintenance_date: '2026-01-01T00:00:00Z', actual_cost: 20 },
+      null,
+    );
+    await service.addLog(
+      'untracked',
+      { maintenance_date: '2026-01-01T00:00:00Z' },
+      null,
+    );
+    service.addStandaloneLog(
+      {
+        title: 'Haul out',
+        maintenance_date: '2026-03-01T00:00:00Z',
+        actual_hours: 6,
+      },
+      null,
+    );
+
+    const stats = service.stats();
+    expect(stats.estimated.hours).toEqual({ total: 1, count: 1, average: 1 });
+    expect(stats.actual).toEqual({
+      hours: { total: 6, count: 1, average: 6 },
+      cost: { total: 20, count: 1, average: 20 },
+    });
+    expect(stats.standalone.log_count).toBe(1);
+    expect(stats.standalone.actual.hours.total).toBe(6);
+    expect(stats.standalone.actual.cost.count).toBe(0);
+    // tasks with neither estimates nor recorded actuals are left out
+    expect(stats.tasks.map((t) => t.slug)).toEqual(['oil', 'wax']);
+    expect(stats.tasks[1]).toMatchObject({
+      log_count: 1,
+      estimated_cost: null,
+      actual: { cost: { total: 20, count: 1, average: 20 } },
+    });
   });
 });

@@ -12,6 +12,7 @@ import { LoginModal } from './components/LoginModal.js';
 import { TaskListPage } from './pages/TaskListPage.js';
 import { TaskDetailPage } from './pages/TaskDetailPage.js';
 import { MasterLogPage } from './pages/MasterLogPage.js';
+import { StatsPage } from './pages/StatsPage.js';
 
 export function App() {
   const current = route.value;
@@ -27,6 +28,8 @@ export function App() {
     />`;
   } else if (current.path === '/log') {
     page = html`<${MasterLogPage} />`;
+  } else if (current.path === '/stats') {
+    page = html`<${StatsPage} />`;
   } else {
     page = html`<${TaskListPage} />`;
   }
@@ -37,7 +40,7 @@ export function App() {
         <a class="shell-title" href="#/">Maintenance Tracker</a>
         <nav class="shell-nav">
           <a
-            class=${'nav-link' + (!detailParams && current.path !== '/log' ? ' active' : '')}
+            class=${'nav-link' + (!detailParams && current.path !== '/log' && current.path !== '/stats' ? ' active' : '')}
             href="#/"
             >Tasks</a
           >
@@ -45,6 +48,11 @@ export function App() {
             class=${'nav-link' + (current.path === '/log' ? ' active' : '')}
             href="#/log"
             >Log</a
+          >
+          <a
+            class=${'nav-link' + (current.path === '/stats' ? ' active' : '')}
+            href="#/stats"
+            >Stats</a
           >
         </nav>
         <${ThemeToggle} />

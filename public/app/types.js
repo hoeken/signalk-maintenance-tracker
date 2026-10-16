@@ -59,6 +59,8 @@
  * @property {Status|null} time_status
  * @property {boolean} is_archived
  * @property {boolean} is_recurring false = one-off todo item
+ * @property {number|null} estimated_hours expected labour per completion, decimal hours
+ * @property {number|null} estimated_cost expected cost per completion, unitless
  * @property {Status} status
  * @property {number} status_rank
  * @property {number} urgency
@@ -77,6 +79,8 @@
  * @property {number|null} runtime_hours
  * @property {string|null} notes
  * @property {string|null} logged_by
+ * @property {number|null} actual_hours labour the work took, decimal hours
+ * @property {number|null} actual_cost what the work cost, unitless
  * @property {string} created_at
  * @property {string|null} updated_at last edit that changed the entry; null if never edited
  * @property {string|null} task_slug null on standalone entries
@@ -102,6 +106,52 @@
  */
 
 /**
+ * Sum and mean over the values actually recorded; `average` is null when
+ * `count` is 0.
+ * @typedef {Object} Aggregate
+ * @property {number} total
+ * @property {number} count
+ * @property {number|null} average
+ */
+
+/**
+ * @typedef {Object} WorkStats
+ * @property {Aggregate} hours
+ * @property {Aggregate} cost
+ */
+
+/**
+ * The task list's page plus stats over every matching task (all pages).
+ * @typedef {Page<TaskDTO> & { stats: { estimated: WorkStats, actual: WorkStats } }} TaskPage
+ */
+
+/**
+ * The master log's page plus actual stats over every matching entry.
+ * @typedef {Page<LogDTO> & { stats: WorkStats }} LogPage
+ */
+
+/**
+ * @typedef {Object} TaskStatsDTO
+ * @property {string} slug
+ * @property {string} name
+ * @property {boolean} is_archived
+ * @property {boolean} is_recurring
+ * @property {number|null} estimated_hours
+ * @property {number|null} estimated_cost
+ * @property {number} log_count all of the task's entries, recorded figures or not
+ * @property {WorkStats} actual
+ */
+
+/**
+ * GET /stats: estimates across all tasks, actuals across all log entries.
+ * @typedef {Object} StatsDTO
+ * @property {WorkStats} estimated
+ * @property {WorkStats} actual
+ * @property {TaskStatsDTO[]} tasks tasks with an estimate or recorded actuals
+ * @property {{ log_count: number, actual: WorkStats }} standalone standalone (non-task) entries: how many, and their actuals
+ */
+
+/**
  * @typedef {Object} TaskInput
  * @property {string} [name]
  * @property {string} [slug]
@@ -118,6 +168,8 @@
  * @property {number|null} [last_runtime]
  * @property {boolean} [is_archived]
  * @property {boolean} [is_recurring] false = one-off todo item
+ * @property {number|null} [estimated_hours]
+ * @property {number|null} [estimated_cost]
  * @property {TaskConsumableDTO[]} [consumables]
  */
 
@@ -126,6 +178,8 @@
  * @property {string} [maintenance_date]
  * @property {number|null} [runtime_hours]
  * @property {string|null} [notes]
+ * @property {number|null} [actual_hours]
+ * @property {number|null} [actual_cost]
  * @property {string|null} [title] standalone (non-task) entries only
  * @property {boolean} [consume_stock]
  * @property {{ item_id: string, placements: { placement_id: string, quantity: number }[] }[]} [consumable_allocations]

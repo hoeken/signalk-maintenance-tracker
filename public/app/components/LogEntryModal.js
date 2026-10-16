@@ -20,6 +20,7 @@ import {
 } from '../api/hooks.js';
 import { stockLevel, useStowageItems } from '../api/stowage.js';
 import { toDateInput } from '../lib/format.js';
+import { amountInput, parseAmount } from '../lib/stats.js';
 import { toast } from '../lib/toasts.js';
 
 /** @typedef {import('../types.js').TaskDTO} TaskDTO */
@@ -58,6 +59,14 @@ export function LogEntryModal(props) {
   const [runtime, setRuntime] = useState(initialRuntime);
   const [notes, setNotes] = useState(
     isEdit && entry && entry.notes ? entry.notes : '',
+  );
+  // Mark complete starts from the task's estimates; an edit shows what the
+  // entry recorded.
+  const [actualHours, setActualHours] = useState(
+    amountInput(entry ? entry.actual_hours : task && task.estimated_hours),
+  );
+  const [actualCost, setActualCost] = useState(
+    amountInput(entry ? entry.actual_cost : task && task.estimated_cost),
   );
   const hasConsumables =
     !isEdit && !!task && !!task.consumables && task.consumables.length > 0;
@@ -204,6 +213,18 @@ export function LogEntryModal(props) {
       runtime_hours: null,
     };
     if (isStandalone) input.title = title.trim();
+    const hours = parseAmount(actualHours);
+    if (hours === undefined) {
+      setError('Actual time must be 0 or a positive number of hours.');
+      return;
+    }
+    input.actual_hours = hours;
+    const cost = parseAmount(actualCost);
+    if (cost === undefined) {
+      setError('Actual cost must be 0 or a positive number.');
+      return;
+    }
+    input.actual_cost = cost;
     if (runtime.trim() !== '') {
       const hours = Number(runtime);
       if (!isFinite(hours) || hours < 0) {
@@ -350,6 +371,37 @@ export function LogEntryModal(props) {
               </div>`
             : null
         }
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="log-actual-hours"
+              >Actual time (hours)</label
+            >
+            <input
+              id="log-actual-hours"
+              class="input"
+              type="number"
+              min="0"
+              step="any"
+              value=${actualHours}
+              onInput=${(/** @type {any} */ e) => setActualHours(e.currentTarget.value)}
+            />
+          </div>
+          <div class="field">
+            <label class="field-label" for="log-actual-cost"
+              >Actual cost ($)</label
+            >
+            <input
+              id="log-actual-cost"
+              class="input"
+              type="number"
+              min="0"
+              step="any"
+              value=${actualCost}
+              onInput=${(/** @type {any} */ e) => setActualCost(e.currentTarget.value)}
+            />
+          </div>
+        </div>
 
         <div class="field">
           <label class="field-label" for="log-notes">Notes (markdown)</label>

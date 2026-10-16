@@ -19,6 +19,8 @@ const entries = [
     runtime_hours: 12.5,
     notes: 'Changed oil, filter',
     logged_by: 'zach',
+    actual_hours: 0.75,
+    actual_cost: 42.5,
     created_at: '2026-01-02T00:00:00Z',
     task_slug: 'engine-oil',
     task_name: 'Engine oil',
@@ -54,22 +56,26 @@ describe('log export', () => {
   it('builds CSV with header row and quotes fields containing commas', () => {
     const csv = buildCsv(entries);
     const lines = csv.trimEnd().split('\r\n');
-    expect(lines[0]).toBe('Task,Date,Runtime Hours,Logged By,Notes');
+    expect(lines[0]).toBe(
+      'Task,Date,Runtime Hours,Actual Hours,Actual Cost,Logged By,Notes',
+    );
     expect(lines[1]).toBe(
-      'Engine oil,2026-01-02,12.5,zach,"Changed oil, filter"',
+      'Engine oil,2026-01-02,12.5,0.75,42.5,zach,"Changed oil, filter"',
     );
     // null runtime/logged_by render as empty; newline forces quoting.
-    expect(lines[2]).toBe('Engine oil,2026-02-03,,,"Line one\nLine | two"');
+    expect(lines[2]).toBe('Engine oil,2026-02-03,,,,,"Line one\nLine | two"');
     // standalone entry: its title fills the Task column
-    expect(lines[3]).toBe('Haul out,2026-03-04,,zach,');
+    expect(lines[3]).toBe('Haul out,2026-03-04,,,,zach,');
   });
 
   it('builds a Markdown table, escaping pipes and newlines', () => {
     const md = buildMarkdown(entries);
     expect(md).toContain('# SignalK Maintenance Log');
-    expect(md).toContain('| Task | Date | Runtime Hours | Logged By | Notes |');
     expect(md).toContain(
-      '| Engine oil | 2026-01-02 | 12.5 | zach | Changed oil, filter |',
+      '| Task | Date | Runtime Hours | Actual Hours | Actual Cost | Logged By | Notes |',
+    );
+    expect(md).toContain(
+      '| Engine oil | 2026-01-02 | 12.5 | 0.75 | 42.5 | zach | Changed oil, filter |',
     );
     expect(md).toContain('Line one<br>Line \\| two');
   });
@@ -82,6 +88,8 @@ describe('log export', () => {
         task_slug: 'engine-oil',
         maintenance_date: '2026-01-02',
         runtime_hours: 12.5,
+        actual_hours: 0.75,
+        actual_cost: 42.5,
         logged_by: 'zach',
         notes: 'Changed oil, filter',
       },
@@ -164,10 +172,10 @@ describe('log export', () => {
     it('adds an Attachments column to CSV listing zip paths', () => {
       const lines = buildCsv(withFiles, paths).split('\r\n');
       expect(lines[0]).toBe(
-        'Task,Date,Runtime Hours,Logged By,Notes,Attachments',
+        'Task,Date,Runtime Hours,Actual Hours,Actual Cost,Logged By,Notes,Attachments',
       );
       expect(lines[1]).toBe(
-        'Engine oil,2026-01-02,12.5,zach,"Changed oil, filter",' +
+        'Engine oil,2026-01-02,12.5,0.75,42.5,zach,"Changed oil, filter",' +
           '"attachments/engine-oil_2026-01-02_log-1/receipt.pdf\n' +
           'attachments/engine-oil_2026-01-02_log-1/photo.jpg"',
       );

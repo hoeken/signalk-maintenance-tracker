@@ -16,6 +16,12 @@ import { toast } from '../lib/toasts.js';
 import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { DownloadLogModal } from '../components/DownloadLogModal.js';
+import {
+  TotalsBar,
+  averageOf,
+  countOf,
+  totalOf,
+} from '../components/TotalsBar.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
 import { ConfirmModal } from '../components/ConfirmModal.js';
 import { LogDetailsModal } from '../components/LogDetailsModal.js';
@@ -265,6 +271,31 @@ export function MasterLogPage() {
                       pageSize=${pageData.pageSize}
                       total=${pageData.total}
                       onPage=${(/** @type {number} */ p) => update({ page: p })}
+                    />`
+                  : null
+              }
+              ${
+                pageData && pageData.stats
+                  ? html`<${TotalsBar}
+                      items=${[
+                        {
+                          label: 'Total time',
+                          value: totalOf(pageData.stats.hours, 'hours'),
+                        },
+                        {
+                          label: 'Average time',
+                          value: averageOf(pageData.stats.hours, 'hours'),
+                        },
+                        {
+                          label: 'Total cost',
+                          value: totalOf(pageData.stats.cost, 'cost'),
+                        },
+                        {
+                          label: 'Average cost',
+                          value: averageOf(pageData.stats.cost, 'cost'),
+                        },
+                      ]}
+                      note=${'Across all ' + countOf(pageData.total, 'log entry', 'log entries') + ' matching the current search, not just the ones shown on this page. Averages only count entries that recorded a time or cost.'}
                     />`
                   : null
               }

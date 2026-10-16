@@ -17,6 +17,7 @@ import { Table } from '../components/Table.js';
 import { Pagination } from '../components/Pagination.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { StockBadge } from '../components/StockBadge.js';
+import { TotalsBar, countOf, totalOf } from '../components/TotalsBar.js';
 import { TaskFormModal } from '../components/TaskFormModal.js';
 import { LogEntryModal } from '../components/LogEntryModal.js';
 
@@ -271,6 +272,34 @@ export function TaskListPage() {
                       pageSize=${pageData.pageSize}
                       total=${pageData.total}
                       onPage=${(/** @type {number} */ p) => update({ page: p })}
+                    />`
+                  : null
+              }
+              ${
+                pageData && pageData.stats
+                  ? html`<${TotalsBar}
+                      items=${[
+                        {
+                          label: 'Estimated time',
+                          value: totalOf(
+                            pageData.stats.estimated.hours,
+                            'hours',
+                          ),
+                        },
+                        {
+                          label: 'Estimated cost',
+                          value: totalOf(pageData.stats.estimated.cost, 'cost'),
+                        },
+                        {
+                          label: 'Actual time',
+                          value: totalOf(pageData.stats.actual.hours, 'hours'),
+                        },
+                        {
+                          label: 'Actual cost',
+                          value: totalOf(pageData.stats.actual.cost, 'cost'),
+                        },
+                      ]}
+                      note=${'Across all ' + countOf(pageData.total, 'task', 'tasks') + ' matching the current search and filters, not just the ones shown on this page. Estimates come from the tasks; actuals are summed from their log entries.'}
                     />`
                   : null
               }

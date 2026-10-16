@@ -121,7 +121,7 @@ describe('DownloadLogModal', () => {
 
     const csv = new TextDecoder().decode(files.get(root + '/log.csv').data);
     expect(csv.split('\r\n')[1]).toBe(
-      'Engine oil,2026-01-02T00:00:00.000Z,10,zach,Oil,attachments/engine-oil_2026-01-02_log-7/receipt.pdf',
+      'Engine oil,2026-01-02T00:00:00.000Z,10,,,zach,Oil,attachments/engine-oil_2026-01-02_log-7/receipt.pdf',
     );
   });
 

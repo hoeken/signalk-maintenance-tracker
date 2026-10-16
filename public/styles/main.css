@@ -1106,3 +1106,32 @@ pre {
 .combo-list li.active {
   background: var(--bg-inset);
 }
+
+/* ---- hours / cost figures ---- */
+
+/* "Statistics" section under a list (task list, master log) */
+.totals {
+  margin-top: 24px;
+}
+.totals-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.totals .field-hint {
+  margin-top: 8px;
+}
+.totals-bar {
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.totals-item {
+  margin-right: 20px;
+}
+
+/* a parenthetical after a stat-table value, e.g. "(3 entries)" */
+.stat-note {
+  font-weight: 400;
+}

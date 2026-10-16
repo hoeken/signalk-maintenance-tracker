@@ -46,6 +46,10 @@ export interface TaskRow {
   /** SQLite boolean (0/1). 0 = a one-off "todo" item: no intervals or runtime
    * path (service-enforced), optional due date, archived when completed. */
   is_recurring: number;
+  /** Expected labour per completion, decimal hours; null = no estimate. */
+  estimated_hours: number | null;
+  /** Expected cost per completion, unitless decimal; null = no estimate. */
+  estimated_cost: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +65,10 @@ export interface LogRow {
   runtime_hours: number | null;
   notes: string | null;
   logged_by: string | null;
+  /** Labour the work actually took, decimal hours; null = not recorded. */
+  actual_hours: number | null;
+  /** What the work actually cost, unitless decimal; null = not recorded. */
+  actual_cost: number | null;
   created_at: string;
   /** Last edit that changed the entry; null if never edited. */
   updated_at: string | null;
@@ -152,6 +160,8 @@ export interface TaskDTO extends ComputedFields {
   last_runtime: number | null;
   is_archived: boolean;
   is_recurring: boolean;
+  estimated_hours: number | null;
+  estimated_cost: number | null;
   created_at: string;
   updated_at: string;
   /** Items in signalk-stowage-mgmt this task consumes on completion — see
@@ -168,6 +178,54 @@ export interface Page<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+/** Sum and mean over the values that were actually recorded — `count` is
+ * how many there were, and `average` is null when there were none. */
+export interface Aggregate {
+  total: number;
+  count: number;
+  average: number | null;
+}
+
+export interface WorkStats {
+  hours: Aggregate;
+  cost: Aggregate;
+}
+
+/** The task list's page, plus figures over every task matching the filters
+ * (not just this page): the tasks' estimates, and what their log entries
+ * actually recorded. */
+export interface TaskPage extends Page<TaskDTO> {
+  stats: { estimated: WorkStats; actual: WorkStats };
+}
+
+/** The master log's page, plus actual figures over every matching entry. */
+export interface LogPage extends Page<LogDTO> {
+  stats: WorkStats;
+}
+
+/** One task's line on the stats page. */
+export interface TaskStatsDTO {
+  slug: string;
+  name: string;
+  is_archived: boolean;
+  is_recurring: boolean;
+  estimated_hours: number | null;
+  estimated_cost: number | null;
+  /** All of the task's log entries, recorded figures or not. */
+  log_count: number;
+  actual: WorkStats;
+}
+
+/** GET /stats: estimates across all tasks, actuals across all log entries. */
+export interface StatsDTO {
+  estimated: WorkStats;
+  actual: WorkStats;
+  /** Every task with an estimate or any recorded actuals. */
+  tasks: TaskStatsDTO[];
+  /** Standalone (non-task) entries: how many, and their recorded actuals. */
+  standalone: { log_count: number; actual: WorkStats };
 }
 
 export interface TaskInput {
@@ -195,6 +253,10 @@ export interface TaskInput {
    * interval is present (keeps pre-v1.5 API calls working). Setting false
    * clears any schedule; recurring tasks must keep at least one interval. */
   is_recurring?: boolean;
+  /** null clears the estimate. */
+  estimated_hours?: number | null;
+  /** null clears the estimate. */
+  estimated_cost?: number | null;
   /** Wholesale-replaces the task's linked consumables when present, same
    * semantics as `tags` (docs/inventory-interaction.md). */
   consumables?: TaskConsumableDTO[];
@@ -204,6 +266,8 @@ export interface LogInput {
   maintenance_date?: string;
   runtime_hours?: number | null;
   notes?: string | null;
+  actual_hours?: number | null;
+  actual_cost?: number | null;
   /** Standalone (non-task) entries only: their display name. Required on
    * create; ignored on task-linked entries. */
   title?: string | null;

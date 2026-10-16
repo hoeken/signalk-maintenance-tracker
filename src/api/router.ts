@@ -284,6 +284,15 @@ export function mountApi(
     }),
   );
 
+  // ---- stats ----
+
+  router.get(
+    '/api/stats',
+    withServices((s, _req, res) => {
+      res.json(s.service.stats());
+    }),
+  );
+
   // ---- health (§8.5) ----
 
   router.get(

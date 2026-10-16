@@ -21,7 +21,15 @@ export const EXPORT_FORMATS = [
   { value: 'json', label: 'JSON', ext: 'json', mime: 'application/json' },
 ];
 
-const HEADERS = ['Task', 'Date', 'Runtime Hours', 'Logged By', 'Notes'];
+const HEADERS = [
+  'Task',
+  'Date',
+  'Runtime Hours',
+  'Actual Hours',
+  'Actual Cost',
+  'Logged By',
+  'Notes',
+];
 
 /**
  * A filename safe to use as one zip path segment on any OS: no separators,
@@ -90,6 +98,8 @@ function row(e) {
     e.task_name ?? e.title,
     e.maintenance_date,
     e.runtime_hours,
+    e.actual_hours,
+    e.actual_cost,
     e.logged_by,
     e.notes,
   ];
@@ -162,6 +172,8 @@ export function buildJson(entries, paths) {
     task_slug: e.task_slug,
     maintenance_date: e.maintenance_date,
     runtime_hours: e.runtime_hours,
+    actual_hours: e.actual_hours,
+    actual_cost: e.actual_cost,
     logged_by: e.logged_by,
     notes: e.notes,
     ...(paths ? { attachments: paths.get(e.id) || [] } : {}),

@@ -27,6 +27,7 @@ import {
 } from '../api/hooks.js';
 import { slugify } from '../lib/slug.js';
 import { formatDate, formatHours } from '../lib/format.js';
+import { amountInput, parseAmount } from '../lib/stats.js';
 import { toast } from '../lib/toasts.js';
 import { STOWAGE_APP_BASE } from '../api/stowage.js';
 
@@ -82,6 +83,12 @@ export function TaskFormModal(props) {
       ? String(task.time_warning_days)
       : '',
   );
+  const [estimatedHours, setEstimatedHours] = useState(
+    amountInput(task && task.estimated_hours),
+  );
+  const [estimatedCost, setEstimatedCost] = useState(
+    amountInput(task && task.estimated_cost),
+  );
   const [seedMaintenance, setSeedMaintenance] = useState('');
   const [seedRuntime, setSeedRuntime] = useState('');
   const [error, setError] = useState('');
@@ -131,6 +138,18 @@ export function TaskFormModal(props) {
       runtime_warning_hours: null,
       time_warning_days: null,
     };
+    const hours = parseAmount(estimatedHours);
+    if (hours === undefined) {
+      setError('Estimated time must be 0 or a positive number of hours.');
+      return;
+    }
+    input.estimated_hours = hours;
+    const cost = parseAmount(estimatedCost);
+    if (cost === undefined) {
+      setError('Estimated cost must be 0 or a positive number.');
+      return;
+    }
+    input.estimated_cost = cost;
     if (
       consumables.some((c) => !c.qty_per_service || !(c.qty_per_service > 0))
     ) {
@@ -349,6 +368,43 @@ export function TaskFormModal(props) {
           <div class="field-hint">
             Decrements stock in stowage management when this task is marked
             complete.
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="task-estimated-hours"
+              >Estimated time (hours)</label
+            >
+            <input
+              id="task-estimated-hours"
+              class="input"
+              type="number"
+              min="0"
+              step="any"
+              value=${estimatedHours}
+              onInput=${(/** @type {any} */ e) => setEstimatedHours(e.currentTarget.value)}
+            />
+            <div class="field-hint">
+              Labour per completion, e.g. 0.25. Empty = no estimate.
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="task-estimated-cost"
+              >Estimated cost ($)</label
+            >
+            <input
+              id="task-estimated-cost"
+              class="input"
+              type="number"
+              min="0"
+              step="any"
+              value=${estimatedCost}
+              onInput=${(/** @type {any} */ e) => setEstimatedCost(e.currentTarget.value)}
+            />
+            <div class="field-hint">
+              Parts and services per completion. Empty = no estimate.
+            </div>
           </div>
         </div>
 
