@@ -595,7 +595,7 @@ export function TaskFormModal(props) {
                 <div class="field-hint" style="margin-top:-10px">
                   <i class="bi bi-info-circle" /> These come from the task's
                   most recent log entry, so they aren't editable here. Use${' '}
-                  <strong>Mark complete</strong>${' '}
+                  <strong>Complete</strong>${' '}
                   to record work — it accepts a past date and runtime — or edit
                   the latest entry in the maintenance log to correct them.
                 </div>

@@ -289,17 +289,20 @@ export function TaskDetailPage(props) {
 
   return html`
     <div>
-      <div class="page-header">
+      <div class="page-header detail-header">
         <h1 class="page-title">
-          ${task.name} <${StatusBadge} status=${task.status} />
-          <${StockBadge} consumables=${consumables} />
-          ${
-            task.tags.length
-              ? html`<span class="chips">
-                  ${task.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}
-                </span>`
-              : null
-          }
+          ${task.name}
+          <span class="page-title-meta">
+            <${StatusBadge} status=${task.status} />
+            <${StockBadge} consumables=${consumables} />
+            ${
+              task.tags.length
+                ? html`<span class="chips">
+                    ${task.tags.map((tag) => html`<span key=${tag} class="tag">${tag}</span>`)}
+                  </span>`
+                : null
+            }
+          </span>
         </h1>
         ${
           auth.isLoggedIn
@@ -310,7 +313,7 @@ export function TaskDetailPage(props) {
                     class="btn btn-success"
                     onClick=${() => setCompleting(true)}
                   >
-                    <i class="bi bi-check2-circle" />Mark complete
+                    <i class="bi bi-check2-circle" />Complete
                   </button>
                   <button
                     type="button"

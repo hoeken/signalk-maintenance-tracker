@@ -230,24 +230,49 @@ pre {
 .page-title .tag {
   font-weight: 400;
 }
+/* badges and tags sit inline with the title; on a phone they don't fit, so
+   they drop to their own row below it */
+.page-title-meta {
+  display: contents;
+}
+@media (max-width: 640px) {
+  .page-title-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-basis: 100%;
+    margin-top: 6px;
+  }
+  .page-title-meta > :first-child {
+    margin-left: 0;
+  }
+}
+
+/* the detail header spaces its rows with the cards' 16px gap, so the title,
+   the action buttons (when they wrap below it) and the first card sit on one
+   even rhythm */
+.detail-header {
+  gap: 16px 12px;
+  margin-bottom: 16px;
+}
+.detail-header > * {
+  margin: 0;
+}
 
 /* header action buttons; wraps below the title on narrow screens */
 .page-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: 8px;
 }
-.page-actions > * {
-  margin-right: 8px;
-  margin-bottom: 4px;
-}
-.page-actions > *:last-child {
-  margin-right: 0;
-}
+/* four buttons don't fit one row on a phone, so lay them out as an
+   equal-width 2x2 grid across the full width instead of wrapping raggedly */
 @media (max-width: 640px) {
   .page-actions {
-    margin-top: 8px;
-    margin-bottom: 4px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
   }
 }
 

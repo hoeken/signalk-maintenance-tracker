@@ -155,7 +155,7 @@ describe('LogEntryModal — mark complete (§7.5)', () => {
     expect(screen.getByText('New log entry')).toBeTruthy();
     // no task: nothing with a runtime meter, so no runtime field at all
     expect(screen.queryByLabelText('Runtime hours')).toBeNull();
-    // steers people toward Mark complete on a task for better records
+    // steers people toward Complete on a task for better records
     expect(screen.getByText(/quick log entries not tied/)).toBeTruthy();
     fireEvent.input(screen.getByLabelText('Title'), {
       target: { value: 'Haul out' },

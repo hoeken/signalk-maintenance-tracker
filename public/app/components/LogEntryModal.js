@@ -299,7 +299,7 @@ export function LogEntryModal(props) {
           : isEdit
             ? 'Save changes'
             : task
-              ? 'Mark complete'
+              ? 'Complete'
               : 'Add entry'
       }
     </button>
@@ -308,7 +308,7 @@ export function LogEntryModal(props) {
   const modalTitle = isEdit
     ? 'Edit log entry'
     : task
-      ? 'Mark complete — ' + task.name
+      ? 'Complete — ' + task.name
       : 'New log entry';
 
   return html`
@@ -320,7 +320,7 @@ export function LogEntryModal(props) {
             ? html`<p class="field-hint" style="margin:0 0 12px">
                 For quick log entries not tied to any task. For better
                 record-keeping, use${' '}
-                <strong>Mark complete</strong> on an existing task.
+                <strong>Complete</strong> on an existing task.
               </p>`
             : null
         }

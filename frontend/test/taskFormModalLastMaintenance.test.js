@@ -25,10 +25,10 @@ describe('TaskFormModal — last maintenance in edit mode', () => {
     expect(
       screen.getByLabelText('Runtime at last maintenance (h)'),
     ).toBeTruthy();
-    expect(screen.queryByText(/Mark complete/)).toBeNull();
+    expect(screen.queryByText(/^Complete$/)).toBeNull();
   });
 
-  it('replaces the seed inputs with a note pointing at Mark complete', () => {
+  it('replaces the seed inputs with a note pointing at Complete', () => {
     mockFetch([TAGS_ROUTE, HEALTH_ROUTE]);
     render(html`<${TaskFormModal} task=${makeTask()} onClose=${vi.fn()} />`);
     expect(
@@ -37,21 +37,21 @@ describe('TaskFormModal — last maintenance in edit mode', () => {
     expect(
       screen.queryByLabelText('Runtime at last maintenance (h)'),
     ).toBeNull();
-    expect(screen.getByText('Mark complete')).toBeTruthy();
+    expect(screen.getByText('Complete')).toBeTruthy();
     expect(screen.getByText(/most recent log entry/)).toBeTruthy();
     expect(screen.getByText(/maintenance log/)).toBeTruthy();
   });
 
   // htm drops whitespace-only runs that contain a newline, so text sitting
   // against an inline element needs an explicit ${' '} or it renders as
-  // "UseMark complete".
+  // "UseComplete".
   it('keeps spaces around the inline <strong> in the note', () => {
     mockFetch([TAGS_ROUTE, HEALTH_ROUTE]);
     render(html`<${TaskFormModal} task=${makeTask()} onClose=${vi.fn()} />`);
     const note = screen.getByText(/most recent log entry/);
     const text = note.textContent.replace(/\s+/g, ' ').trim();
-    expect(text).toContain('editable here. Use Mark complete to record work');
-    expect(text).not.toMatch(/\bUseMark\b/);
+    expect(text).toContain('editable here. Use Complete to record work');
+    expect(text).not.toMatch(/\bUseComplete\b/);
   });
 
   it('shows the current derived values read-only', () => {

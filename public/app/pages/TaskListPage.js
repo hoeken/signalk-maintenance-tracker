@@ -153,7 +153,7 @@ export function TaskListPage() {
                   type="button"
                   class="btn-icon success"
                   aria-label=${'Complete ' + t.name}
-                  title="Mark complete"
+                  title="Complete"
                   onClick=${() => setCompleting(t)}
                 >
                   <i class="bi bi-check2-circle" />
