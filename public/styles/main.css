@@ -662,16 +662,17 @@ pre {
 }
 /* thumbnails of the image attachments; the browser scales them, we just
    box them */
+/* as many square thumbnails as fit, sharing out the spare width, so a
+   phone-width card shows three across instead of two and a gap */
 .files-gallery {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 8px;
   margin: 4px 0 8px;
 }
 .files-thumb {
   display: block;
-  width: 120px;
-  height: 120px;
+  aspect-ratio: 1;
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
@@ -1042,16 +1043,20 @@ pre {
 
 /* ---- detail page ---- */
 
+/* Every card takes a third of the row, so the layout stays steady whichever
+   optional cards are present. The gallery alone may widen. */
 .detail-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  grid-gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
 }
-/* description / schedule / runtime share the row evenly, and the survivors
-   spread to fill it when a card is hidden (e.g. no runtime source) */
 @media (min-width: 900px) {
   .detail-grid {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  /* spans only the free columns at the end of its row (set by the page) */
+  .detail-grid > .card-gallery {
+    grid-column: span var(--gallery-columns, 1);
   }
 }
 

@@ -270,7 +270,7 @@ describe('TaskDetailPage — archive/unarchive', () => {
   });
 });
 
-describe('TaskDetailPage — title bar and description card', () => {
+describe('TaskDetailPage — title bar and content cards', () => {
   it('labels the task with its tags in the title, not the description', async () => {
     await renderTask({ tags: ['Engines', 'Fluids'] });
     const tags = Array.from(document.querySelectorAll('.page-title .tag')).map(
@@ -279,13 +279,15 @@ describe('TaskDetailPage — title bar and description card', () => {
     expect(tags).toEqual(['Engines', 'Fluids']);
   });
 
-  it('drops the description card when there is no description, files, or parts', async () => {
+  it('drops the content cards when there is no description, files, or parts', async () => {
     await renderTask({ description: null, consumables: [], files: [] });
     expect(screen.queryByText('Description')).toBeNull();
     expect(screen.queryByText('Files')).toBeNull();
+    expect(screen.queryByText('Gallery')).toBeNull();
+    expect(screen.queryByText('Consumables')).toBeNull();
   });
 
-  it('keeps the description card for parts alone', async () => {
+  it('gives parts a card of their own', async () => {
     await renderTask({
       description: null,
       consumables: [
@@ -297,8 +299,7 @@ describe('TaskDetailPage — title bar and description card', () => {
         },
       ],
     });
-    // Parts keep the card, but with no description there is nothing to head.
-    expect(card('Consumables')).toBeTruthy();
+    expect(card('Consumables').textContent).toContain('Oil filter');
     expect(screen.queryByText('Description')).toBeNull();
     expect(screen.getByText('Oil filter')).toBeTruthy();
   });
@@ -393,7 +394,7 @@ describe('TaskDetailPage — title bar and description card', () => {
     expect(rowOf('Old gasket').querySelector('.consumables-stock')).toBeNull();
   });
 
-  it('lists attachments under the description with their sizes', async () => {
+  it('puts the description, files and gallery each in a card of their own', async () => {
     await renderTask({
       description: 'Drain the sump.',
       files: [
@@ -413,10 +414,20 @@ describe('TaskDetailPage — title bar and description card', () => {
         },
       ],
     });
-    const headings = Array.from(card('Description').querySelectorAll('h3')).map(
-      (h) => h.textContent,
-    );
-    expect(headings).toEqual(['Description', 'Files', 'Gallery']);
+    const headings = screen
+      .getAllByRole('heading', { level: 3 })
+      .map((h) => h.textContent);
+    expect(headings).toEqual([
+      'Description',
+      'Schedule',
+      'Runtime',
+      'Files',
+      'Gallery',
+    ]);
+    // Each heading heads its own card.
+    expect(new Set(headings.map((h) => card(h))).size).toBe(headings.length);
+    expect(card('Files').querySelector('.files-list')).toBeTruthy();
+    expect(card('Gallery').querySelector('.files-gallery')).toBeTruthy();
     // images live in the gallery, not the list
     const rows = Array.from(document.querySelectorAll('.files-row')).map((li) =>
       li.textContent.trim(),
@@ -443,6 +454,41 @@ describe('TaskDetailPage — title bar and description card', () => {
     );
     expect(thumbs[0].querySelector('img').getAttribute('alt')).toBe(
       'receipt.jpg',
+    );
+  });
+
+  it('widens the gallery over the free columns left in its row', async () => {
+    const image = (id) => ({
+      id,
+      name: 'photo' + id + '.jpg',
+      size: 800,
+      mime: 'image/jpeg',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+    // Schedule + Runtime fill two of the three columns: one left over, so
+    // five photos still get just one column.
+    await renderTask({ files: [1, 2, 3, 4, 5].map(image) });
+    expect(card('Gallery').style.getPropertyValue('--gallery-columns')).toBe(
+      '1',
+    );
+  });
+
+  it('starts a fresh row with as many columns as the photos need', async () => {
+    const image = (id) => ({
+      id,
+      name: 'photo' + id + '.jpg',
+      size: 800,
+      mime: 'image/jpeg',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+    // Description + Schedule + Runtime fill the first row; three photos want
+    // two columns of the next.
+    await renderTask({
+      description: 'Drain the sump.',
+      files: [1, 2, 3].map(image),
+    });
+    expect(card('Gallery').style.getPropertyValue('--gallery-columns')).toBe(
+      '2',
     );
   });
 
@@ -492,7 +538,7 @@ describe('TaskDetailPage — title bar and description card', () => {
     }
   });
 
-  it('keeps the card for files alone and skips the Files section without any', async () => {
+  it('shows the Files card without a description', async () => {
     await renderTask({
       description: null,
       files: [
@@ -509,7 +555,7 @@ describe('TaskDetailPage — title bar and description card', () => {
     expect(screen.queryByText('Description')).toBeNull();
   });
 
-  it('keeps the description card for a description alone', async () => {
+  it('shows the description card for a description alone', async () => {
     await renderTask({ description: 'Drain the sump.', consumables: [] });
     expect(screen.getByText('Drain the sump.')).toBeTruthy();
   });

@@ -169,6 +169,45 @@ export function TaskDetailPage(props) {
   // (figure hidden) while loading or when stowage-mgmt isn't reachable.
   const stockById = new Map((stowageItems.data || []).map((i) => [i.id, i]));
 
+  /** @type {import('../components/Table.js').Column[]} */
+  const consumableColumns = [
+    {
+      key: 'item_name',
+      label: 'Item',
+      className: 'col-name',
+      render: (/** @type {import('../types.js').TaskConsumableDTO} */ c) =>
+        html`<a href=${stowageItemUrl(c.item_id)}>${c.item_name}</a>`,
+    },
+    {
+      key: 'qty_per_service',
+      label: 'Quantity',
+      className: 'num',
+      render: (/** @type {import('../types.js').TaskConsumableDTO} */ c) => {
+        const item = stockById.get(c.item_id);
+        // An item stowage-mgmt no longer knows: just the required qty,
+        // uncoloured.
+        if (!item) return html`<span class="muted">${c.qty_per_service}</span>`;
+        // Enough for this job: green, or orange when that still leaves the
+        // item below its restock target.
+        const cls = stockLevel(item, c.qty_per_service);
+        return html`<span
+          class=${'consumables-stock ' + cls}
+          title=${
+            'Need ' +
+            c.qty_per_service +
+            ', ' +
+            item.actual_quantity +
+            ' in stock' +
+            (cls === 'low'
+              ? ' (below target of ' + item.target_quantity + ')'
+              : '')
+          }
+          >${c.qty_per_service + ' / ' + item.actual_quantity}</span
+        >`;
+      },
+    },
+  ];
+
   // With both a recurring interval and a one-time deadline set, the deadline
   // takes a row of its own; on its own it simply is the next thing due.
   const bothTimeDimensions = timeConfigured && dueDateConfigured;
@@ -210,6 +249,23 @@ export function TaskDetailPage(props) {
   const cost = aggregateOf(logRows.map((e) => e.actual_cost));
   const hasTime = isRecorded(task.estimated_hours) || hours.count > 0;
   const hasCost = isRecorded(task.estimated_cost) || cost.count > 0;
+
+  // The gallery is the last card, so it can stretch over whatever columns its
+  // row has left — roughly one per two thumbnails — without displacing any
+  // other card. Schedule is the one card that always shows.
+  const cardsBeforeGallery = [
+    task.description,
+    true,
+    hasRuntime,
+    hasTime,
+    hasCost,
+    consumables.length,
+    documents.length,
+  ].filter(Boolean).length;
+  const galleryColumns = Math.min(
+    Math.ceil(images.length / 2),
+    3 - (cardsBeforeGallery % 3),
+  );
   /**
    * @param {number|null|undefined} estimated
    * @param {import('../types.js').Aggregate} actual
@@ -295,116 +351,10 @@ export function TaskDetailPage(props) {
 
       <div class="detail-grid">
         ${
-          // Nothing to say without a description, files or parts: drop the card.
-          task.description || files.length || consumables.length
+          task.description
             ? html`<div class="card">
-                ${
-                  task.description
-                    ? html`<h3>Description</h3>
-                        <${MarkdownView} markdown=${task.description} />`
-                    : null
-                }
-                ${
-                  documents.length
-                    ? html`<div
-                        style=${task.description ? 'margin-top:16px' : ''}
-                      >
-                        <h3>Files</h3>
-                        <${FileList} files=${documents} urlFor=${fileUrl} />
-                      </div>`
-                    : null
-                }
-                ${
-                  images.length
-                    ? html`<div
-                        style=${
-                          task.description || documents.length
-                            ? 'margin-top:16px'
-                            : ''
-                        }
-                      >
-                        <h3>Gallery</h3>
-                        <${ImageGallery} files=${images} urlFor=${fileUrl} />
-                      </div>`
-                    : null
-                }
-                ${
-                  consumables.length
-                    ? html`<div
-                        style=${
-                          task.description || files.length
-                            ? 'margin-top:16px'
-                            : ''
-                        }
-                      >
-                        <h3>Consumables</h3>
-                        <div class="consumables-table">
-                          <${Table}
-                            columns=${[
-                              {
-                                key: 'item_name',
-                                label: 'Item',
-                                className: 'col-name',
-                                render: (
-                                  /** @type {import('../types.js').TaskConsumableDTO} */ c,
-                                ) =>
-                                  html`<a href=${stowageItemUrl(c.item_id)}
-                                    >${c.item_name}</a
-                                  >`,
-                              },
-                              {
-                                key: 'qty_per_service',
-                                label: 'Quantity',
-                                className: 'num',
-                                render: (
-                                  /** @type {import('../types.js').TaskConsumableDTO} */ c,
-                                ) => {
-                                  const item = stockById.get(c.item_id);
-                                  // An item stowage-mgmt no longer knows: just
-                                  // the required qty, uncoloured.
-                                  if (!item)
-                                    return html`<span class="muted"
-                                      >${c.qty_per_service}</span
-                                    >`;
-                                  // Enough for this job: green, or orange when
-                                  // that still leaves the item below its
-                                  // restock target.
-                                  const cls = stockLevel(
-                                    item,
-                                    c.qty_per_service,
-                                  );
-                                  return html`<span
-                                    class=${'consumables-stock ' + cls}
-                                    title=${
-                                      'Need ' +
-                                      c.qty_per_service +
-                                      ', ' +
-                                      item.actual_quantity +
-                                      ' in stock' +
-                                      (cls === 'low'
-                                        ? ' (below target of ' +
-                                          item.target_quantity +
-                                          ')'
-                                        : '')
-                                    }
-                                    >${
-                                      c.qty_per_service +
-                                      ' / ' +
-                                      item.actual_quantity
-                                    }</span
-                                  >`;
-                                },
-                              },
-                            ]}
-                            rows=${consumables}
-                            rowKey=${(
-                              /** @type {import('../types.js').TaskConsumableDTO} */ c,
-                            ) => c.item_id}
-                          />
-                        </div>
-                      </div>`
-                    : null
-                }
+                <h3>Description</h3>
+                <${MarkdownView} markdown=${task.description} />
               </div>`
             : null
         }
@@ -541,34 +491,63 @@ export function TaskDetailPage(props) {
               `
             : null
         }
-      </div>
 
-      ${
-        hasTime || hasCost
-          ? html`<div class="detail-grid" style="margin-top:16px">
-              ${
-                hasTime
-                  ? html`<div class="card">
-                      <h3>Time</h3>
-                      <${StatTable}
-                        rows=${workRows(task.estimated_hours, hours, formatWorkHours)}
-                      />
-                    </div>`
-                  : null
-              }
-              ${
-                hasCost
-                  ? html`<div class="card">
-                      <h3>Costs</h3>
-                      <${StatTable}
-                        rows=${workRows(task.estimated_cost, cost, formatCost)}
-                      />
-                    </div>`
-                  : null
-              }
-            </div>`
-          : null
-      }
+        ${
+          hasTime
+            ? html`<div class="card">
+                <h3>Time</h3>
+                <${StatTable}
+                  rows=${workRows(task.estimated_hours, hours, formatWorkHours)}
+                />
+              </div>`
+            : null
+        }
+        ${
+          hasCost
+            ? html`<div class="card">
+                <h3>Costs</h3>
+                <${StatTable}
+                  rows=${workRows(task.estimated_cost, cost, formatCost)}
+                />
+              </div>`
+            : null
+        }
+        ${
+          consumables.length
+            ? html`<div class="card">
+                <h3>Consumables</h3>
+                <div class="consumables-table">
+                  <${Table}
+                    columns=${consumableColumns}
+                    rows=${consumables}
+                    rowKey=${(
+                      /** @type {import('../types.js').TaskConsumableDTO} */ c,
+                    ) => c.item_id}
+                  />
+                </div>
+              </div>`
+            : null
+        }
+        ${
+          documents.length
+            ? html`<div class="card">
+                <h3>Files</h3>
+                <${FileList} files=${documents} urlFor=${fileUrl} />
+              </div>`
+            : null
+        }
+        ${
+          images.length
+            ? html`<div
+                class="card card-gallery"
+                style=${'--gallery-columns:' + galleryColumns}
+              >
+                <h3>Gallery</h3>
+                <${ImageGallery} files=${images} urlFor=${fileUrl} />
+              </div>`
+            : null
+        }
+      </div>
 
       <div class="page-header" style="margin-top:24px">
         <h2 class="page-title" style="font-size:17px">Maintenance log</h2>
