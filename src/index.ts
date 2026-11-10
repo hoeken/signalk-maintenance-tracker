@@ -10,6 +10,7 @@ import { RuntimeManager } from './signalk/runtime';
 import { mountApi, Services } from './api/router';
 import { StowageClient } from './stowage/client';
 import { FileStore } from './files/store';
+import { getOpenApi } from './api/openapi';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { version: PLUGIN_VERSION } = require('../package.json');
@@ -48,6 +49,7 @@ export = function (app: any) {
     description:
       'Track recurring boat maintenance tasks with runtime- and time-based intervals.',
     schema,
+    getOpenApi: () => getOpenApi(PLUGIN_VERSION),
 
     start(options: Partial<PluginOptions>) {
       const opts = withDefaults(options);
